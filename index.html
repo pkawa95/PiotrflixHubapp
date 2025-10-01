@@ -91,6 +91,12 @@
     }
     .del-badge.warn{border-color:#3a2f1a;background:linear-gradient(180deg,#4a3314,#3b2a0f);color:#fff3c4}
     .del-badge.ok{border-color:#183a2a;background:linear-gradient(180deg,#144a2f,#0f3b24);color:#d1fae5}
+
+    /* register */
+.link{color:#93c5fd;text-decoration:none;cursor:pointer}
+.link:hover{text-decoration:underline}
+.note{font-size:13px;color:#94a3b8}
+
   </style>
 </head>
 <body>
@@ -104,15 +110,37 @@
 <div class="wrap">
 
   <!-- LOGOWANIE -->
-  <div class="panel" id="loginPanel">
-    <div class="row">
-      <input id="email" type="email" placeholder="email" value="dev@localhost">
-      <input id="password" type="password" placeholder="hasło" value="dev">
-      <button id="loginBtn" class="primary">Zaloguj</button>
-      <button id="logoutBtn" class="">Wyloguj</button>
-      <div class="muted" id="loginMsg"></div>
-    </div>
+<div class="panel" id="loginPanel">
+  <div class="row">
+    <input id="email" type="email" placeholder="email" value="dev@localhost">
+    <input id="password" type="password" placeholder="hasło" value="dev">
+    <button id="loginBtn" class="primary">Zaloguj</button>
+    <button id="logoutBtn" class="">Wyloguj</button>
+    <div class="muted" id="loginMsg"></div>
   </div>
+  <div class="row"><span class="note">Nie masz konta?</span>
+    <a id="showRegister" class="link">Zarejestruj się</a>
+  </div>
+</div>
+
+  <!-- REJESTRACJA -->
+<div class="panel hidden" id="registerPanel">
+  <div class="row">
+    <strong>Rejestracja</strong>
+    <div class="note">Utwórz konto i zaloguj się automatycznie</div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="regEmail" type="email" placeholder="email (np. user@domena.pl)" style="min-width:260px;flex:1">
+    <input id="regPassword" type="password" placeholder="hasło (min. 6 znaków)">
+    <input id="regPassword2" type="password" placeholder="powtórz hasło">
+    <button id="regBtn" class="green">Zarejestruj</button>
+    <div class="muted" id="regMsg"></div>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <span class="note">Masz już konto?</span>
+    <a id="showLogin" class="link">Zaloguj się</a>
+  </div>
+</div>
 
   <!-- PLEX CAST -->
   <div class="panel" id="castPanel">
@@ -1257,6 +1285,83 @@ subsOffBtn.onclick = ()=>subtitlesOff();
     // browse pagination init label
     (function(){ sel('bPrev').disabled = true; sel('bNext').disabled = true; })();
   })();
+
+// --- Toggle: logowanie <-> rejestracja ---
+const registerPanel = sel('registerPanel');
+const loginPanel = sel('loginPanel');
+const showRegisterLink = sel('showRegister');
+const showLoginLink = sel('showLogin');
+
+function showRegister(){ registerPanel.classList.remove('hidden'); loginPanel.classList.add('hidden'); }
+function showLogin(){ loginPanel.classList.remove('hidden'); registerPanel.classList.add('hidden'); }
+
+if (showRegisterLink) showRegisterLink.onclick = showRegister;
+if (showLoginLink) showLoginLink.onclick = showLogin;
+
+  // --- Rejestracja ---
+const regEmail = sel('regEmail');
+const regPassword = sel('regPassword');
+const regPassword2 = sel('regPassword2');
+const regBtn = sel('regBtn');
+const regMsg = sel('regMsg');
+
+function _emailOk(e){ return /^\S+@\S+\.\S+$/.test(String(e||'').trim()); }
+
+async function registerNow(){
+  regMsg.textContent = '';
+  const email = (regEmail.value || '').trim().toLowerCase();
+  const p1 = regPassword.value || '';
+  const p2 = regPassword2.value || '';
+
+  if(!_emailOk(email)){ regMsg.innerHTML = '<span class="err">Nieprawidłowy email.</span>'; return; }
+  if(p1.length < 6){ regMsg.innerHTML = '<span class="err">Hasło min. 6 znaków.</span>'; return; }
+  if(p1 !== p2){ regMsg.innerHTML = '<span class="err">Hasła się różnią.</span>'; return; }
+
+  try{
+    // 1) spróbuj utworzyć konto
+    const regRes = await api('/auth/register', {
+      method:'POST',
+      body: JSON.stringify({ email, password: p1 })
+    });
+
+    // 2) jeśli backend już zwraca tokeny – zaloguj od razu
+    let tokens = regRes && regRes.access_token ? regRes : null;
+
+    // 3) jeśli nie ma tokenu w odpowiedzi – wykonaj login
+    if(!tokens){
+      const j = await api('/auth/login', {
+        method:'POST',
+        body: JSON.stringify({ email, password: p1 })
+      });
+      tokens = j;
+    }
+
+    if(tokens && tokens.access_token){
+      setToken(tokens.access_token);
+      regMsg.innerHTML = '<span class="ok">Konto utworzone. Zalogowano.</span>';
+      // to samo co po loginie:
+      await refreshUser();
+      await loadDevices();
+      await loadAvailable();
+      await loadQueue();
+      await loadTorrents();
+      await loadCastPlayers();
+      await loadCastStatus();
+      showLogin();
+    }else{
+      regMsg.innerHTML = '<span class="ok">Konto utworzone. Zaloguj się.</span>';
+      showLogin();
+    }
+  }catch(e){
+    regMsg.innerHTML = `<span class="err">${e.message||e}</span>`;
+  }
+}
+
+if (regBtn) regBtn.onclick = registerNow;
+['regEmail','regPassword','regPassword2'].forEach(id=>{
+  const el = sel(id); if(!el) return;
+  el.addEventListener('keydown', e=>{ if(e.key==='Enter') registerNow(); });
+});
 </script>
 </body>
 </html>
