@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>App • Dolne menu (karty)</title>
+  <meta name="description" content="SPA z dolnym menu na GitHub Pages – przełączanie kart bez przeładowania strony." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-enter { opacity: 0; transform: translateY(6px); }
+    .tab-enter-active { opacity: 1; transform: translateY(0); transition: all .18s ease; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <!-- HEADER / tytuł -->
+  <header class="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 py-3">
+      <h1 class="text-lg font-semibold">Moja apka • Karty bez przeładowania</h1>
+      <p class="text-xs text-slate-500">GitHub Pages friendly • Single File • No framework</p>
+    </div>
+  </header>
+
+  <!-- GŁÓWNA ZAWARTOŚĆ: sekcje kart -->
+  <main id="views" class="max-w-4xl mx-auto px-4 pt-6 pb-28">
+    <!-- Torrenty -->
+    <section data-view="torrenty" class="hidden">
+      <h2 class="text-xl font-semibold">Torrenty</h2>
+      <p class="text-slate-600 mt-2">Tu później zrobimy listę torrentów / statusy pobrań.</p>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">Placeholder treści dla karty <span class="font-medium">Torrenty</span>.</div>
+    </section>
+
+    <!-- Szukaj -->
+    <section data-view="szukaj" class="hidden">
+      <h2 class="text-xl font-semibold">Szukaj</h2>
+      <p class="text-slate-600 mt-2">W przyszłości: inputy, filtry, wyniki z API.</p>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">Placeholder treści dla karty <span class="font-medium">Szukaj</span>.</div>
+    </section>
+
+    <!-- Dostępne -->
+    <section data-view="dostepne" class="hidden">
+      <h2 class="text-xl font-semibold">Dostępne</h2>
+      <p class="text-slate-600 mt-2">Tu np. lista pozycji gotowych do odtworzenia/pobrania.</p>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">Placeholder treści dla karty <span class="font-medium">Dostępne</span>.</div>
+    </section>
+
+    <!-- Opcje -->
+    <section data-view="opcje" class="hidden">
+      <h2 class="text-xl font-semibold">Opcje</h2>
+      <p class="text-slate-600 mt-2">Ustawienia aplikacji, adres API, token itp. dodamy później.</p>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">Placeholder treści dla karty <span class="font-medium">Opcje</span>.</div>
+    </section>
+  </main>
+
+  <!-- DOLNE MENU (NAVBAR) -->
+  <nav aria-label="Dolne menu" class="fixed bottom-0 inset-x-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur">
+    <ul id="tabbar" class="max-w-4xl mx-auto grid grid-cols-4">
+      <li>
+        <button class="tab-btn w-full flex flex-col items-center gap-1 py-2 text-xs" data-tab="torrenty" aria-controls="view-torrenty" aria-selected="false" role="tab">
+          <!-- ikonka -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          Torrenty
+        </button>
+      </li>
+      <li>
+        <button class="tab-btn w-full flex flex-col items-center gap-1 py-2 text-xs" data-tab="szukaj" aria-controls="view-szukaj" aria-selected="false" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          Szukaj
+        </button>
+      </li>
+      <li>
+        <button class="tab-btn w-full flex flex-col items-center gap-1 py-2 text-xs" data-tab="dostepne" aria-controls="view-dostepne" aria-selected="false" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8 10L4 12"/></svg>
+          Dostępne
+        </button>
+      </li>
+      <li>
+        <button class="tab-btn w-full flex flex-col items-center gap-1 py-2 text-xs" data-tab="opcje" aria-controls="view-opcje" aria-selected="false" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6V4a2 2 0 1 1 4 0v.09c0 .66.38 1.26 1 1.51.55.25 1.2.15 1.65-.3l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.45.45-.55 1.1-.3 1.65.25.63.85 1.01 1.51 1.01H21a2 2 0 1 1 0 4h-.09c-.66 0-1.26.38-1.51 1z"/></svg>
+          Opcje
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <script>
+    // Prosty mini-router kart (hash + localStorage)
+    const DEFAULT_TAB = 'torrenty';
+    const $ = (s, r=document) => r.querySelector(s);
+    const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+    const views = $$('section[data-view]');
+    const buttons = $$('#tabbar .tab-btn');
+
+    function showTab(name) {
+      const toShow = views.find(v => v.dataset.view === name) || views.find(v => v.dataset.view === DEFAULT_TAB);
+      if (!toShow) return;
+
+      // toggle aria + klasy
+      buttons.forEach(btn => {
+        const active = btn.dataset.tab === name;
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        btn.classList.toggle('text-blue-600', active);
+        btn.classList.toggle('font-medium', active);
+      });
+
+      views.forEach(v => v.classList.add('hidden'));
+      toShow.classList.remove('hidden');
+      toShow.classList.add('tab-enter');
+      requestAnimationFrame(() => {
+        toShow.classList.add('tab-enter-active');
+        setTimeout(() => toShow.classList.remove('tab-enter','tab-enter-active'), 180);
+      });
+
+      // pamiętaj wybór
+      localStorage.setItem('ui.tab', name);
+
+      // ustaw hash (dla odświeżenia / linku bez przeładowania)
+      const newHash = `#${name}`;
+      if (location.hash !== newHash) history.replaceState(null, '', newHash);
+    }
+
+    // click handlers
+    buttons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+
+    // start: wybierz z hash lub localStorage
+    const startFrom = (location.hash || '').replace('#','') || localStorage.getItem('ui.tab') || DEFAULT_TAB;
+    showTab(startFrom);
+
+    // obsługa back/forward (bez przeładowania)
+    window.addEventListener('hashchange', () => {
+      const name = (location.hash || '').replace('#','') || DEFAULT_TAB;
+      showTab(name);
+    });
+  </script>
+</body>
+</html>

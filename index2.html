@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>Piotrflix — Torrenty & Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Minimalny, czysty wygląd bez buildów -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0e0f13; color:#eaeaf0; margin:0; }
+    .wrap { max-width: 1100px; margin: 24px auto 80px; padding: 0 16px; }
+    h1 { font-size: 26px; margin: 8px 0 16px; }
+    h2 { font-size: 18px; margin: 18px 0 10px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .card { background: #141621; border: 1px solid #23273a; border-radius: 14px; padding: 14px; }
+    .muted { color:#96a0b5; font-size: 13px; }
+    .ok { color:#4ade80; }
+    .bad { color:#ef4444; }
+    .warn { color:#f59e0b; }
+    input, select, button, textarea {
+      background:#0f1220; color:#eaeaf0; border:1px solid #2a2f45; border-radius:10px; padding:10px 12px;
+      outline:none; font-size:14px;
+    }
+    input:focus, select:focus, textarea:focus { border-color:#5865f2; }
+    button { cursor:pointer; font-weight:600; }
+    button.primary { background:#5865f2; border-color:#5865f2; }
+    button.danger { background:#a11; border-color:#a11; }
+    button.ghost { background:transparent; }
+    .grid { display:grid; gap:8px; }
+    .grid.cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .grid.cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .right { text-align:right; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #23273a; padding:8px 6px; font-size: 14px; vertical-align: middle; }
+    th { text-align:left; color:#a7b0c4; font-weight:600; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    progress { width: 120px; height: 10px; vertical-align: middle; }
+    .pill { display:inline-block; padding:3px 8px; border-radius: 999px; background:#1f2438; color:#cbd5e1; font-size:12px; }
+    .small { font-size:12px; }
+    .section { margin-top:18px; }
+    .toolbar { display:flex; gap:8px; flex-wrap: wrap; align-items:center; }
+    .actions { display:flex; gap:6px; }
+    .nowrap { white-space: nowrap; }
+    .break { word-break: break-word; }
+    .footer { margin-top: 20px; color:#8b93aa;}
+    @media (max-width: 900px) {
+      .grid.cols-3 { grid-template-columns: 1fr; }
+      .grid.cols-2 { grid-template-columns: 1fr; }
+      table { display:block; overflow-x:auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎞️ Piotrflix — Panel testowy (Torrenty + Hub)</h1>
+    <div class="muted">Prosty panel do sprawdzania logowania do Huba i wszystkich funkcji torrentowych lokalnego backendu.</div>
+
+    <!-- Ustawienia baz -->
+    <div class="card section">
+      <h2>⚙️ Ustawienia baz</h2>
+      <div class="grid cols-2">
+        <label>Local API
+          <input id="localBase" placeholder="http://127.0.0.1:5000/" />
+        </label>
+        <label>Hub API
+          <input id="hubBase" placeholder="http://127.0.0.1:8000/" />
+        </label>
+      </div>
+      <div class="toolbar" style="margin-top:8px;">
+        <button class="primary" onclick="saveBases()">Zapisz</button>
+        <span id="basesInfo" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- Hub: logowanie -->
+    <div class="card section">
+      <h2>🔐 Hub — Logowanie</h2>
+      <div class="grid cols-3">
+        <label>E-mail
+          <input id="hubEmail" placeholder="dev@localhost" />
+        </label>
+        <label>Hasło
+          <input id="hubPass" type="password" placeholder="••••••••" />
+        </label>
+        <div class="row" style="align-items:end;">
+          <button class="primary" onclick="hubLogin()">Zaloguj</button>
+          <button class="ghost" onclick="hubWhoami()">whoami</button>
+          <button class="ghost" onclick="hubLogout()">Wyloguj (lokalnie)</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <span>Status: <span id="hubStatus" class="pill">offline</span></span>
+        <span class="muted">Tokens: <span id="tokInfo" class="mono small"></span></span>
+      </div>
+    </div>
+
+    <!-- Device & Heartbeat -->
+    <div class="card section">
+      <h2>🖥️ Device / Heartbeat</h2>
+      <div class="grid cols-3">
+        <label>Device ID (stabilny)
+          <input id="deviceId" />
+        </label>
+        <label>Nazwa urządzenia
+          <input id="deviceName" placeholder="Desktop" />
+        </label>
+        <div class="row" style="align-items:end;">
+          <button onclick="genDevice()">Generuj</button>
+          <button class="primary" onclick="hb(0)">Wyślij heartbeat</button>
+          <button class="ghost" onclick="hb(1)">Heartbeat + PULL</button>
+        </div>
+      </div>
+      <div class="muted small" id="hbOut"></div>
+    </div>
+
+    <!-- Dodaj magnet -->
+    <div class="card section">
+      <h2>➕ Dodaj torrent (magnet)</h2>
+      <div class="grid cols-3">
+        <label>Magnet
+          <input id="magnet" placeholder="magnet:?xt=urn:btih:..." />
+        </label>
+        <label>Źródło/Ścieżka
+          <select id="source">
+            <option value="default">Filmy (domyślnie)</option>
+            <option value="series">Seriale</option>
+          </select>
+        </label>
+        <div class="row" style="align-items:end;">
+          <button class="primary" onclick="addMagnet()">Dodaj</button>
+        </div>
+      </div>
+      <div class="muted small" id="addOut"></div>
+    </div>
+
+    <!-- Status -->
+    <div class="card section">
+      <div class="toolbar">
+        <h2 style="margin:0;">📊 Status torrentów (Local API /status)</h2>
+        <button class="ghost" onclick="loadStatus()">Odśwież</button>
+        <div class="muted" id="statusMeta"></div>
+        <div style="margin-left:auto;" class="row">
+          <label class="row nowrap">
+            Globalny limit:
+            <select id="limitSel" style="margin-left:6px;">
+              <option value="0">Unlimited</option>
+              <option value="1">1 MB/s</option>
+              <option value="2">2 MB/s</option>
+              <option value="5">5 MB/s</option>
+              <option value="10">10 MB/s</option>
+              <option value="15">15 MB/s</option>
+            </select>
+          </label>
+          <button onclick="applyLimit()">Ustaw</button>
+          <span id="limitInfo" class="muted small"></span>
+        </div>
+      </div>
+      <div id="torTableWrap" style="margin-top:8px;">
+        <table id="torTable">
+          <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nazwa</th>
+            <th>Postęp</th>
+            <th>Stan</th>
+            <th>Prędkość</th>
+            <th>ETA</th>
+            <th>Ścieżka</th>
+            <th class="right">Akcje</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="muted small" id="statusErr"></div>
+      </div>
+      <div class="toolbar" style="margin-top:10px;">
+        <button class="primary" onclick="reportToHub()">📤 Report status → Hub</button>
+        <span class="muted small" id="reportOut"></span>
+      </div>
+    </div>
+
+    <!-- Historia -->
+    <div class="card section">
+      <div class="toolbar">
+        <h2 style="margin:0;">📁 Historia</h2>
+        <button class="ghost" onclick="loadHistory()">Odśwież</button>
+      </div>
+      <div id="histWrap" class="small muted"></div>
+    </div>
+
+    <div class="footer muted small">
+      © Piotrflix — panel testowy. Ten plik jest statyczny: wszystkie wywołania idą RESTem do Twojego Local API i Hub API.
+    </div>
+  </div>
+
+<script>
+/* ===================== USTAWIENIA & PAMIĘĆ ===================== */
+const $ = sel => document.querySelector(sel);
+const asMbPerSec = n => `${(+n).toFixed(2)} MB/s`;
+const asKbPerSec = n => `${(+n/1024).toFixed(2)} KB/s`;
+
+function loadBases() {
+  const localBase = localStorage.getItem('local_base') || (window.location.origin + '/');
+  const hubBase   = localStorage.getItem('hub_base')   || 'http://127.0.0.1:8000/';
+  $('#localBase').value = localBase;
+  $('#hubBase').value   = hubBase;
+  $('#basesInfo').textContent = `Local=${localBase} | Hub=${hubBase}`;
+}
+function saveBases() {
+  localStorage.setItem('local_base', $('#localBase').value.trim());
+  localStorage.setItem('hub_base', $('#hubBase').value.trim());
+  $('#basesInfo').textContent = `Zapisano. Local=${$('#localBase').value} | Hub=${$('#hubBase').value}`;
+}
+function baseLocal() { return ($('#localBase').value || window.location.origin + '/').replace(/\/+$/,'/'); }
+function baseHub()   { return ($('#hubBase').value   || 'http://127.0.0.1:8000/').replace(/\/+$/,'/'); }
+
+/* ===================== HUB TOKENS ===================== */
+function loadTokens() {
+  try { return JSON.parse(localStorage.getItem('hub_tokens')||'{}'); } catch(e){ return {}; }
+}
+function saveTokens(t) {
+  localStorage.setItem('hub_tokens', JSON.stringify(t||{}));
+  renderTokenInfo();
+}
+function clearTokens() {
+  localStorage.removeItem('hub_tokens');
+  renderTokenInfo();
+}
+function authHeaders() {
+  const t = loadTokens(); return t.access_token ? { 'Authorization': 'Bearer ' + t.access_token } : {};
+}
+function renderTokenInfo() {
+  const t = loadTokens();
+  $('#tokInfo').textContent = t.access_token ? (`at:${(t.access_token||'').slice(0,12)}… rt:${(t.refresh_token||'').slice(0,12)}…`) : '—';
+}
+async function fetchWithRefresh(url, opt={}) {
+  const r = await fetch(url, {
+    ...opt,
+    headers: { 'Content-Type': 'application/json', ...(opt.headers||{}), ...authHeaders() },
+    credentials: 'omit',
+  });
+  if (r.status !== 401) return r;
+  // try refresh
+  const toks = loadTokens();
+  if (!toks.refresh_token) return r;
+  const rr = await fetch(baseHub() + 'auth/refresh', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: toks.refresh_token })
+  });
+  if (!rr.ok) return r;
+  const nj = await rr.json().catch(()=> ({}));
+  saveTokens(nj);
+  // retry
+  return fetch(url, { ...opt, headers: { 'Content-Type':'application/json', ...(opt.headers||{}), ...authHeaders() }});
+}
+
+/* ===================== DEVICE ===================== */
+function loadDevice() {
+  let d = localStorage.getItem('device_id'); 
+  if (!d) { d = crypto.randomUUID(); localStorage.setItem('device_id', d); }
+  $('#deviceId').value = d;
+  $('#deviceName').value = localStorage.getItem('device_name') || 'Desktop';
+}
+function saveDevice() {
+  localStorage.setItem('device_id', $('#deviceId').value.trim());
+  localStorage.setItem('device_name', $('#deviceName').value.trim() || 'Desktop');
+}
+function genDevice() {
+  $('#deviceId').value = crypto.randomUUID();
+  saveDevice();
+}
+
+/* ===================== HUB AUTH ===================== */
+async function hubLogin() {
+  const email = ($('#hubEmail').value||'').trim();
+  const pass  = ($('#hubPass').value ||'').trim();
+  if (!email || !pass) { alert('Podaj email i hasło'); return; }
+  try {
+    const r = await fetch(baseHub() + 'auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username: email, password: pass })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    saveTokens(j);
+    $('#hubStatus').textContent = 'online'; $('#hubStatus').className='pill ok';
+    hubWhoami();
+  } catch(e) {
+    $('#hubStatus').textContent = 'offline'; $('#hubStatus').className='pill bad';
+    alert('Login error: ' + e.message);
+  }
+}
+async function hubWhoami() {
+  try {
+    const r = await fetchWithRefresh(baseHub() + 'auth/whoami', { method:'GET' });
+    const j = await r.json();
+    if (r.ok && j.ok) {
+      $('#hubStatus').textContent = 'online'; $('#hubStatus').className='pill ok';
+      $('#tokInfo').textContent = `user:${j.email} id:${j.user_id}`;
+    } else {
+      $('#hubStatus').textContent = 'offline'; $('#hubStatus').className='pill bad';
+    }
+  } catch(e) {
+    $('#hubStatus').textContent = 'offline'; $('#hubStatus').className='pill bad';
+  }
+}
+function hubLogout() {
+  clearTokens();
+  $('#hubStatus').textContent = 'offline'; $('#hubStatus').className='pill';
+}
+
+/* ===================== HEARTBEAT ===================== */
+async function hb(pull=0) {
+  saveDevice();
+  const payload = {
+    device_id: $('#deviceId').value.trim(),
+    device_type: 'desktop',
+    name: $('#deviceName').value.trim() || 'Desktop',
+    meta: {}
+  };
+  try {
+    const url = baseHub() + `devices/heartbeat?pull=${pull?1:0}&limit=20`;
+    const r = await fetchWithRefresh(url, { method:'POST', body: JSON.stringify(payload) });
+    const j = await r.json();
+    $('#hbOut').textContent = 'OK: ' + JSON.stringify(j);
+  } catch(e) {
+    $('#hbOut').textContent = 'ERR: ' + e.message;
+  }
+}
+
+/* ===================== LOKALNE API: MAGNET / STATUS / LIMIT / HISTORIA ===================== */
+async function addMagnet() {
+  const magnet = ($('#magnet').value||'').trim();
+  const source = $('#source').value;
+  if (!magnet) { alert('Wklej magnet'); return; }
+  try {
+    const r = await fetch(baseLocal(), {
+      method:'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ magnet, source })
+    });
+    $('#addOut').textContent = r.ok ? '✅ Dodano (sprawdź /status)' : '❌ Błąd dodawania';
+    if (r.ok) { $('#magnet').value=''; loadStatus(); }
+  } catch(e) {
+    $('#addOut').textContent = '❌ ' + e.message;
+  }
+}
+
+function fmtSpeed(bps) {
+  const kb = (+bps)/1024.0;
+  return (kb>=1024) ? `${(kb/1024).toFixed(2)} MB/s` : `${kb.toFixed(2)} KB/s`;
+}
+function fmtEta(s) {
+  s = parseInt(s||0,10); if (s<=0) return '—';
+  const m = Math.floor(s/60), h = Math.floor(m/60); s = s%60;
+  if (h>0) return `${h}h ${m%60}m`;
+  if (m>0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+async function loadStatus() {
+  $('#statusErr').textContent = '';
+  $('#statusMeta').textContent = 'ładowanie…';
+  try {
+    const r = await fetch(baseLocal() + 'status', { method:'GET' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    const entries = Object.entries(j||{});
+    const tbody = $('#torTable tbody');
+    tbody.innerHTML='';
+    let total = 0, act = 0;
+    entries.forEach(([tid, t]) => {
+      const tr = document.createElement('tr');
+      const prog = parseFloat(t.progress||0);
+      const speed = parseFloat(t.download_payload_rate||0);
+      total += speed; if ((t.state||'').toLowerCase().includes('download')) act += 1;
+      tr.innerHTML = `
+        <td class="mono small break">${tid}</td>
+        <td class="break">${t.name||''}</td>
+        <td class="nowrap">
+          <progress max="100" value="${prog.toFixed(1)}"></progress>
+          <span class="small">${prog.toFixed(1)}%</span>
+        </td>
+        <td>${t.state||''}</td>
+        <td>${fmtSpeed(speed)}</td>
+        <td>${fmtEta(t.eta)}</td>
+        <td class="small break">${t.download_location||'—'}</td>
+        <td class="right actions">
+          <button onclick="toggleTor('${tid}')">⏯️</button>
+          <button class="danger" onclick="removeTor('${tid}',false)">🗑️</button>
+          <button class="danger" onclick="removeTor('${tid}',true)">🗑️+📁</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    $('#statusMeta').textContent = `Torrenty: ${entries.length} • Aktywne: ${act} • Suma prędkości: ${asKbPerSec(total)}`;
+  } catch(e) {
+    $('#statusErr').textContent = '❌ ' + e.message;
+    $('#statusMeta').textContent = '';
+  }
+}
+
+async function toggleTor(id) {
+  try {
+    const r = await fetch(baseLocal() + 'toggle/' + encodeURIComponent(id), { method:'POST' });
+    await loadStatus();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+async function removeTor(id, withData) {
+  if (!confirm('Na pewno usunąć torrent' + (withData?' + dane?':''))) return;
+  try {
+    const r = await fetch(baseLocal() + 'remove/' + encodeURIComponent(id) + '?data=' + (withData?'true':'false'), { method:'POST' });
+    await loadStatus();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function applyLimit() {
+  const val = $('#limitSel').value;
+  const mbs = parseInt(val,10) || 0;
+  try {
+    const r = await fetch(baseLocal() + 'set-global-limit', {
+      method:'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ limit: mbs })
+    });
+    const j = await r.json();
+    if (r.ok) $('#limitInfo').textContent = `OK: ${(j.limit_mbs||0)>0 ? (j.limit_mbs+' MB/s') : 'Unlimited'}`;
+    else $('#limitInfo').textContent = 'Błąd';
+  } catch(e) {
+    $('#limitInfo').textContent = '❌ ' + e.message;
+  }
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch(baseLocal() + 'history', { method:'GET' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    const items = (j.history||[]).slice(0,100);
+    $('#histWrap').textContent = JSON.stringify(items, null, 2);
+  } catch(e) {
+    $('#histWrap').textContent = '❌ ' + e.message;
+  }
+}
+
+/* ===================== REPORT → HUB /torrents/status/report ===================== */
+/* Mapujemy: local /status -> Hub StatusReportIn { device_id, items[] } */
+async function reportToHub() {
+  $('#reportOut').textContent = 'wysyłam…';
+  try {
+    const r = await fetch(baseLocal() + 'status');       // pobierz lokalny status
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'status HTTP ' + r.status);
+    // mapowanie: klucz to info_hash/ID
+    const items = Object.entries(j||{}).map(([tid, t]) => ({
+      info_hash: tid,
+      name: t.name || '',
+      magnet_uri: null,
+      display_title: t.name || '',
+      image_url: null,
+      progress: Math.max(0, Math.min(1, parseFloat(t.progress||0)/100.0)),
+      state: String(t.state||'unknown').toLowerCase(),
+      dl_speed: parseInt(t.download_payload_rate||0,10),
+      ul_speed: 0,
+      eta: parseInt(t.eta||-1,10),
+      peers: 0,
+      seeds: 0,
+      size_bytes: 0,
+      downloaded_bytes: 0,
+      uploaded_bytes: 0,
+      ratio: 0.0,
+      save_path: t.download_location || '',
+      error: null
+    }));
+    const body = { device_id: $('#deviceId').value.trim(), items };
+    const rr = await fetchWithRefresh(baseHub() + 'torrents/status/report', {
+      method:'POST', body: JSON.stringify(body)
+    });
+    const jj = await rr.json();
+    if (!rr.ok) throw new Error(jj.detail || rr.statusText);
+    $('#reportOut').textContent = '✅ OK: ' + JSON.stringify(jj);
+  } catch(e) {
+    $('#reportOut').textContent = '❌ ' + e.message;
+  }
+}
+
+/* ===================== INIT ===================== */
+(function init(){
+  loadBases(); renderTokenInfo(); loadDevice();
+  hubWhoami();
+  loadStatus(); loadHistory();
+})();
+</script>
+</body>
+</html>
