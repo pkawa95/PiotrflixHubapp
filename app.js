@@ -58,25 +58,48 @@ const activatePane = (name) => {
 };
 
 const bindAuthUI = () => {
-  const card = authCard();
+  const card = document.getElementById("auth-card");
   if (!card) return;
-  authTabsSel().forEach(btn => btn.addEventListener("click", () => activatePane(btn.dataset.tabTarget)));
 
-  // Swipe to switch (auth)
+  // Delegacja clicków na zakładki
+  card.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest(".auth-tab");
+    if (!tabBtn || !card.contains(tabBtn)) return;
+    const name = tabBtn.dataset.tabTarget;
+    if (!name || name === currentPane) return;
+    activatePane(name);
+  });
+
+  // Swipe (zostawiamy jak było)
   let startX = 0; let startY = 0; let dx = 0; let dy = 0; const threshold = 40;
-  card.addEventListener("touchstart", (e) => { const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; dx = dy = 0; }, { passive: true });
-  card.addEventListener("touchmove", (e) => { const t = e.changedTouches[0]; dx = t.clientX - startX; dy = t.clientY - startY; }, { passive: true });
+  card.addEventListener("touchstart", (e) => {
+    const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; dx = dy = 0;
+  }, { passive: true });
+  card.addEventListener("touchmove", (e) => {
+    const t = e.changedTouches[0]; dx = t.clientX - startX; dy = t.clientY - startY;
+  }, { passive: true });
   card.addEventListener("touchend", () => {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-      const names = ["login", "register"]; const i = names.indexOf(currentPane);
+      const names = ["login", "register"];
+      const i = names.indexOf(currentPane);
       const next = dx < 0 ? Math.min(i + 1, names.length - 1) : Math.max(i - 1, 0);
       activatePane(names[next]);
     }
   });
+
+  // Ustaw stan początkowy zgodnie z DOM
+  const initiallyVisible = card.querySelector(".form-pane:not(.is-hidden)")?.dataset.pane || "login";
+  activatePane(initiallyVisible);
 };
 
 // Validate helpers
-const setError = (id, msg) => { const el = document.querySelector(`[data-error-for='${id}']`); if (el) el.textContent = msg || ""; };
+const setError = (id, msg) => {
+  const el = document.querySelector(`[data-error-for='${id}']`);
+  if (el) el.textContent = msg || "";
+  const input = document.getElementById(id);
+  const group = input ? input.closest('.input-group') : null;
+  if (group) group.classList.toggle('has-error', !!msg);
+};
 const required = (val) => !!(val && String(val).trim().length);
 
 // Login
