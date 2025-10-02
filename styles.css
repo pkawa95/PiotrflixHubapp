@@ -1384,18 +1384,12 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
   }
 }
 
-/* ====== SEARCH — tylko brakujące style dla tej sekcji (bez duplikatów) ====== */
+/* ====== SEARCH — dopinki (bez nadpisywania globalnego tła) ====== */
 
-/* Tło i spacing sekcji (spójnie z torrentami) */
-#section-search{
-  padding: 10px 12px 100px;
-  background:
-    radial-gradient(1200px 800px at -20% -20%, #0c1631 0%, transparent 60%),
-    radial-gradient(900px 700px at 120% -10%, #0c1a38 0%, transparent 60%),
-    linear-gradient(180deg, var(--tx-bg, #0b1021), #0e1630);
-}
+/* 🔑 transparent – sekcja nie ustawia własnego tła */
+#section-search { background: transparent !important; }
 
-/* Input pod styl selectów */
+/* Inputs w stylu Twoich selectów */
 #section-search .sx-input{
   appearance:none;
   border:1px solid var(--tx-border, #1b2540);
@@ -1413,7 +1407,7 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
   box-shadow: 0 0 0 3px rgba(59,130,246,.35);
 }
 
-/* Select (ciemny: czarne tło + biały tekst + niebieski hover/focus) */
+/* Select w trybie dark: czarne tło + biały tekst */
 #section-search .select{
   background: #070a12;
   color: #fff;
@@ -1427,7 +1421,7 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
 #section-search .select:focus{ border-color: var(--tx-accent, #3b82f6); box-shadow: 0 0 0 3px rgba(59,130,246,.35); }
 #section-search .select option{ background:#070a12; color:#fff; }
 
-/* Karty wyników (korzystamy z .qcard + dopinki) */
+/* Karty wyników – dopinki */
 #section-search .qcard__title{
   margin: 0 0 4px;
   font-weight: 800;
@@ -1442,7 +1436,7 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-/* Toast (auto-znikający) */
+/* Toast */
 #section-search .sx-toast{
   position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
   min-width: 200px; max-width: 90vw;
@@ -1455,8 +1449,3 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
 }
 #section-search .sx-toast.is-show{ opacity: 1; transform: translateX(-50%) translateY(0); }
 #section-search .sx-toast.is-error{ border-color:#7a2430; color:#ffe4e6; }
-
-/* Responsywka drobna */
-@media (max-width: 420px){
-  #section-search .tx-toolbar{ gap:6px; }
-}

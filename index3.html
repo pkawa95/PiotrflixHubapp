@@ -325,6 +325,7 @@
   </div>
 </section>
 
+<!-- ===================== WYSZUKAJ (sekcja) ===================== -->
 <section id="section-search" hidden aria-hidden="true">
   <div class="tx-container">
 
@@ -340,11 +341,13 @@
       </div>
     </div>
 
-    <!-- Toolbar: wspólne pole + jakość (tylko YTS) + przycisk -->
+    <!-- Toolbar -->
     <div class="tx-toolbar" id="sx-toolbar">
       <div class="tx-group" style="flex:1; min-width: 220px;">
         <label for="sx-q" class="tx-label">Wyszukaj tytuł</label>
-        <input id="sx-q" class="sx-input" type="search" placeholder="np. Diuna / Rocky / The Office…" inputmode="search" autocomplete="off">
+        <input id="sx-q" class="sx-input" type="search"
+               placeholder="np. Obecność 2 / Rocky II / The Office"
+               inputmode="search" autocomplete="off">
       </div>
 
       <div class="tx-group" id="sx-quality-wrap" aria-hidden="false">
@@ -369,6 +372,9 @@
   <!-- Toast -->
   <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
 </section>
+
+
+      
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
     </main>
