@@ -860,3 +860,139 @@ document.addEventListener('DOMContentLoaded', () => {
   // pierwszy render (poza autostartem loadDevices)
   setTimeout(()=>{ setTab('active'); }, 0);
 })();
+
+
+/* ===================== Torrenty: zakładka KOLEJKA (status=new) ===================== */
+(function(){
+  const $ = (s, r=document)=>r.querySelector(s);
+  const torTabs      = $('#torTabs');
+  const torActiveBox = $('#torActiveBox');
+  const torQueueBox  = $('#torQueueBox');
+  const tRefreshBtn2 = $('#tRefresh');
+  const tAutoBtn2    = $('#tAuto');
+
+  let torTab = 'active';
+  let torAutoTimer = null;
+
+  function activeDevice(){ return localStorage.getItem("pf_device") || ""; }
+
+  function whenText(ts){
+    if(!ts) return '';
+    try{ return new Date(ts).toLocaleString(); }catch{ return String(ts); }
+  }
+
+  function pickMeta(row){
+    let title = row.display_title || '';
+    let image = row.image_url || '';
+    const p = row.payload || {};
+    if(!title) title = p.display_title || p.title || (p.meta?.display_title) || (p.meta?.title) || '';
+    if(!image) image = p.image_url || p.image || p.poster || p.poster_url || p.thumb || (p.meta?.image_url) || (p.meta?.poster_url) || '';
+    return { title, image };
+  }
+
+  async function loadQueueNew(){
+    if (!torQueueBox) return;
+    torQueueBox.innerHTML = '<div class="muted" style="padding:6px 2px">Ładuję…</div>';
+
+    const params = new URLSearchParams({ status:'new', limit:'200' });
+    const dev = activeDevice();
+    if (dev) params.set('device_id', dev);
+
+    try{
+      const res = await api('/queue/list?' + params.toString(), { method:'GET' });
+      const items = Array.isArray(res) ? res : (res.items || []);
+
+      if (!items.length){
+        torQueueBox.innerHTML = '<div class="muted" style="padding:6px 2px">Brak nowych zadań w kolejce.</div>';
+        return;
+      }
+
+      const html = items.map(row=>{
+        const meta = pickMeta(row);
+        const title = (meta.title||'—').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const img = meta.image ? `<img class="queue-thumb" src="${meta.image}" alt="">` : `<div class="queue-thumb"></div>`;
+        const added = whenText(row.created_at);
+        return `
+          <div class="queue-item">
+            ${img}
+            <div>
+              <div class="queue-title">${title}</div>
+              <div class="queue-meta">dodano: ${added}${row.device_id?` • <code class="k">${row.device_id}</code>`:''}</div>
+            </div>
+            <div class="queue-actions">
+              <button class="red" data-del="${row.id}">Usuń</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      torQueueBox.innerHTML = html;
+
+      // delegacja kliknięć w "Usuń"
+      torQueueBox.addEventListener('click', async (e)=>{
+        const b = e.target.closest('button[data-del]');
+        if (!b) return;
+        const id = b.getAttribute('data-del');
+        if (!confirm(`Na pewno usunąć task ${id}?`)) return;
+        try{
+          await api(`/queue/${id}`, { method:'DELETE' });
+          await loadQueueNew(); // odśwież listę
+        }catch(err){
+          alert('Delete error: ' + (err.message || err));
+        }
+      }, { once:true });
+
+    }catch(e){
+      torQueueBox.innerHTML = `<div class="err" style="padding:6px 2px">${e.message||e}</div>`;
+    }
+  }
+
+  function setTorTab(tab){
+    torTab = (tab==='queue') ? 'queue' : 'active';
+    torTabs?.querySelectorAll('.search-tab').forEach(b=>b.classList.remove('is-active'));
+    const btn = torTabs?.querySelector(`[data-tor-tab="${torTab}"]`); if(btn) btn.classList.add('is-active');
+
+    if (torTab === 'active'){
+      torActiveBox.hidden = false;
+      torQueueBox.hidden = true;
+      // istniejąca funkcja z Twojego kodu
+      if (typeof loadTorrents === 'function') loadTorrents();
+    } else {
+      torActiveBox.hidden = true;
+      torQueueBox.hidden = false;
+      loadQueueNew();
+    }
+  }
+
+  // przełączanie zakładek
+  torTabs?.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-tor-tab]');
+    if (!b) return;
+    setTorTab(b.getAttribute('data-tor-tab'));
+  });
+
+  // popraw „Odśwież” aby działał kontekstowo (nadpisujemy delikatnie handler)
+  if (tRefreshBtn2){
+    tRefreshBtn2.onclick = ()=>{
+      if (torTab === 'active') { if (typeof loadTorrents === 'function') loadTorrents(); }
+      else loadQueueNew();
+    };
+  }
+
+  // Auto: przełączany na aktywną zakładkę
+  if (tAutoBtn2){
+    tAutoBtn2.onclick = ()=>{
+      if (torAutoTimer){ clearInterval(torAutoTimer); torAutoTimer=null; tAutoBtn2.textContent='Auto: OFF'; return; }
+      tAutoBtn2.textContent='Auto: ON';
+      const tick = ()=>{ if (torTab==='active'){ if (typeof loadTorrents==='function') loadTorrents(); } else { loadQueueNew(); } };
+      tick();
+      torAutoTimer = setInterval(tick, 4000);
+    };
+  }
+
+  // gdy zmienisz urządzenie w „Urządzenia (klienci)” – doładuj widok KOLEJKA, jeśli aktywny
+  const devSel = document.getElementById('deviceSel');
+  devSel?.addEventListener('change', ()=>{ if (torTab==='queue') loadQueueNew(); });
+
+  // start: zostań na „AKTYWNE”
+  setTorTab('active');
+})();
