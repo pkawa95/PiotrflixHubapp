@@ -10,7 +10,7 @@
 
   <!-- ========== AUTH ========== -->
   <section id="auth" class="auth-screen">
-    <img src="/static/logo.png" alt="PiotrFlix" class="auth-logo" />
+    <img src="assets/logo.png" alt="PiotrFlix" class="auth-logo" />
 
     <div class="auth-tabs" role="tablist" aria-label="Przełącz logowanie i rejestrację">
       <button class="tab active" id="tab-login" data-tab="login" aria-selected="true">Zaloguj</button>
@@ -69,7 +69,7 @@
     </form>
 
     <footer class="auth-footer">
-      <img src="/static/icon.png" alt="" class="auth-icon">
+      <img src="assets/icon.png" alt="" class="auth-icon">
       <span>© PiotrFlix 2025</span>
     </footer>
   </section>
@@ -87,7 +87,7 @@
     <!-- TORRENTS -->
     <section class="page" data-page="torrents">
       <div class="page-head">
-        <img src="/static/logo.png" class="page-logo" alt="">
+        <img src="assets/logo.png" class="page-logo" alt="">
         <h2>Torrenty</h2>
       </div>
 
@@ -119,14 +119,10 @@
         </div>
 
         <!-- Kolejka -->
-        <div id="tQueue" class="t-list">
-          <!-- wypełnia JS -->
-        </div>
+        <div id="tQueue" class="t-list"></div>
 
         <!-- Aktywne -->
-        <div id="tActive" class="t-list hidden">
-          <!-- wypełnia JS -->
-        </div>
+        <div id="tActive" class="t-list hidden"></div>
       </div>
     </section>
 
@@ -139,13 +135,13 @@
       <div class="panel">
         <div class="segmented" id="providerSeg">
           <button data-provider="yts_html" class="active">
-            <img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""> Filmy – YTS HTML
+            <img src="assets/svg/film-gallery-svgrepo-com.svg" alt=""> Filmy – YTS HTML
           </button>
           <button data-provider="tpb_premium">
-            <img src="/static/svg/secure-download-svgrepo-com.svg" alt=""> Filmy+ – TPB MOVIES
+            <img src="assets/svg/secure-download-svgrepo-com.svg" alt=""> Filmy+ – TPB MOVIES
           </button>
           <button data-provider="tpb_series">
-            <img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""> Seriale – TPB SERIES
+            <img src="assets/svg/film-gallery-svgrepo-com.svg" alt=""> Seriale – TPB SERIES
           </button>
         </div>
 
@@ -153,7 +149,7 @@
           <div class="field grow">
             <label>Szukaj tytułu</label>
             <div class="with-icon">
-              <img src="/static/svg/search-alt-2-svgrepo-com.svg" class="in-icon" alt="">
+              <img src="assets/svg/search-alt-2-svgrepo-com.svg" class="in-icon" alt="">
               <input id="sQuery" placeholder="np. Harry Potter">
             </div>
           </div>
@@ -177,7 +173,7 @@
     <section class="page hidden" data-page="available">
       <div class="page-head">
         <h2>Dostępne</h2>
-        <img src="/static/svg/film-gallery-svgrepo-com.svg" class="page-icon" alt="">
+        <img src="assets/svg/film-gallery-svgrepo-com.svg" class="page-icon" alt="">
       </div>
 
       <div class="panel row wrap">
@@ -212,7 +208,7 @@
     <section class="page hidden" data-page="settings">
       <div class="page-head">
         <h2>Opcje</h2>
-        <img src="/static/svg/settings-svgrepo-com.svg" class="page-icon" alt="">
+        <img src="assets/svg/settings-svgrepo-com.svg" class="page-icon" alt="">
       </div>
 
       <div class="panel">
@@ -224,6 +220,21 @@
           </div>
           <button class="btn" id="saveBase">Zapisz</button>
         </div>
+
+        <div class="row">
+          <div class="field">
+            <label>Torrent device_id</label>
+            <input id="deviceIdInput" placeholder="np. NAS-01">
+            <p class="muted">Używany przy komendach (pauza, limit, usuń...)</p>
+          </div>
+          <div class="field">
+            <label>Plex client_id</label>
+            <input id="plexClientInput" placeholder="np. com.plexapp.android / UUID">
+            <p class="muted">Przechowywany na przyszłe funkcje CAST</p>
+          </div>
+          <button class="btn" id="saveDevices">Zapisz urządzenia</button>
+        </div>
+
         <div class="row">
           <button class="btn" id="toggleTheme">Przełącz jasny/ciemny</button>
         </div>
@@ -233,10 +244,10 @@
 
   <!-- Bottom nav -->
   <nav class="bottom-nav hidden" id="bottomNav">
-    <button data-target="torrents" class="active"><img src="/static/svg/secure-download-svgrepo-com.svg" alt=""><span>Torrenty</span></button>
-    <button data-target="search"><img src="/static/svg/search-alt-2-svgrepo-com.svg" alt=""><span>Wyszukaj</span></button>
-    <button data-target="available"><img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""><span>Dostępne</span></button>
-    <button data-target="settings"><img src="/static/svg/settings-svgrepo-com.svg" alt=""><span>Opcje</span></button>
+    <button data-target="torrents" class="active"><img src="assets/svg/secure-download-svgrepo-com.svg" alt=""><span>Torrenty</span></button>
+    <button data-target="search"><img src="assets/svg/search-alt-2-svgrepo-com.svg" alt=""><span>Wyszukaj</span></button>
+    <button data-target="available"><img src="assets/svg/film-gallery-svgrepo-com.svg" alt=""><span>Dostępne</span></button>
+    <button data-target="settings"><img src="assets/svg/settings-svgrepo-com.svg" alt=""><span>Opcje</span></button>
   </nav>
 
   <script src="app.js"></script>
