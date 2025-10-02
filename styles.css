@@ -795,3 +795,80 @@ html[data-theme="light"] .tbar__select {
 
 /* stan aktualizacji – bez migania */
 .tlist.updating, .qlist.updating { opacity: .92; transition: opacity .12s ease; }
+
+/* ===== Wyśrodkowanie i szerokość kontenera sekcji ===== */
+.tgrid--container { max-width: 1340px; margin: 12px auto 96px; padding: 0 12px; }
+
+/* Sticky tabs (bez niczego więcej u góry) */
+.tsticky { position: sticky; top: 0; z-index: 60; padding: 8px 6px;
+  background: linear-gradient(180deg, var(--card-strong), color-mix(in oklab, var(--card) 75%, transparent));
+  border-bottom: 1px solid var(--border); backdrop-filter: blur(16px) saturate(130%); -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+.tsticky__tabs { display: flex; justify-content: center; gap: 6px; padding: 4px; margin: 0 auto;
+  border-radius: 999px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+}
+.tsticky__tab { appearance: none; border: 0; cursor: pointer; padding: 10px 16px; border-radius: 999px;
+  background: transparent; color: var(--muted); font-weight: 800;
+}
+.tsticky__tab.is-active { color:#fff; background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 8px 20px rgba(124,58,237,.28), 0 4px 12px rgba(6,182,212,.22);
+}
+
+/* Pasek narzędzi */
+.tbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 12px 6px 8px; }
+.tbar__left { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.tbar__right { color:var(--muted); font-weight:700; }
+.tbar__field { display:grid; gap:4px; }
+.tbar__label { font-size:.85rem; color:var(--muted); }
+
+/* Selecty – ciemny i jasny czytelny */
+.tbar__select { appearance:none; padding:12px 14px; border-radius:12px; border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  color:var(--fg); box-shadow: inset 0 2px 8px rgba(0,0,0,.15);
+}
+.tbar__select:focus-visible { outline:none; box-shadow: var(--focus); }
+html[data-theme="light"] .tbar__select { background:#fff; color:#0f172a; border-color: rgba(0,0,0,.08); }
+
+/* Feedback */
+.tlimit__feedback { margin:6px 6px 0; font-size:.95rem; color:var(--muted); }
+
+/* Listy – szerzej i czytelniej */
+.tlist, .qlist { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; padding: 8px 6px; }
+.empty { text-align:center; color:var(--muted); padding:18px; }
+
+/* Karta (wycentrowana zawartość kolumny) */
+.tcard, .qcard {
+  display:grid; grid-template-columns: 120px 1fr auto; gap:14px; align-items:center;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  border:1px solid var(--border); border-radius:18px; padding:14px;
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.tcard__img, .qcard__img { width:120px; height:180px; border-radius:14px; object-fit:cover;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+}
+.tcard__body { display:grid; gap:8px; align-content:center; }
+.tcard__title, .qcard__title { margin:0; font-size:1.05rem; line-height:1.25; }
+.tcard__meta, .qcard__meta { display:flex; flex-wrap:wrap; gap:10px; color:var(--muted); font-size:.95rem; }
+
+.progress { height:10px; background: rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+.progress__bar { height:100%; background: linear-gradient(90deg, var(--primary-2), var(--primary)); }
+.progress__label { font-size:.9rem; color:var(--muted); }
+
+.tcard__actions, .qcard__actions { display:grid; gap:8px; align-content:center; }
+.btn--ghost { background:transparent; border:1px solid var(--border); color:var(--fg); padding:9px 12px; border-radius:12px; cursor:pointer; }
+.btn--danger { background: linear-gradient(135deg,#ef4444,#f43f5e); color:#fff; border:0; padding:9px 12px; border-radius:12px; cursor:pointer; }
+
+/* Badge stanu */
+.tbadge { display:inline-grid; grid-auto-flow:column; gap:6px; align-items:center; }
+.tbadge__dot { width:10px; height:10px; border-radius:999px; background: var(--warning); }
+.tbadge--ok .tbadge__dot { background: var(--success); }
+
+/* Subtelny stan aktualizacji – bez „błysku” */
+.tlist.updating, .qlist.updating { opacity:.96; transition: opacity .12s ease; }
+
+/* Mniejsze ekrany */
+@media (max-width: 560px){
+  .tcard, .qcard { grid-template-columns: 96px 1fr; }
+  .tcard__actions, .qcard__actions { grid-column: 1 / -1; grid-auto-flow: column; justify-content: end; }
+}

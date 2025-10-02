@@ -265,7 +265,7 @@
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
  <section id="section-torrents" role="tabpanel" aria-hidden="true">
-  <!-- TYLKO PRZEŁĄCZNIK SEKCJI -->
+  <!-- TABS: tylko przełącznik sekcji u góry -->
   <div class="tsticky">
     <div class="tsticky__tabs" role="tablist" aria-label="Torrenty / Kolejka">
       <button class="tsticky__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">⚡ Torrenty</button>
@@ -273,8 +273,8 @@
     </div>
   </div>
 
-  <!-- ZAWARTOŚĆ -->
-  <div class="tgrid tgrid--one">
+  <!-- KONTENER (wyśrodkowany, większa szerokość) -->
+  <div class="tgrid tgrid--container">
 
     <!-- TORRENTS -->
     <section id="t-view" class="tview" data-view="torrents" aria-live="polite">
@@ -308,7 +308,7 @@
             </select>
           </label>
 
-          <button id="t-refresh" class="btn btn--primary tbar__btn" type="button" title="Odśwież">Odśwież</button>
+          <button id="t-refresh" class="btn btn--primary tbar__btn" type="button">Odśwież</button>
         </div>
         <div class="tbar__right">
           <span id="t-agg" class="tbar__agg" aria-live="polite"></span>
@@ -320,7 +320,7 @@
       <div id="t-empty" class="empty" hidden>Brak torrentów do wyświetlenia.</div>
     </section>
 
-    <!-- QUEUE: tylko NEW -->
+    <!-- QUEUE (tylko NEW) -->
     <section id="q-view" class="tview" data-view="queue" hidden aria-live="polite">
       <div class="tbar">
         <div class="tbar__left">
