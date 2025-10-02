@@ -264,82 +264,64 @@
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
- <section id="section-torrents" role="tabpanel" aria-hidden="true">
-  <!-- TABS: tylko przełącznik sekcji u góry -->
-  <div class="tsticky">
-    <div class="tsticky__tabs" role="tablist" aria-label="Torrenty / Kolejka">
-      <button class="tsticky__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">⚡ Torrenty</button>
-      <button class="tsticky__tab" data-tx-tab="queue" role="tab" aria-selected="false">📦 Kolejka</button>
+<!-- ===== Sekcja: TORRENTY / KOLEJKA (przełącznik + content) ===== -->
+<section id="section-torrents" class="section active" aria-label="Torrenty i kolejka">
+  <div class="tgrid--container">
+
+    <!-- Pasek sticky z logo i zakładkami -->
+    <header class="tbar tbar--sticky">
+      <div class="tbar__brand">
+        <img src="static/logo.png" alt="PiotrFlix" class="tbar__logo" />
+      </div>
+      <nav class="tbar__tabs" role="tablist" aria-label="Widok">
+        <button class="tbar__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">Torrenty</button>
+        <button class="tbar__tab" data-tx-tab="queue" role="tab" aria-selected="false">Kolejka</button>
+      </nav>
+    </header>
+
+    <!-- PASEK NARZĘDZI (Torrenty) -->
+    <div class="tbar tbar--tools" data-tx-tools="torrents">
+      <div class="tbar__group">
+        <label for="tx-sort" class="tbar__label">Sortuj:</label>
+        <select id="tx-sort" class="select">
+          <option value="name">Nazwa</option>
+          <option value="progress">Postęp</option>
+          <option value="state">Stan</option>
+        </select>
+      </div>
+
+      <div class="tbar__group">
+        <label for="tx-speed" class="tbar__label">🌐 Ogranicz pobieranie:</label>
+        <select id="tx-speed" class="select">
+          <option value="0">Bez limitu</option>
+          <option value="1">1 MB/s</option>
+          <option value="2">2 MB/s</option>
+          <option value="5">5 MB/s</option>
+          <option value="10">10 MB/s</option>
+          <option value="15">15 MB/s</option>
+        </select>
+      </div>
+
+      <div id="tx-speed-feedback" class="tbar__hint"></div>
     </div>
-  </div>
 
-  <!-- KONTENER (wyśrodkowany, większa szerokość) -->
-  <div class="tgrid tgrid--container">
+    <!-- Lista TORRENTÓW -->
+    <div id="tx-torrents" class="tlist" role="region" aria-live="polite"></div>
 
-    <!-- TORRENTS -->
-    <section id="t-view" class="tview" data-view="torrents" aria-live="polite">
-      <div class="tbar">
-        <div class="tbar__left">
-          <label class="tbar__field">
-            <span class="tbar__label">Urządzenie</span>
-            <select id="t-devices" class="tbar__select" aria-label="Wybierz urządzenie">
-              <option value="">Wszystkie</option>
-            </select>
-          </label>
-
-          <label class="tbar__field">
-            <span class="tbar__label">Sortuj</span>
-            <select id="t-sort" class="tbar__select">
-              <option value="name">Nazwa</option>
-              <option value="progress">Postęp</option>
-              <option value="state">Stan</option>
-            </select>
-          </label>
-
-          <label class="tbar__field">
-            <span class="tbar__label">🌐 Limit pobierania</span>
-            <select id="t-limit" class="tbar__select" aria-describedby="t-limit-feedback">
-              <option value="0">Unlimited</option>
-              <option value="1024">1 MB/s</option>
-              <option value="2048">2 MB/s</option>
-              <option value="5120">5 MB/s</option>
-              <option value="10240">10 MB/s</option>
-              <option value="15360">15 MB/s</option>
-            </select>
-          </label>
-
-          <button id="t-refresh" class="btn btn--primary tbar__btn" type="button">Odśwież</button>
-        </div>
-        <div class="tbar__right">
-          <span id="t-agg" class="tbar__agg" aria-live="polite"></span>
-        </div>
+    <!-- PASEK NARZĘDZI (Kolejka) -->
+    <div class="tbar tbar--tools" data-tx-tools="queue" hidden>
+      <div class="tbar__group">
+        <div class="tbar__label">Pokazuję tylko: <strong>NOWE</strong></div>
       </div>
-      <div id="t-limit-feedback" class="tlimit__feedback" aria-live="polite"></div>
+      <div class="tbar__spacer"></div>
+    </div>
 
-      <div id="t-list" class="tlist"></div>
-      <div id="t-empty" class="empty" hidden>Brak torrentów do wyświetlenia.</div>
-    </section>
-
-    <!-- QUEUE (tylko NEW) -->
-    <section id="q-view" class="tview" data-view="queue" hidden aria-live="polite">
-      <div class="tbar">
-        <div class="tbar__left">
-          <label class="tbar__field">
-            <span class="tbar__label">Urządzenie</span>
-            <select id="q-devices" class="tbar__select" aria-label="Wybierz urządzenie">
-              <option value="">Wszystkie</option>
-            </select>
-          </label>
-          <button id="q-refresh" class="btn btn--primary tbar__btn" type="button">Odśwież</button>
-        </div>
-      </div>
-
-      <div id="q-list" class="qlist"></div>
-      <div id="q-empty" class="empty" hidden>Brak nowych zadań w kolejce.</div>
-    </section>
+    <!-- Lista KOLEJKI -->
+    <div id="tx-queue" class="qlist" role="region" aria-live="polite" hidden></div>
 
   </div>
 </section>
+
       <section id="section-search" role="tabpanel" aria-hidden="true"></section>
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>

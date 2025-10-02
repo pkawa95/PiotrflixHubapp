@@ -414,403 +414,298 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-/* ====== TORRENTS + QUEUE v3 ====== */
+/* ===================== TORRENTY / KOLEJKA – UI + DATA ===================== */
 (function(){
-  const sec = document.getElementById('section-torrents'); if (!sec) return;
+  const API = document.getElementById('auth-screen')?.dataset.apiBase || '';
+  const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/,'')}`;
 
-  // tabs / views
-  const tabWrap = sec.querySelector('.tsticky__tabs');
-  const tView   = document.getElementById('t-view');
-  const qView   = document.getElementById('q-view');
+  const elTorrents = document.getElementById('tx-torrents');
+  const elQueue = document.getElementById('tx-queue');
+  const sortSel = document.getElementById('tx-sort');
+  const speedSel = document.getElementById('tx-speed');
+  const speedFb = document.getElementById('tx-speed-feedback');
 
-  // controls
-  const tDevSel  = document.getElementById('t-devices');
-  const tSortSel = document.getElementById('t-sort');
-  const tLimit   = document.getElementById('t-limit');
-  const tLimitFb = document.getElementById('t-limit-feedback');
-  const tAgg     = document.getElementById('t-agg');
-  const tList    = document.getElementById('t-list');
-  const tEmpty   = document.getElementById('t-empty');
-  const tBtnRef  = document.getElementById('t-refresh');
+  const tabBar = document.querySelector('.tbar__tabs');
+  const toolbars = document.querySelectorAll('.tbar--tools');
 
-  const qDevSel  = document.getElementById('q-devices');
-  const qList    = document.getElementById('q-list');
-  const qEmpty   = document.getElementById('q-empty');
-  const qBtnRef  = document.getElementById('q-refresh');
-
-  const apiBase  = (document.getElementById('auth-screen')?.dataset.apiBase || '').replace(/\/+$/,'');
-  const u        = p => apiBase + p;
-
-  const REFRESH_MS = 5000;
   let refreshTimer = null;
+  let currentTab = 'torrents';
+  let lastTorrentMap = new Map(); // info_hash -> item
+  let lastQueueIds = new Set();
 
-  // localStorage keys
-  const LS_T_DEV='pf_t_dev', LS_T_SORT='pf_t_sort', LS_Q_DEV='pf_q_dev';
-
-  // Posters: cache + unikamy podwójnych requestów
-  const posterCache = new Map();     // title -> url
-  const pendingPoster = new Map();   // title -> Promise
-
-  const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
-  const fmtBps = b => { const n=+b||0; if(n<=0)return '0 B/s'; const k=1024,u=['B/s','KiB/s','MiB/s','GiB/s']; const i=Math.floor(Math.log(n)/Math.log(k)); return `${(n/Math.pow(k,i)).toFixed(i?1:0)} ${u[i]}`; };
-  const pct = x => (Math.max(0,Math.min(1,+x||0))*100).toFixed(1)+'%';
-  const isoLocal = s => { try{ return new Date(s).toLocaleString(); }catch{ return s||''; } };
-
-  async function authJson(url, init){ const r = await authFetch(url, init||{}); const t = await r.text(); try{return t?JSON.parse(t):{};}catch{return{};} }
-
-  // --- Poster helper: użyj /search, ale nie spamuj
-  async function posterFromSearch(title){
-    if (!title) return null;
-    if (posterCache.has(title)) return posterCache.get(title);
-    if (pendingPoster.has(title)) return pendingPoster.get(title);
-
-    const p = (async ()=>{
-      try{
-        const j = await authJson(u('/search'), { method:'POST', body:{ query:title, type:'movie', provider:'default', page:1, extra:{} } });
-        const img = j?.results?.[0]?.image || j?.results?.[0]?.poster || null;
-        if (img) posterCache.set(title, img);
-        return img;
-      }catch{ return null; }
-    })();
-    pendingPoster.set(title, p);
-    const out = await p; pendingPoster.delete(title); return out;
+  function authHeaders(){
+    const t = (window.getAuthToken && window.getAuthToken()) || null;
+    const h = new Headers();
+    if(t) h.set('Authorization', `Bearer ${t}`);
+    return h;
   }
 
-  // === Devices ===
-  async function loadDevicesInto(selectEl, lsKey){
-    try{
-      const data = await authJson(u('/torrents/devices'));
-      const prev = localStorage.getItem(lsKey) || '';
-      selectEl.innerHTML = `<option value="">Wszystkie</option>`;
-      (data||[]).forEach(d=>{
-        const opt = document.createElement('option');
-        opt.value = d.device_id;
-        opt.textContent = d.device_id + (d.torrents?` (${d.torrents})`:'');
-        selectEl.appendChild(opt);
-      });
-      if (prev && [...selectEl.options].some(o=>o.value===prev)) selectEl.value = prev;
-    }catch{}
-  }
+  // ---------- TAB SWITCH ----------
+  tabBar?.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-tx-tab]');
+    if(!btn) return;
+    const tab = btn.dataset.txTab;
+    if(tab === currentTab) return;
 
-  // === Summary ===
-  async function loadSummary(){
-    try{
-      const q = tDevSel.value ? `?device_id=${encodeURIComponent(tDevSel.value)}` : '';
-      const s = await authJson(u('/torrents/status/summary'+q));
-      tAgg.textContent = `Łącznie: ${s.total} • DL: ${fmtBps(s.aggregate_dl_speed)} • UL: ${fmtBps(s.aggregate_ul_speed)}`;
-    }catch{ tAgg.textContent=''; }
-  }
-
-  // === Torrents (DOM patch) ===
-  const tIndex = new Map(); // info_hash -> element
-
-  function applyTorrentIntoCard(card, t){
-    const title = t.display_title || t.name || '(bez tytułu)';
-    const state = (t.state||'unknown').toLowerCase();
-    const p = +t.progress || 0;
-
-    // tytuł
-    card.querySelector('.tcard__title').textContent = title;
-
-    // meta
-    const rate = `${fmtBps(t.dl_speed)} / ${fmtBps(t.ul_speed)}`;
-    const eta = (t.eta>0)?` • ETA: ${Math.max(0,Math.floor(t.eta/60))} min`:'';
-    const meta = card.querySelector('.tcard__meta');
-    meta.innerHTML = `
-      <span class="tbadge ${state==='seeding'?'tbadge--ok':''}">
-        <span class="tbadge__dot"></span>${escapeHtml(state)}
-      </span>
-      <span>${rate}${eta}</span>
-      <span>Peers: ${+t.peers||0} / Seeds: ${+t.seeds||0}</span>
-    `;
-
-    // progress
-    card.querySelector('.progress__bar').style.width = (p*100).toFixed(3)+'%';
-    card.querySelector('.progress__label').textContent =
-      `${pct(p)} • ${((t.downloaded_bytes||0)/1048576).toFixed(1)} / ${((t.size_bytes||0)/1048576).toFixed(1)} MiB`;
-
-    // obraz
-    const imgEl = card.querySelector('img.tcard__img');
-    if (t.image_url && imgEl.getAttribute('src') !== t.image_url){
-      imgEl.src = t.image_url; imgEl.removeAttribute('data-missing');
-    } else if (!t.image_url && !imgEl.getAttribute('src') && !imgEl.dataset.loading){
-      imgEl.dataset.loading = '1';
-      posterFromSearch(title).then(src=>{
-        if (src && !imgEl.getAttribute('src')) imgEl.src = src;
-        delete imgEl.dataset.loading;
-      });
-    }
-
-    // actions
-    card.querySelectorAll('[data-act]').forEach(btn=>{
-      btn.onclick = async ()=>{
-        const kind = btn.getAttribute('data-act');
-        try{
-          await authFetch(u('/torrents/commands/push'), {
-            method:'POST',
-            body:{ device_id: tDevSel.value || undefined, info_hash: t.info_hash, kind, args:{},
-                   display_title:title, image_url: t.image_url || imgEl.getAttribute('src') || '' }
-          });
-        }catch(e){ console.error(e); }
-      };
-    });
-  }
-
-  function makeTorrentCard(t){
-    const el = document.createElement('article');
-    el.className = 'tcard'; el.dataset.key = t.info_hash;
-    el.innerHTML = `
-      <img class="tcard__img" alt="" loading="lazy" ${t.image_url?`src="${escapeHtml(t.image_url)}"`:''} ${t.image_url?'':'data-missing="1"'} />
-      <div class="tcard__body">
-        <h3 class="tcard__title"></h3>
-        <div class="tcard__meta"></div>
-        <div class="progress"><div class="progress__bar"></div></div>
-        <div class="progress__label"></div>
-      </div>
-      <div class="tcard__actions">
-        <button class="btn btn--ghost" data-act="pause"  title="Pauzuj">⏸</button>
-        <button class="btn btn--ghost" data-act="resume" title="Wznów">▶️</button>
-        <button class="btn btn--ghost" data-act="recheck" title="Sprawdź">🔁</button>
-        <button class="btn btn--danger" data-act="remove" title="Usuń">🗑</button>
-        <button class="btn btn--danger" data-act="remove_data" title="Usuń z danymi">🗑💾</button>
-      </div>
-    `;
-    applyTorrentIntoCard(el, t);
-    return el;
-  }
-
-  function dedupeByInfoHash(list){
-    const map = new Map(); // info_hash -> item (ostatni wygrywa)
-    for (const it of (list||[])){
-      if (!it || !it.info_hash) continue;
-      // pomiń ewidentnie „zniknięte”
-      const st = (it.state||'').toLowerCase();
-      if (st === 'removed' || st === 'missing') continue;
-      map.set(it.info_hash, it);
-    }
-    return [...map.values()];
-  }
-
-  async function loadTorrents(){
-    tList.classList.add('updating');
-    const params = new URLSearchParams({ page:'1', limit:'200', order:'desc' });
-    if (tDevSel.value) params.set('device_id', tDevSel.value);
-    const dataRaw = await authJson(u('/torrents/status/list?'+params.toString()));
-    let data = Array.isArray(dataRaw) ? dataRaw : (dataRaw?.items || dataRaw || []);
-    data = dedupeByInfoHash(data);
-
-    // sort
-    const s = tSortSel.value || 'name';
-    data.sort((a,b)=>{
-      if (s==='name')    return (a.display_title||a.name||'').localeCompare(b.display_title||b.name||'');
-      if (s==='progress')return (+b.progress||0)-(+a.progress||0);
-      if (s==='state')   return (a.state||'').localeCompare(b.state||'');
-      return 0;
+    tabBar.querySelectorAll('.tbar__tab').forEach(b=>{
+      b.classList.toggle('is-active', b === btn);
+      b.setAttribute('aria-selected', b===btn ? 'true':'false');
     });
 
-    // patch DOM
-    const seen = new Set();
-    for (const t of data){
-      seen.add(t.info_hash);
-      let card = tIndex.get(t.info_hash);
-      if (!card){
-        card = makeTorrentCard(t);
-        tIndex.set(t.info_hash, card);
-        tList.appendChild(card);
-      } else {
-        applyTorrentIntoCard(card, t);
-      }
+    currentTab = tab;
+    if(tab==='torrents'){
+      elTorrents.hidden = false;
+      elQueue.hidden = true;
+    }else{
+      elTorrents.hidden = true;
+      elQueue.hidden = false;
     }
-    // usuń nieobecne
-    [...tIndex.keys()].forEach(k=>{
-      if (!seen.has(k)){
-        const el = tIndex.get(k);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-        tIndex.delete(k);
-      }
+    toolbars.forEach(tb=>{
+      const forTab = tb.dataset.txTools;
+      tb.hidden = (forTab !== currentTab);
     });
 
-    tEmpty.hidden = data.length>0;
-    tList.classList.remove('updating');
-  }
-
-  // === Queue (NEW only) ===
-  const qIndex = new Map(); // id -> element
-
-  function applyQueueIntoCard(card, q){
-    const title = q.display_title || q.kind;
-    const imgEl = card.querySelector('img.qcard__img');
-
-    card.querySelector('.qcard__title').textContent = title;
-    card.querySelector('.qcard__meta').textContent = `Rodzaj: ${q.kind} • Dodano: ${isoLocal(q.created_at)}`;
-
-    if (q.image_url && imgEl.getAttribute('src') !== q.image_url){
-      imgEl.src = q.image_url; imgEl.removeAttribute('data-missing');
-    } else if (!q.image_url && !imgEl.getAttribute('src') && !imgEl.dataset.loading){
-      imgEl.dataset.loading = '1';
-      posterFromSearch(title).then(src=>{
-        if (src && !imgEl.getAttribute('src')) imgEl.src = src;
-        delete imgEl.dataset.loading;
-      });
-    }
-
-    card.querySelector('[data-del]').onclick = async ()=>{
-      try{ await authFetch(u(`/torrents/commands/${q.id}`), { method:'DELETE' }); }catch(e){ console.error(e); }
-    };
-  }
-
-  function makeQueueCard(q){
-    const el = document.createElement('article');
-    el.className='qcard'; el.dataset.key = String(q.id);
-    el.innerHTML = `
-      <img class="qcard__img" alt="" loading="lazy" ${q.image_url?`src="${escapeHtml(q.image_url)}"`:''} ${q.image_url?'':'data-missing="1"'} />
-      <div>
-        <h3 class="qcard__title"></h3>
-        <div class="qcard__meta"></div>
-      </div>
-      <div class="qcard__actions"><button class="btn btn--danger" data-del>Usuń</button></div>
-    `;
-    applyQueueIntoCard(el, q);
-    return el;
-  }
-
-  async function loadQueue(){
-    qList.classList.add('updating');
-    const params = new URLSearchParams({ status:'new', page:'1', limit:'100' });
-    if (qDevSel.value) params.set('device_id', qDevSel.value);
-    const data = await authJson(u('/torrents/commands/list?'+params.toString()));
-
-    const seen = new Set();
-    for (const q of (data||[])){
-      const id = String(q.id);
-      seen.add(id);
-      let card = qIndex.get(id);
-      if (!card){
-        card = makeQueueCard(q);
-        qIndex.set(id, card);
-        qList.appendChild(card);
-      } else {
-        applyQueueIntoCard(card, q);
-      }
-    }
-    // usuń nieobecne
-    [...qIndex.keys()].forEach(k=>{
-      if (!seen.has(k)){
-        const el = qIndex.get(k);
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-        qIndex.delete(k);
-      }
-    });
-
-    qEmpty.hidden = (qIndex.size>0);
-    qList.classList.remove('updating');
-  }
-
-  // === Limit ===
-  async function applyGlobalLimit(){
-    const val = parseInt(tLimit.value || '0', 10) || 0;
-    tLimitFb.textContent = 'Ustawianie limitu…';
-    try{
-      await authFetch(u('/torrent/set-limit'), { method:'POST', body:{ limit_kib_per_s: val, device_id: tDevSel.value || undefined } });
-      tLimitFb.textContent = val>0 ? `Limit ustawiony na ${(val/1024).toFixed(0)} MB/s` : 'Limit zdjęty (Unlimited)';
-    }catch{ tLimitFb.textContent = 'Nie udało się ustawić limitu.'; }
-    setTimeout(()=>{ tLimitFb.textContent=''; }, 2200);
-  }
-
-  // === Tabs ===
-  function setTab(which){
-    tabWrap.querySelectorAll('.tsticky__tab').forEach(b=>{
-      const on = b.dataset.txTab===which;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-selected', String(on));
-    });
-    const showT = (which==='torrents');
-    tView.hidden = !showT; qView.hidden = showT;
-    restartRefresh();
-  }
-  tabWrap.addEventListener('click', e=>{
-    const b = e.target.closest('.tsticky__tab'); if (!b) return;
-    setTab(b.dataset.txTab);
+    kickRefresh();
   });
 
-  // === Refresh cycle ===
-  async function refreshNow(){
-    if (!tView.hidden){
-      await Promise.all([
-        loadDevicesInto(tDevSel, LS_T_DEV),
-        loadSummary(),
-        loadTorrents()
-      ]);
-    } else {
-      await Promise.all([
-        loadDevicesInto(qDevSel, LS_Q_DEV),
-        loadQueue()
-      ]);
-    }
-  }
-  function restartRefresh(){
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshNow();
-    refreshTimer = setInterval(()=>{ refreshNow(); }, REFRESH_MS);
-  }
-
-  // === Events ===
-  tDevSel.addEventListener('change', ()=>{ try{localStorage.setItem(LS_T_DEV, tDevSel.value||'');}catch{} loadSummary(); loadTorrents(); });
-  tSortSel.addEventListener('change', ()=>{ try{localStorage.setItem(LS_T_SORT, tSortSel.value||'name');}catch{} loadTorrents(); });
-  tLimit.addEventListener('change', applyGlobalLimit);
-  tBtnRef.addEventListener('click', refreshNow);
-
-  qDevSel.addEventListener('change', ()=>{ try{localStorage.setItem(LS_Q_DEV, qDevSel.value||'');}catch{} loadQueue(); });
-  qBtnRef.addEventListener('click', refreshNow);
-
-  // === Integracja z globalnym przełączaniem sekcji ===
-  const origShow = window.showSection;
-  window.showSection = function(name){
-    if (typeof origShow === 'function') { try{ origShow(name); }catch{} }
-    if (name==='torrents'){ setTab('torrents'); }
-    else { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer=null; } }
-  };
-
-  // === Init on first open ===
-  let inited=false;
-  function initOnce(){
-    if (inited) return; inited=true;
+  // ---------- SPEED LIMIT ----------
+  speedSel?.addEventListener('change', async ()=>{
+    const val = Number(speedSel.value || 0); // MB/s
+    const kib = val > 0 ? Math.round(val * 1024) : 0; // KiB/s
+    speedFb.textContent = 'Ustawianie limitu…';
     try{
-      tDevSel.value = localStorage.getItem(LS_T_DEV) || '';
-      tSortSel.value = localStorage.getItem(LS_T_SORT) || 'name';
-      qDevSel.value = localStorage.getItem(LS_Q_DEV) || '';
-    }catch{}
-    setTab('torrents');
-  }
-  if ((location.hash||'').replace('#','')==='torrents'){ initOnce(); }
-
-  // start when app shows this section
-  window.addEventListener('hashchange', ()=>{
-    if ((location.hash||'').replace('#','')==='torrents'){ initOnce(); }
-  });
-
-  // === PUBLIC: enqueueMagnet z plakatem z wyszukiwarki ===
-  // Użyj w widoku „Szukaj”: await window.enqueueMagnet({ magnet, title, image, download_kind, device_id })
-  window.enqueueMagnet = async function({ magnet, title, image, download_kind='movie', device_id }){
-    try{
-      // uzupełnij plakat jeśli nie podano
-      let img = image;
-      if (!img && title) img = await posterFromSearch(title);
-      await authFetch(u('/torrent/add'), {
+      const r = await fetch(joinUrl(API, '/torrent/set-limit'), {
         method:'POST',
-        body:{
-          magnet,
-          download_kind,
-          device_id: device_id || (tDevSel?.value || undefined),
-          meta: {
-            display_title: title || '',
-            image_url: img || ''
-          }
-        }
+        headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+        body: JSON.stringify({ limit_kib_per_s: kib })
       });
-      // (opcja) przełącz na „Kolejka”
-      setTab('queue');
-    }catch(e){ console.error('enqueueMagnet failed', e); }
-  };
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      speedFb.textContent = kib>0 ? `Limit ustawiony: ${val} MB/s` : 'Limit usunięty';
+    }catch(e){
+      speedFb.textContent = 'Nie udało się ustawić limitu';
+      console.error(e);
+    }finally{
+      setTimeout(()=>{ speedFb.textContent=''; }, 2000);
+    }
+  });
 
+  // ---------- LOAD TORRENTS ----------
+  async function loadTorrents(){
+    const sortBy = (sortSel?.value || 'name');
+    try{
+      const url = new URL(joinUrl(API, '/torrents/status/list'));
+      url.searchParams.set('page','1');
+      url.searchParams.set('limit','100');
+      // bez device i bez state → wszystkie
+      const resp = await fetch(url.toString(), { headers: authHeaders() });
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      const data = await resp.json();
+
+      const seen = new Map();
+      for(const it of (data?.items || [])){
+        const key = it.info_hash || it.hash || it.id || it.name;
+        if(!key) continue;
+        if(seen.has(key)) continue; // dedupe na wypadek duplikatów z serwera
+        seen.set(key, it);
+      }
+      // zapamiętaj mapę
+      lastTorrentMap = seen;
+
+      let items = Array.from(seen.values());
+
+      // sort
+      if(sortBy === 'progress'){
+        items.sort((a,b)=> (b.progress||0) - (a.progress||0));
+      }else if(sortBy === 'state'){
+        items.sort((a,b)=> String(a.state||'').localeCompare(String(b.state||'')));
+      }else{
+        items.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
+      }
+
+      // render
+      renderTorrents(items);
+    }catch(e){
+      console.error('loadTorrents', e);
+    }
+  }
+
+  function pct(p){ 
+    const v = Math.max(0, Math.min(100, Number(p||0)));
+    return isFinite(v) ? v : 0;
+  }
+  function humanSpeed(bps){
+    const x = Number(bps||0);
+    if(x<=0) return '0 B/s';
+    const units = ['B/s','KB/s','MB/s','GB/s'];
+    let i=0, n=x;
+    while(n>=1024 && i<units.length-1){ n/=1024; i++; }
+    return `${n.toFixed(n>=10?0:1)} ${units[i]}`;
+  }
+
+  function renderTorrents(items){
+    // budujemy HTML (długie karty; bez posterów; bez seeds/peers)
+    const html = items.map(it=>{
+      const name = it.name || it.display_title || 'Nieznany';
+      const progress = pct( (it.progress*100) || it.progress_percent || it.percent || 0 );
+      const rate = humanSpeed(it.download_rate || it.download_rate_bps || 0);
+      const state = (it.state || 'unknown').toUpperCase();
+      const ihash = it.info_hash || it.hash || name;
+
+      return `
+      <article class="tcard" data-ih="${ihash}">
+        <div class="tcard__left">
+          <div class="tcard__title">${escapeHtml(name)}</div>
+          <div class="tcard__meta">
+            <span>${progress.toFixed(0)}%</span>
+            <span>•</span>
+            <span>${state}</span>
+            <span>•</span>
+            <span>${rate}</span>
+          </div>
+          <div class="tcard__progress" aria-label="Postęp">
+            <div class="tcard__bar" style="width:${progress}%;"></div>
+          </div>
+        </div>
+        <div class="tcard__right">
+          <button class="tbtn tbtn--ghost" data-action="pause" data-ih="${ihash}">Pauza/Wznów</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${ihash}" data-rm="0">Usuń</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${ihash}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
+        </div>
+      </article>`;
+    }).join('');
+
+    // łagodny diff — tylko podmieniamy, jeśli treść zmieniona
+    if(elTorrents && elTorrents.innerHTML !== html){
+      elTorrents.innerHTML = html;
+    }
+  }
+
+  // akcje torrentów
+  elTorrents?.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button[data-action]');
+    if(!btn) return;
+    const ih = btn.dataset.ih;
+    const action = btn.dataset.action;
+
+    if(action === 'pause'){
+      // /torrent/toggle — potrzebuje torrent_id (u Ciebie = info_hash)
+      try{
+        await fetch(joinUrl(API, '/torrent/toggle'), {
+          method:'POST',
+          headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+          body: JSON.stringify({ torrent_id: ih })
+        });
+        // szybkie odświeżenie po akcji
+        setTimeout(loadTorrents, 300);
+      }catch(e){ console.error(e); }
+    }else if(action === 'remove'){
+      const rm = btn.dataset.rm === '1';
+      try{
+        await fetch(joinUrl(API, '/torrent/remove'), {
+          method:'POST',
+          headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+          body: JSON.stringify({ torrent_id: ih, remove_data: rm })
+        });
+        setTimeout(loadTorrents, 300);
+      }catch(e){ console.error(e); }
+    }
+  });
+
+  // ---------- LOAD QUEUE (status=new) ----------
+  async function loadQueue(){
+    try{
+      const url = new URL(joinUrl(API, '/queue/list'));
+      url.searchParams.set('status','new');
+      url.searchParams.set('page','1');
+      url.searchParams.set('limit','50');
+
+      const resp = await fetch(url.toString(), { headers: authHeaders() });
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      const data = await resp.json();
+
+      const items = (data?.items || []).filter(x=> String(x.status).toLowerCase() === 'new');
+      // dedupe po id (na wszelki wypadek)
+      const seen = new Map();
+      for(const r of items){
+        if(!seen.has(r.id)) seen.set(r.id, r);
+      }
+      renderQueue(Array.from(seen.values()));
+      // zapamiętaj zestaw id (do wykrycia migania)
+      lastQueueIds = new Set(Array.from(seen.keys()));
+    }catch(e){
+      console.error('loadQueue', e);
+    }
+  }
+
+  function renderQueue(items){
+    const html = items.map(it=>{
+      const title = it.display_title || it.payload?.display_title || it.payload?.title || it.kind || 'Zadanie';
+      const poster = (it.image_url || it.payload?.image_url || it.payload?.poster || it.payload?.thumb || 'https://via.placeholder.com/300x450?text=Poster');
+      const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
+
+      return `
+      <article class="qcard" data-qid="${it.id}">
+        <img class="qcard__img" src="${escapeHtml(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+        <div>
+          <div class="qcard__title">${escapeHtml(title)}</div>
+          <div class="qcard__meta">
+            <span>ID: ${it.id}</span>
+            <span>•</span>
+            <span>Dodano: ${escapeHtml(when)}</span>
+            ${it.kind ? `<span>•</span><span>${escapeHtml(it.kind)}</span>` : ''}
+          </div>
+        </div>
+        <div class="qcard__right">
+          <button class="tbtn tbtn--danger" data-qdel="${it.id}">Usuń</button>
+        </div>
+      </article>`;
+    }).join('');
+
+    if(elQueue && elQueue.innerHTML !== html){
+      elQueue.innerHTML = html;
+    }
+  }
+
+  // kasowanie zadań (tylko NEW można kasować wg backendu)
+  elQueue?.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button[data-qdel]');
+    if(!btn) return;
+    const id = btn.dataset.qdel;
+    try{
+      const r = await fetch(joinUrl(API, `/queue/${id}`), {
+        method:'DELETE',
+        headers: authHeaders()
+      });
+      if(!r.ok){
+        const t = await r.text();
+        console.warn('DELETE failed', t);
+      }
+      setTimeout(loadQueue, 200);
+    }catch(err){ console.error(err); }
+  });
+
+  // ---------- AUTO REFRESH ----------
+  function tick(){
+    if(currentTab === 'torrents') loadTorrents();
+    else loadQueue();
+  }
+  function kickRefresh(){
+    if(refreshTimer) clearInterval(refreshTimer);
+    tick();
+    refreshTimer = setInterval(tick, 3000);
+  }
+
+  // sort zmienia widok torrentów
+  sortSel?.addEventListener('change', ()=> loadTorrents());
+
+  // wejście do sekcji — odpal zegar
+  if(document.getElementById('section-torrents')){
+    kickRefresh();
+  }
+
+  // helpers
+  function escapeHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, m =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
 })();
