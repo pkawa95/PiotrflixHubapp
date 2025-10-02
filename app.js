@@ -414,63 +414,54 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-/* ===================== TORRENTY / KOLEJKA – UI + DATA ===================== */
+/* ===================== TORRENTY / KOLEJKA ===================== */
 (function(){
   const API = document.getElementById('auth-screen')?.dataset.apiBase || '';
   const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/,'')}`;
+  const authHeaders = ()=> {
+    const t = (window.getAuthToken && window.getAuthToken()) || null;
+    const h = new Headers();
+    if(t) h.set('Authorization', `Bearer ${t}`);
+    return h;
+  };
 
   const elTorrents = document.getElementById('tx-torrents');
   const elQueue = document.getElementById('tx-queue');
   const sortSel = document.getElementById('tx-sort');
   const speedSel = document.getElementById('tx-speed');
   const speedFb = document.getElementById('tx-speed-feedback');
+  const qStatusSel = document.getElementById('tx-q-status');
 
-  const tabBar = document.querySelector('.tbar__tabs');
-  const toolbars = document.querySelectorAll('.tbar--tools');
+  const tabBar = document.querySelector('#section-torrents .tx-tabs');
+  const toolbars = document.querySelectorAll('#section-torrents .tx-toolbar');
 
-  let refreshTimer = null;
   let currentTab = 'torrents';
-  let lastTorrentMap = new Map(); // info_hash -> item
-  let lastQueueIds = new Set();
+  let refreshTimer = null;
 
-  function authHeaders(){
-    const t = (window.getAuthToken && window.getAuthToken()) || null;
-    const h = new Headers();
-    if(t) h.set('Authorization', `Bearer ${t}`);
-    return h;
-  }
-
-  // ---------- TAB SWITCH ----------
+  // ========= TABY =========
   tabBar?.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-tx-tab]');
     if(!btn) return;
     const tab = btn.dataset.txTab;
     if(tab === currentTab) return;
 
-    tabBar.querySelectorAll('.tbar__tab').forEach(b=>{
-      b.classList.toggle('is-active', b === btn);
+    tabBar.querySelectorAll('.tx-tab').forEach(b=>{
+      b.classList.toggle('is-active', b===btn);
       b.setAttribute('aria-selected', b===btn ? 'true':'false');
     });
 
     currentTab = tab;
-    if(tab==='torrents'){
-      elTorrents.hidden = false;
-      elQueue.hidden = true;
-    }else{
-      elTorrents.hidden = true;
-      elQueue.hidden = false;
-    }
-    toolbars.forEach(tb=>{
-      const forTab = tb.dataset.txTools;
-      tb.hidden = (forTab !== currentTab);
-    });
+    const torr = (currentTab==='torrents');
+    elTorrents.hidden = !torr;
+    elQueue.hidden = torr;
 
+    toolbars.forEach(tb => tb.hidden = (tb.dataset.txTools !== currentTab));
     kickRefresh();
   });
 
-  // ---------- SPEED LIMIT ----------
+  // ========= LIMIT PRĘDKOŚCI =========
   speedSel?.addEventListener('change', async ()=>{
-    const val = Number(speedSel.value || 0); // MB/s
+    const val = Number(speedSel.value || 0);      // MB/s
     const kib = val > 0 ? Math.round(val * 1024) : 0; // KiB/s
     speedFb.textContent = 'Ustawianie limitu…';
     try{
@@ -480,40 +471,33 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ limit_kib_per_s: kib })
       });
       if(!r.ok) throw new Error('HTTP '+r.status);
-      speedFb.textContent = kib>0 ? `Limit ustawiony: ${val} MB/s` : 'Limit usunięty';
+      speedFb.textContent = kib>0 ? `Limit: ${val} MB/s` : 'Limit zdjęty';
     }catch(e){
-      speedFb.textContent = 'Nie udało się ustawić limitu';
       console.error(e);
+      speedFb.textContent = 'Błąd ustawiania limitu';
     }finally{
-      setTimeout(()=>{ speedFb.textContent=''; }, 2000);
+      setTimeout(()=>speedFb.textContent='', 1800);
     }
   });
 
-  // ---------- LOAD TORRENTS ----------
+  // ========= TORRENTY =========
   async function loadTorrents(){
-    const sortBy = (sortSel?.value || 'name');
     try{
       const url = new URL(joinUrl(API, '/torrents/status/list'));
       url.searchParams.set('page','1');
       url.searchParams.set('limit','100');
-      // bez device i bez state → wszystkie
-      const resp = await fetch(url.toString(), { headers: authHeaders() });
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      const data = await resp.json();
-
-      const seen = new Map();
+      const r = await fetch(url.toString(), { headers: authHeaders() });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      const dedup = new Map();
       for(const it of (data?.items || [])){
         const key = it.info_hash || it.hash || it.id || it.name;
         if(!key) continue;
-        if(seen.has(key)) continue; // dedupe na wypadek duplikatów z serwera
-        seen.set(key, it);
+        if(!dedup.has(key)) dedup.set(key, it);
       }
-      // zapamiętaj mapę
-      lastTorrentMap = seen;
+      let items = Array.from(dedup.values());
 
-      let items = Array.from(seen.values());
-
-      // sort
+      const sortBy = (sortSel?.value || 'name');
       if(sortBy === 'progress'){
         items.sort((a,b)=> (b.progress||0) - (a.progress||0));
       }else if(sortBy === 'state'){
@@ -521,32 +505,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }else{
         items.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
       }
-
-      // render
       renderTorrents(items);
     }catch(e){
       console.error('loadTorrents', e);
     }
   }
 
-  function pct(p){ 
-    const v = Math.max(0, Math.min(100, Number(p||0)));
-    return isFinite(v) ? v : 0;
-  }
+  function pct(p){ const v = Math.max(0, Math.min(100, Number(p||0))); return isFinite(v)?v:0; }
   function humanSpeed(bps){
     const x = Number(bps||0);
     if(x<=0) return '0 B/s';
-    const units = ['B/s','KB/s','MB/s','GB/s'];
-    let i=0, n=x;
-    while(n>=1024 && i<units.length-1){ n/=1024; i++; }
-    return `${n.toFixed(n>=10?0:1)} ${units[i]}`;
+    const u=['B/s','KB/s','MB/s','GB/s']; let i=0, n=x;
+    while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+    return `${n.toFixed(n>=10?0:1)} ${u[i]}`;
+  }
+  function escapeHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
   function renderTorrents(items){
-    // budujemy HTML (długie karty; bez posterów; bez seeds/peers)
     const html = items.map(it=>{
       const name = it.name || it.display_title || 'Nieznany';
-      const progress = pct( (it.progress*100) || it.progress_percent || it.percent || 0 );
+      const progress = pct((it.progress*100) || it.progress_percent || it.percent || 0);
       const rate = humanSpeed(it.download_rate || it.download_rate_bps || 0);
       const state = (it.state || 'unknown').toUpperCase();
       const ihash = it.info_hash || it.hash || name;
@@ -558,9 +538,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="tcard__meta">
             <span>${progress.toFixed(0)}%</span>
             <span>•</span>
-            <span>${state}</span>
+            <span>${escapeHtml(state)}</span>
             <span>•</span>
-            <span>${rate}</span>
+            <span>${escapeHtml(rate)}</span>
           </div>
           <div class="tcard__progress" aria-label="Postęp">
             <div class="tcard__bar" style="width:${progress}%;"></div>
@@ -574,10 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </article>`;
     }).join('');
 
-    // łagodny diff — tylko podmieniamy, jeśli treść zmieniona
-    if(elTorrents && elTorrents.innerHTML !== html){
-      elTorrents.innerHTML = html;
-    }
+    if(elTorrents && elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
   }
 
   // akcje torrentów
@@ -587,51 +564,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const ih = btn.dataset.ih;
     const action = btn.dataset.action;
 
-    if(action === 'pause'){
-      // /torrent/toggle — potrzebuje torrent_id (u Ciebie = info_hash)
-      try{
+    try{
+      if(action === 'pause'){
         await fetch(joinUrl(API, '/torrent/toggle'), {
           method:'POST',
           headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
           body: JSON.stringify({ torrent_id: ih })
         });
-        // szybkie odświeżenie po akcji
-        setTimeout(loadTorrents, 300);
-      }catch(e){ console.error(e); }
-    }else if(action === 'remove'){
-      const rm = btn.dataset.rm === '1';
-      try{
+      }else if(action === 'remove'){
+        const rm = btn.dataset.rm === '1';
         await fetch(joinUrl(API, '/torrent/remove'), {
           method:'POST',
           headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
           body: JSON.stringify({ torrent_id: ih, remove_data: rm })
         });
-        setTimeout(loadTorrents, 300);
-      }catch(e){ console.error(e); }
-    }
+      }
+      setTimeout(loadTorrents, 300);
+    }catch(err){ console.error(err); }
   });
 
-  // ---------- LOAD QUEUE (status=new) ----------
+  sortSel?.addEventListener('change', loadTorrents);
+
+  // ========= KOLEJKA =========
   async function loadQueue(){
     try{
       const url = new URL(joinUrl(API, '/queue/list'));
-      url.searchParams.set('status','new');
+      const st = (qStatusSel?.value || 'new');
+      url.searchParams.set('status', st);
       url.searchParams.set('page','1');
       url.searchParams.set('limit','50');
 
-      const resp = await fetch(url.toString(), { headers: authHeaders() });
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      const data = await resp.json();
+      const r = await fetch(url.toString(), { headers: authHeaders() });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
 
-      const items = (data?.items || []).filter(x=> String(x.status).toLowerCase() === 'new');
-      // dedupe po id (na wszelki wypadek)
+      // dedupe po id
       const seen = new Map();
-      for(const r of items){
-        if(!seen.has(r.id)) seen.set(r.id, r);
+      for(const it of (data?.items || [])){
+        if(!seen.has(it.id)) seen.set(it.id, it);
       }
       renderQueue(Array.from(seen.values()));
-      // zapamiętaj zestaw id (do wykrycia migania)
-      lastQueueIds = new Set(Array.from(seen.keys()));
     }catch(e){
       console.error('loadQueue', e);
     }
@@ -640,9 +612,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderQueue(items){
     const html = items.map(it=>{
       const title = it.display_title || it.payload?.display_title || it.payload?.title || it.kind || 'Zadanie';
-      const poster = (it.image_url || it.payload?.image_url || it.payload?.poster || it.payload?.thumb || 'https://via.placeholder.com/300x450?text=Poster');
+      const poster = it.image_url || it.payload?.image_url || it.payload?.poster || it.payload?.thumb || 'https://via.placeholder.com/300x450?text=Poster';
       const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
-
       return `
       <article class="qcard" data-qid="${it.id}">
         <img class="qcard__img" src="${escapeHtml(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
@@ -660,31 +631,23 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </article>`;
     }).join('');
-
-    if(elQueue && elQueue.innerHTML !== html){
-      elQueue.innerHTML = html;
-    }
+    if(elQueue && elQueue.innerHTML !== html) elQueue.innerHTML = html;
   }
 
-  // kasowanie zadań (tylko NEW można kasować wg backendu)
+  // usuwanie tasku
   elQueue?.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button[data-qdel]');
     if(!btn) return;
     const id = btn.dataset.qdel;
     try{
-      const r = await fetch(joinUrl(API, `/queue/${id}`), {
-        method:'DELETE',
-        headers: authHeaders()
-      });
-      if(!r.ok){
-        const t = await r.text();
-        console.warn('DELETE failed', t);
-      }
+      await fetch(joinUrl(API, `/queue/${id}`), { method:'DELETE', headers: authHeaders() });
       setTimeout(loadQueue, 200);
     }catch(err){ console.error(err); }
   });
 
-  // ---------- AUTO REFRESH ----------
+  qStatusSel?.addEventListener('change', loadQueue);
+
+  // ========= AUTOREFRESH =========
   function tick(){
     if(currentTab === 'torrents') loadTorrents();
     else loadQueue();
@@ -695,17 +658,14 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshTimer = setInterval(tick, 3000);
   }
 
-  // sort zmienia widok torrentów
-  sortSel?.addEventListener('change', ()=> loadTorrents());
-
-  // wejście do sekcji — odpal zegar
+  // start, gdy sekcja obecna
   if(document.getElementById('section-torrents')){
+    // domyślnie pokazujemy kartę „Torrenty”
+    elTorrents.hidden = false;
+    elQueue.hidden = true;
+    document.querySelectorAll('#section-torrents .tx-toolbar').forEach(tb=>{
+      tb.hidden = (tb.dataset.txTools !== 'torrents');
+    });
     kickRefresh();
-  }
-
-  // helpers
-  function escapeHtml(s){
-    return String(s ?? '').replace(/[&<>"']/g, m =>
-      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 })();

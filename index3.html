@@ -264,25 +264,25 @@
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
-<!-- ===== Sekcja: TORRENTY / KOLEJKA (przełącznik + content) ===== -->
-<section id="section-torrents" class="section active" aria-label="Torrenty i kolejka">
-  <div class="tgrid--container">
+<!-- ===== Sekcja: TORRENTY / KOLEJKA ===== -->
+<section id="section-torrents" class="section" aria-label="Torrenty i kolejka">
+  <div class="tx-container">
 
-    <!-- Pasek sticky z logo i zakładkami -->
-    <header class="tbar tbar--sticky">
-      <div class="tbar__brand">
-        <img src="static/logo.png" alt="PiotrFlix" class="tbar__logo" />
+    <!-- Pasek sticky: logo + przełącznik kart -->
+    <header class="tx-stickybar">
+      <div class="tx-brand">
+        <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" />
       </div>
-      <nav class="tbar__tabs" role="tablist" aria-label="Widok">
-        <button class="tbar__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">Torrenty</button>
-        <button class="tbar__tab" data-tx-tab="queue" role="tab" aria-selected="false">Kolejka</button>
+      <nav class="tx-tabs" role="tablist" aria-label="Widok">
+        <button class="tx-tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">Torrenty</button>
+        <button class="tx-tab" data-tx-tab="queue" role="tab" aria-selected="false">Kolejka</button>
       </nav>
     </header>
 
-    <!-- PASEK NARZĘDZI (Torrenty) -->
-    <div class="tbar tbar--tools" data-tx-tools="torrents">
-      <div class="tbar__group">
-        <label for="tx-sort" class="tbar__label">Sortuj:</label>
+    <!-- NARZĘDZIA: TORRENTY -->
+    <div class="tx-toolbar" data-tx-tools="torrents">
+      <div class="tx-group">
+        <label for="tx-sort" class="tx-label">Sortuj:</label>
         <select id="tx-sort" class="select">
           <option value="name">Nazwa</option>
           <option value="progress">Postęp</option>
@@ -290,8 +290,8 @@
         </select>
       </div>
 
-      <div class="tbar__group">
-        <label for="tx-speed" class="tbar__label">🌐 Ogranicz pobieranie:</label>
+      <div class="tx-group">
+        <label for="tx-speed" class="tx-label">🌐 Limit pobierania:</label>
         <select id="tx-speed" class="select">
           <option value="0">Bez limitu</option>
           <option value="1">1 MB/s</option>
@@ -302,25 +302,33 @@
         </select>
       </div>
 
-      <div id="tx-speed-feedback" class="tbar__hint"></div>
+      <div id="tx-speed-feedback" class="tx-hint"></div>
     </div>
 
-    <!-- Lista TORRENTÓW -->
-    <div id="tx-torrents" class="tlist" role="region" aria-live="polite"></div>
+    <!-- LISTA TORRENTÓW -->
+    <div id="tx-torrents" class="tx-list" role="region" aria-live="polite"></div>
 
-    <!-- PASEK NARZĘDZI (Kolejka) -->
-    <div class="tbar tbar--tools" data-tx-tools="queue" hidden>
-      <div class="tbar__group">
-        <div class="tbar__label">Pokazuję tylko: <strong>NOWE</strong></div>
+    <!-- NARZĘDZIA: KOLEJKA -->
+    <div class="tx-toolbar" data-tx-tools="queue" hidden>
+      <div class="tx-group">
+        <label for="tx-q-status" class="tx-label">Status:</label>
+        <select id="tx-q-status" class="select">
+          <option value="all">Wszystkie</option>
+          <option value="new" selected>Nowe</option>
+          <option value="picked">W realizacji</option>
+          <option value="done">Zakończone</option>
+          <option value="error">Błędy</option>
+        </select>
       </div>
-      <div class="tbar__spacer"></div>
+      <div class="tx-hint">Lista odświeża się automatycznie</div>
     </div>
 
-    <!-- Lista KOLEJKI -->
-    <div id="tx-queue" class="qlist" role="region" aria-live="polite" hidden></div>
+    <!-- LISTA KOLEJKI -->
+    <div id="tx-queue" class="tx-list tx-list--queue" role="region" aria-live="polite" hidden></div>
 
   </div>
 </section>
+
 
       <section id="section-search" role="tabpanel" aria-hidden="true"></section>
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
