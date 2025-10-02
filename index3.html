@@ -1,595 +1,85 @@
 <!DOCTYPE html>
-<html lang="pl" data-theme="dark">
+<html lang="pl" data-theme="light">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Gotowiec – filmy/seriale + nawigacja & cast</title>
-
-  <!-- TWÓJ CSS (wklejony w całości) -->
-  <style>
-  /* ====== WKLEJONY STYL Z WIADOMOŚCI ====== */
-  /* (nic nie zmieniałem – tylko osadziłem w <style>) */
-
-  /* ===== NAWIGACJA – pełny gotowiec ===== */
-  .nawigacja{
-    --navx-bg-dark: rgba(16,18,28,.92);
-    --navx-bg-light: rgba(255,255,255,.94);
-    --navx-sep-dark: rgba(255,255,255,.12);
-    --navx-sep-light: rgba(0,0,0,.10);
-    --navx-accent: #7c3aed;
-    --navx-accent-2: #06b6d4;
-    --navx-safe: env(safe-area-inset-bottom, 0px);
-    position: fixed; left: 0; right: 0; bottom: 0;
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    padding: 0 0 var(--navx-safe); margin: 0;
-    background: var(--navx-bg-dark);
-    border-top: 1px solid rgba(255,255,255,.15);
-    box-shadow: 0 -6px 14px rgba(0,0,0,.3);
-    backdrop-filter: blur(12px) saturate(120%);
-    -webkit-backdrop-filter: blur(12px) saturate(120%);
-    z-index: 999;
-  }
-  body[data-theme="light"] .nawigacja{
-    background: var(--navx-bg-light);
-    border-top: 1px solid var(--navx-sep-light);
-    box-shadow: 0 -6px 12px rgba(0,0,0,.1);
-  }
-  .nawigacja__btn{
-    appearance: none; -webkit-appearance: none;
-    background: transparent; border: 0; outline: 0;
-    display: grid; place-items: center;
-    grid-template-rows: 24px auto;
-    padding: .7rem .25rem .65rem; margin: 0; border-radius: 0;
-    color: inherit; font: inherit; font-weight: 700; font-size: .9rem; line-height: 1;
-    cursor: pointer; user-select: none; position: relative;
-    transition: background .18s ease, color .18s ease, transform .1s ease;
-  }
-  .nawigacja__btn::after{ content:none !important; }
-  .nawigacja__btn:not(:last-child){ border-right: 1px solid var(--navx-sep-dark); }
-  body[data-theme="light"] .nawigacja__btn:not(:last-child){ border-right: 1px solid var(--navx-sep-light); }
-  .nawigacja__ico{ width: 22px; height: 22px; display: inline-block; color: #fff; transition: transform .12s ease, color .12s ease; }
-  .nawigacja__ico svg{ width:100%; height:100%; fill: currentColor; }
-  .nawigacja__label{ margin-top: .25rem; font-size: .78rem; letter-spacing: .2px; color: #fff; }
-  body[data-theme="light"] .nawigacja__ico, body[data-theme="light"] .nawigacja__label{ color:#000; }
-  @media (hover:hover){ .nawigacja__btn:hover{ color: var(--navx-accent-2); } .nawigacja__btn:hover .nawigacja__ico{ transform: translateY(-2px); } }
-  .nawigacja__btn:active{ transform: translateY(1px); }
-  .nawigacja__btn.is-active{
-    background: linear-gradient(135deg, var(--navx-accent) 0%, var(--navx-accent-2) 92%); color:#fff !important;
-  }
-  .nawigacja__btn.is-active .nawigacja__ico, .nawigacja__btn.is-active .nawigacja__label{ color:#fff !important; }
-  .nawigacja__btn.is-active::before{
-    content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
-    background: linear-gradient(90deg, var(--navx-accent-2), var(--navx-accent));
-    transform-origin:left; animation: navx-underline .18s ease both;
-  }
-  @keyframes navx-underline{ from{ transform:scaleX(0) } to{ transform:scaleX(1) } }
-  body[data-theme="light"] .nawigacja__btn{ color:#000; }
-  @media (max-width:600px){
-    .nawigacja__btn{ grid-template-rows: 22px auto; padding:.6rem .15rem .55rem; }
-    .nawigacja__label{ font-size:.74rem; }
-  }
-
-  /* ======= (CAŁA RESZTA TWOJEGO CSS – BEZ ZMIAN) ======= */
-  /* Żeby nie dublować gigantycznego kodu w odpowiedzi, skracam tu widok.
-     W PRAKTYCE WKLEJ TU *CAŁY* CSS Z TWOJEJ WIADOMOŚCI (od .nawigacja aż do końca).
-     Jeśli czytasz tę odpowiedź w czacie: skopiuj CSS z pytania i wklej tu zamiast tego komentarza.
-  */
-
-  /* --- Dla wygody działania demo dorzucam kilka drobnych klas użytkowych: --- */
-  .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
-  .muted { opacity:.8; font-size:.92rem; }
-  .center { text-align:center; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PKPortfolio</title>
+<link rel="preload" href="/static/logo.png" as="image" />
+<link rel="preload" href="/static/icon.png" as="image" />
+<link rel="stylesheet" href="styles.css" />
 </head>
-<body data-theme="dark">
-  <div class="container">
-    <div class="logo-container">
-      <img class="logo-img" alt="Logo" src="https://dummyimage.com/520x140/000/fff&text=Twoje+Logo" />
-    </div>
+<body>
+<!-- Auth Gate -->
+<main id="auth-view" class="view">
+<header class="auth-header">
+<img src="/static/logo.png" alt="PKPortfolio logo" class="logo" />
+</header>
 
-    <h1>Twoja biblioteka filmów i seriali</h1>
 
-    <!-- przełącznik trybu -->
-    <div class="center" style="margin-bottom:.6rem">
-      <label class="switch-label" title="Tryb jasny/ciemny">
-        <input id="theme-toggle" type="checkbox" class="switch-input" />
-        <span class="switch-slider"></span>
-        <span id="theme-label">Ciemny</span>
-      </label>
-    </div>
+<section class="card auth-card" id="auth-card" data-tab="login">
+<nav class="auth-tabs" role="tablist" aria-label="Przełączanie paneli">
+<button class="auth-tab is-active" data-tab-target="login" role="tab" aria-selected="true">Zaloguj</button>
+<button class="auth-tab" data-tab-target="register" role="tab" aria-selected="false">Zarejestruj</button>
+</nav>
 
-    <!-- górne zakładki sekcji -->
-    <div id="search-tabs" class="search-tabs">
-      <button class="search-tab active" data-target="section-search">Szukaj</button>
-      <button class="search-tab" data-target="section-available">Dostępne</button>
-      <button class="search-tab" data-target="section-settings">Ustawienia</button>
-    </div>
 
-    <!-- SEKCJA: Szukaj -->
-    <section id="section-search" class="section active">
-      <input id="search-query" type="search" placeholder="Szukaj tytułu..." />
-      <div class="row muted">
-        <small>Podpowiedź: otwórz też panel „Live Search” (prawy FAB).</small>
-      </div>
+<!-- Login form -->
+<form id="login-form" class="form-pane" data-pane="login" novalidate>
+<div class="input-group">
+<label for="login-email">Adres email</label>
+<input id="login-email" name="email" type="email" autocomplete="email" required />
+<p class="error" data-error-for="login-email"></p>
+</div>
+<div class="input-group">
+<label for="login-password">Hasło</label>
+<input id="login-password" name="password" type="password" autocomplete="current-password" required />
+<p class="error" data-error-for="login-password"></p>
+</div>
+<button type="submit" class="btn primary full">Zaloguj się</button>
+<p class="form-note" id="login-status" role="status" aria-live="polite"></p>
+</form>
 
-      <div class="search-result">
-        <img src="https://image.tmdb.org/t/p/w342/8YFL5QQVPy3AgrEQxNYVSgiPEbe.jpg" alt="Poster">
-        <div class="result-content">
-          <div>
-            <b>Example Film (2023)</b>
-            <span class="muted">120 min • 4K • PL</span>
-          </div>
-          <div class="progress-bar"><div class="progress-bar-inner" style="width: 35%;"></div></div>
-          <div class="row">
-            <button class="cast-btn">Cast</button>
-            <button class="btn-danger" onclick="confirmDelete('Example Film (2023)')">Usuń teraz</button>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- SEKCJA: Dostępne -->
-    <section id="section-available" class="section">
-      <div id="available-tabs" class="search-tabs">
-        <button class="search-tab active" data-available="films">Filmy</button>
-        <button class="search-tab" data-available="series">Seriale</button>
-      </div>
+<!-- Register form -->
+<form id="register-form" class="form-pane is-hidden" data-pane="register" novalidate>
+<div class="grid two">
+<div class="input-group">
+<label for="reg-firstname">Imię</label>
+<input id="reg-firstname" name="firstName" type="text" autocomplete="given-name" required />
+<p class="error" data-error-for="reg-firstname"></p>
+</div>
+<div class="input-group">
+<label for="reg-lastname">Nazwisko</label>
+<input id="reg-lastname" name="lastName" type="text" autocomplete="family-name" required />
+<p class="error" data-error-for="reg-lastname"></p>
+</div>
+</div>
+<div class="input-group">
+<label for="reg-email">Adres email</label>
+<input id="reg-email" name="email" type="email" autocomplete="email" required />
+<p class="error" data-error-for="reg-email"></p>
+</div>
+<div class="grid two">
+<div class="input-group">
+<label for="reg-password">Hasło</label>
+<input id="reg-password" name="password" type="password" autocomplete="new-password" required />
+<p class="error" data-error-for="reg-password"></p>
+</div>
+<div class="input-group">
+<label for="reg-password2">Powtórz hasło</label>
+<input id="reg-password2" name="password2" type="password" autocomplete="new-password" required />
+<p class="error" data-error-for="reg-password2"></p>
+</div>
+</div>
+<button type="submit" class="btn primary full">Utwórz konto</button>
+<p class="form-note" id="register-status" role="status" aria-live="polite"></p>
+</form>
 
-      <!-- FILMY -->
-      <div id="tab-films" class="available-tab-content active">
-        <article class="browse-result" data-id="f1">
-          <img src="https://image.tmdb.org/t/p/w342/jBJWaqoSCiARWtfV0GlqHrcdidd.jpg" alt="Poster">
-          <div class="result-content">
-            <b>Inception (2010)</b>
-            <small>35% obejrzane</small>
-            <div class="progress-bar"><div class="progress-bar-inner" style="width:35%"></div></div>
 
-            <!-- gatunki -->
-            <div class="genre-badges">
-              <span class="genre-badge is-generic">Sci-Fi</span>
-              <span class="genre-badge is-generic">Thriller</span>
-            </div>
+<p class="swipe-hint">Przeciągnij w lewo/prawo aby przełączyć Zaloguj ↔ Zarejestruj</p>
+</section>
 
-            <div class="row">
-              <div class="row">
-                <span data-timer-id="f1" data-timer>02:14:32</span>
-                <button class="reset-btn" onclick="resetTimer('f1')">Resetuj</button>
-              </div>
-              <button class="btn-danger" onclick="confirmDelete('Inception (2010)')">Usuń teraz</button>
-            </div>
-          </div>
-        </article>
 
-        <article class="browse-result" data-id="f2">
-          <img src="https://image.tmdb.org/t/p/w342/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" alt="Poster">
-          <div class="result-content">
-            <b>Avatar (2009)</b>
-            <small>78% obejrzane</small>
-            <div class="progress-bar"><div class="progress-bar-inner" style="width:78%"></div></div>
-            <div class="genre-badges">
-              <span class="genre-badge is-generic">Przygodowy</span>
-              <span class="genre-badge is-generic">Fantasy</span>
-            </div>
-            <div class="row">
-              <div class="row">
-                <span data-timer-id="f2" data-timer>00:51:10</span>
-                <button class="reset-btn" onclick="resetTimer('f2')">Resetuj</button>
-              </div>
-              <button class="btn-danger" onclick="confirmDelete('Avatar (2009)')">Usuń teraz</button>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <!-- SERIALE -->
-      <div id="tab-series" class="available-tab-content">
-        <details class="series-card" open>
-          <summary class="series-top">
-            <img class="series-poster" src="https://image.tmdb.org/t/p/w342/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg" alt="Poster">
-            <div class="series-main">
-              <h3 class="series-title">Stranger Things</h3>
-              <div class="series-progress">
-                <div class="bar"><div class="fill" style="width: 62%"></div></div>
-              </div>
-              <!-- badge gatunków pod paskiem -->
-              <div class="genre-badges">
-                <span class="genre-badge is-generic">Mystery</span>
-                <span class="genre-badge is-generic">Sci-Fi</span>
-              </div>
-            </div>
-            <span class="series-caret">›</span>
-          </summary>
-
-          <div class="series-timer">
-            <span data-timer-id="s1" data-timer>18:42:00</span>
-            <button class="reset-btn" onclick="resetTimer('s1')">Resetuj</button>
-            <button class="btn-danger" onclick="confirmDelete('Stranger Things')">Usuń teraz</button>
-          </div>
-
-          <div class="season-chips">
-            <div class="chip"><span class="num">S1</span><span class="meta">8 odc.</span></div>
-            <div class="chip done"><span class="num">S2</span><span class="meta">9 odc.</span></div>
-            <div class="chip"><span class="num">S3</span><span class="meta">8 odc.</span></div>
-          </div>
-
-          <div class="series-seasons">
-            <details>
-              <summary>Sezon 1</summary>
-              <ul>
-                <li>Odc. 1 – 100%</li>
-                <li>Odc. 2 – 100%</li>
-                <li>Odc. 3 – 20%</li>
-              </ul>
-            </details>
-          </div>
-        </details>
-      </div>
-    </section>
-
-    <!-- SEKCJA: Ustawienia -->
-    <section id="section-settings" class="section">
-      <div class="series-card">
-        <div class="result-content">
-          <b>Ustawienia</b>
-          <div>
-            <label class="switch-label small">
-              <input id="toggle-cast" type="checkbox" class="switch-input" />
-              <span class="switch-slider"></span>
-              Pokaż/ukryj mini-player (demo)
-            </label>
-          </div>
-          <div class="muted">Pozostałe preferencje możesz dopisać wg potrzeb.</div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- MINI-PLAYER CAST -->
-  <div id="cast-bar" style="display:none">
-    <img id="cast-thumb" src="https://image.tmdb.org/t/p/w342/8YFL5QQVPy3AgrEQxNYVSgiPEbe.jpg" alt="Thumb">
-    <div>
-      <div id="cast-title">Odtwarzanie: Example Film</div>
-      <div id="cast-time">01:12:33 / 02:04:40</div>
-    </div>
-    <input id="cast-seek" type="range" min="0" max="100" value="42" />
-    <div class="cast-controls">
-      <button id="cast-devices-btn" title="Wybierz urządzenie">📡</button>
-      <button id="cast-play" title="Start/Pauza">⏯</button>
-      <button id="cast-close" title="Zamknij">✖</button>
-    </div>
-  </div>
-
-  <!-- MODAL: wybór urządzenia -->
-  <div id="cast-modal" aria-hidden="true">
-    <div class="modal-inner">
-      <b>Wybierz urządzenie</b>
-      <div id="cast-devices">
-        <div class="cast-device" data-device="tv">Salon TV <span>Chromecast</span></div>
-        <div class="cast-device" data-device="bedroom">Sypialnia <span>Android TV</span></div>
-        <div class="cast-device" data-device="office">Biuro <span>Chromecast</span></div>
-      </div>
-      <div class="actions">
-        <button id="cast-cancel">Anuluj</button>
-        <button id="cast-confirm" disabled>Połącz</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: potwierdzenie usuwania -->
-  <div id="confirm-modal" class="hidden" aria-hidden="true">
-    <div class="modal-content">
-      <div id="confirm-message">Na pewno usunąć?</div>
-      <div>
-        <button id="confirm-yes">Tak, usuń</button>
-        <button id="confirm-no">Anuluj</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- FAB: Randomizer -->
-  <button id="rand-fab" class="lift-with-cast" style="--lift-base: 84px;" title="Wylosuj coś do obejrzenia">🎲</button>
-
-  <!-- MODAL: wybór gatunków -->
-  <div id="rand-modal" aria-hidden="true">
-    <div class="rand-card">
-      <div class="rand-title">Wybierz gatunki do losowania</div>
-      <div id="rand-genres">
-        <label class="rand-row"><input type="checkbox" value="Sci-Fi" checked><label>Sci-Fi</label></label>
-        <label class="rand-row"><input type="checkbox" value="Akcja" checked><label>Akcja</label></label>
-        <label class="rand-row"><input type="checkbox" value="Dramat"><label>Dramat</label></label>
-        <label class="rand-row"><input type="checkbox" value="Komedia"><label>Komedia</label></label>
-        <label class="rand-row"><input type="checkbox" value="Thriller"><label>Thriller</label></label>
-      </div>
-      <div class="rand-actions">
-        <button id="rand-cancel">Zamknij</button>
-        <button id="rand-go" class="rand-primary">Losuj</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: wynik losowania -->
-  <div id="rand-result" aria-hidden="true">
-    <div class="rand-result-inner">
-      <div class="rand-poster-wrap">
-        <img class="rand-poster" id="rand-poster" src="https://image.tmdb.org/t/p/w342/jBJWaqoSCiARWtfV0GlqHrcdidd.jpg" alt="Poster">
-      </div>
-      <div id="rand-title" class="rand-title-film">Wylosowano tytuł…</div>
-      <div id="rand-rolling-hint" class="muted hidden">Losuję…</div>
-      <div class="rand-cta">
-        <button class="cast" id="rand-cast">Cast</button>
-        <button class="close" id="rand-close">Zamknij</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- FAB: Live Search -->
-  <button id="live-toggle" class="lift-with-cast" title="Live search">🔍</button>
-  <div id="live-overlay"></div>
-  <aside id="live-panel" aria-hidden="true">
-    <div class="live-head">
-      <b>Live Search</b>
-      <button id="live-close">✖</button>
-    </div>
-    <div class="live-body">
-      <input id="live-query" type="search" placeholder="Szukaj na żywo…" />
-      <div class="live-actions">
-        <small class="muted">Zaznacz gatunki i wpisz frazę.</small>
-      </div>
-      <div id="live-genres">
-        <label class="live-row"><input type="checkbox" value="Sci-Fi" checked><label>Sci-Fi</label></label>
-        <label class="live-row"><input type="checkbox" value="Dramat"><label>Dramat</label></label>
-        <label class="live-row"><input type="checkbox" value="Thriller"><label>Thriller</label></label>
-        <label class="live-row"><input type="checkbox" value="Komedia"><label>Komedia</label></label>
-      </div>
-    </div>
-    <div class="live-foot">
-      <span class="muted">Wyniki na żywo (demo)</span>
-      <button id="live-clear">Wyczyść</button>
-    </div>
-  </aside>
-
-  <!-- DOLNA NAWIGACJA -->
-  <nav id="nav" class="nawigacja">
-    <button class="nawigacja__btn is-active" data-nav="section-search">
-      <span class="nawigacja__ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-      </span>
-      <span class="nawigacja__label">Start</span>
-    </button>
-    <button class="nawigacja__btn" data-nav="section-available">
-      <span class="nawigacja__ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 5h18v6H3zM3 13h18v6H3z"/></svg>
-      </span>
-      <span class="nawigacja__label">Dostępne</span>
-    </button>
-    <button class="nawigacja__btn" id="nav-rand">
-      <span class="nawigacja__ico" aria-hidden="true">🎲</span>
-      <span class="nawigacja__label">Losuj</span>
-    </button>
-    <button class="nawigacja__btn" data-nav="section-settings">
-      <span class="nawigacja__ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 4a7.99 7.99 0 01-.26 2l2.12 1.65-2 3.46-2.5-1a8.12 8.12 0 01-1.73 1l-.38 2.65h-4l-.38-2.65a8.12 8.12 0 01-1.73-1l-2.5 1-2-3.46L3.32 14a7.99 7.99 0 010-4l-2.12-1.65 2-3.46 2.5 1a8.12 8.12 0 011.73-1L8.81 2h4l.38 2.65a8.12 8.12 0 011.73 1l2.5-1 2 3.46L20.68 10c.17.64.26 1.32.26 2z"/></svg>
-      </span>
-      <span class="nawigacja__label">Ustawienia</span>
-    </button>
-  </nav>
-
-  <script>
-  // ======== pomocnicze ========
-  const $ = (sel, root=document) => root.querySelector(sel);
-  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-
-  // ======== tryb jasny/ciemny ========
-  const themeToggle = $('#theme-toggle');
-  const themeLabel = $('#theme-label');
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  document.body.setAttribute('data-theme', savedTheme);
-  themeToggle.checked = savedTheme === 'light';
-  themeLabel.textContent = savedTheme === 'light' ? 'Jasny' : 'Ciemny';
-  themeToggle.addEventListener('change', () => {
-    const mode = themeToggle.checked ? 'light' : 'dark';
-    document.body.setAttribute('data-theme', mode);
-    themeLabel.textContent = mode === 'light' ? 'Jasny' : 'Ciemny';
-    localStorage.setItem('theme', mode);
-    // dopnij tryb do modala potwierdzeń
-    const cm = $('#confirm-modal');
-    cm.classList.toggle('light', mode === 'light');
-  });
-
-  // ======== nawigacja dolna + sekcje ========
-  const sections = $$('.section');
-  const navBtns = $$('.nawigacja__btn');
-  function showSection(id){
-    sections.forEach(s => s.classList.toggle('active', s.id === id));
-    navBtns.forEach(b => b.classList.toggle('is-active', b.dataset.nav === id));
-    // podmień aktywność zakładek u góry (jeśli klik z dołu)
-    const topTabs = $$('#search-tabs .search-tab');
-    topTabs.forEach(t => t.classList.toggle('active', t.dataset.target === id));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-  navBtns.forEach(btn=>{
-    if(btn.id === 'nav-rand'){ btn.addEventListener('click', ()=>openRand()); return; }
-    btn.addEventListener('click', ()=> showSection(btn.dataset.nav));
-  });
-
-  // górne tabs sekcji
-  $$('#search-tabs .search-tab').forEach(tab=>{
-    tab.addEventListener('click', ()=>{
-      $$('#search-tabs .search-tab').forEach(t=>t.classList.remove('active'));
-      tab.classList.add('active');
-      showSection(tab.dataset.target);
-    });
-  });
-
-  // zakładki „Dostępne”: Filmy / Seriale
-  const availTabs = $$('#available-tabs .search-tab');
-  const availViews = {
-    films: $('#tab-films'),
-    series: $('#tab-series'),
-  };
-  availTabs.forEach(t=>{
-    t.addEventListener('click', ()=>{
-      availTabs.forEach(x=>x.classList.remove('active'));
-      t.classList.add('active');
-      const key = t.dataset.available;
-      Object.values(availViews).forEach(el=>el.classList.remove('active'));
-      availViews[key].classList.add('active');
-    });
-  });
-
-  // ======== Confirm delete modal ========
-  const confirmModal = $('#confirm-modal');
-  let confirmPayload = null;
-  window.confirmDelete = (title) => {
-    $('#confirm-message').innerHTML = `Na pewno usunąć: <b>${title}</b>? Tego nie da się cofnąć.`;
-    confirmPayload = title;
-    confirmModal.classList.remove('hidden');
-    setTimeout(()=>confirmModal.classList.add('show'), 10);
-  };
-  $('#confirm-no').addEventListener('click', closeConfirm);
-  function closeConfirm(){
-    confirmModal.classList.remove('show');
-    setTimeout(()=>confirmModal.classList.add('hidden'), 250);
-    confirmPayload = null;
-  }
-  $('#confirm-yes').addEventListener('click', ()=>{
-    if(confirmPayload){
-      // tu wepnij właściwe kasowanie (API itp.)
-      alert(`Usunięto: ${confirmPayload}`);
-    }
-    closeConfirm();
-  });
-
-  // ======== Mini-player CAST (demo) ========
-  const castBar = $('#cast-bar');
-  const castDevicesBtn = $('#cast-devices-btn');
-  const castClose = $('#cast-close');
-  const castModal = $('#cast-modal');
-  const castConfirm = $('#cast-confirm');
-  let chosenDevice = null;
-
-  function openCast(){
-    castBar.style.display = 'flex';
-    document.body.classList.add('cast-active');
-  }
-  function closeCast(){
-    castBar.style.display = 'none';
-    document.body.classList.remove('cast-active');
-  }
-  $('#toggle-cast').addEventListener('change', (e)=> e.target.checked ? openCast() : closeCast());
-  castClose.addEventListener('click', closeCast);
-
-  castDevicesBtn.addEventListener('click', ()=>{
-    castModal.classList.add('show');
-    chosenDevice = null;
-    castConfirm.disabled = true;
-    $$('#cast-devices .cast-device').forEach(d=>{
-      d.classList.remove('selected');
-      d.addEventListener('click', ()=>{
-        $$('#cast-devices .cast-device').forEach(x=>x.classList.remove('selected'));
-        d.classList.add('selected');
-        chosenDevice = d.dataset.device;
-        castConfirm.disabled = false;
-      }, { once:true });
-    });
-  });
-  $('#cast-cancel').addEventListener('click', ()=> castModal.classList.remove('show'));
-  castConfirm.addEventListener('click', ()=>{
-    castModal.classList.remove('show');
-    if(chosenDevice) alert('Połączono z: ' + chosenDevice);
-    openCast();
-  });
-
-  // ======== Timer + reset (proste demo) ========
-  const timers = {
-    f1: 2*3600 + 14*60 + 32,
-    f2: 51*60 + 10,
-    s1: 18*3600 + 42*60,
-  };
-  function fmt(sec){
-    const h = Math.floor(sec/3600).toString().padStart(2,'0');
-    const m = Math.floor((sec%3600)/60).toString().padStart(2,'0');
-    const s = Math.floor(sec%60).toString().padStart(2,'0');
-    return `${h}:${m}:${s}`;
-  }
-  function tick(){
-    Object.keys(timers).forEach(id=>{
-      if(timers[id] > 0) timers[id]--;
-      const pill = document.querySelector(`[data-timer-id="${id}"]`);
-      if(pill) pill.textContent = fmt(timers[id]);
-    });
-  }
-  setInterval(tick, 1000);
-  window.resetTimer = (id)=>{
-    timers[id] = 0;
-    const pill = document.querySelector(`[data-timer-id="${id}"]`);
-    if(pill) pill.textContent = '00:00:00';
-  };
-
-  // ======== Randomizer ========
-  const randFab = $('#rand-fab');
-  const randModal = $('#rand-modal');
-  const randResult = $('#rand-result');
-  const randPoster = $('#rand-poster');
-  const randTitle = $('#rand-title');
-  const randRolling = $('#rand-rolling-hint');
-  const POOL = [
-    { title:'Blade Runner 2049', poster:'https://image.tmdb.org/t/p/w342/aMpyrCizvS7Fp2Zqo1PD0HpkfT3.jpg' },
-    { title:'Interstellar', poster:'https://image.tmdb.org/t/p/w342/nBNZadXqJSdt05SHLqgT0HuC5Gm.jpg' },
-    { title:'The Martian', poster:'https://image.tmdb.org/t/p/w342/5aGhaIHYuQbqlHWvWYqMCnj40y2.jpg' },
-    { title:'John Wick', poster:'https://image.tmdb.org/t/p/w342/fZPSd91yGE9fCcCe6OoQr6E3Bev.jpg' },
-  ];
-  function openRand(){ randModal.classList.add('show'); }
-  function closeRand(){ randModal.classList.remove('show'); }
-  function openRandResult(){ randResult.classList.add('show'); }
-  function closeRandResult(){ randResult.classList.remove('show'); }
-  randFab.addEventListener('click', openRand);
-  $('#rand-cancel').addEventListener('click', closeRand);
-  $('#rand-go').addEventListener('click', ()=>{
-    // zbierz zaznaczone gatunki – tu demo bez realnego filtra
-    closeRand();
-    randRolling.classList.remove('hidden');
-    randResult.classList.add('rolling');
-    openRandResult();
-    setTimeout(()=>{
-      const item = POOL[Math.floor(Math.random()*POOL.length)];
-      randPoster.src = item.poster;
-      randTitle.textContent = item.title;
-      randRolling.classList.add('hidden');
-      randResult.classList.remove('rolling');
-    }, 900);
-  });
-  $('#rand-close').addEventListener('click', closeRandResult);
-  $('#rand-cast').addEventListener('click', ()=>{
-    closeRandResult();
-    openCast();
-  });
-
-  // też z dolnej nawigacji
-  $('#nav-rand').addEventListener('click', openRand);
-
-  // ======== Live Search panel ========
-  const liveToggle = $('#live-toggle');
-  const liveOverlay = $('#live-overlay');
-  const livePanel = $('#live-panel');
-  const openLive = () => { liveOverlay.classList.add('show'); livePanel.classList.add('show'); };
-  const closeLive = () => { liveOverlay.classList.remove('show'); livePanel.classList.remove('show'); };
-  liveToggle.addEventListener('click', openLive);
-  $('#live-close').addEventListener('click', closeLive);
-  liveOverlay.addEventListener('click', closeLive);
-  $('#live-clear').addEventListener('click', ()=>{
-    $('#live-query').value = '';
-  });
-
-  // ======== drobne: „Cast” na kartach ========
-  $$('.cast-btn').forEach(btn => btn.addEventListener('click', openCast));
-
-  // ======== search input Enter (demo) ========
-  $('#search-query').addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){
-      alert('Szukam: ' + e.currentTarget.value + ' (demo)');
-    }
-  });
-  </script>
-</body>
+<footer class="site-footer">
+<img src="/static/icon.png" alt="ikona" class="footer-icon" />
 </html>
