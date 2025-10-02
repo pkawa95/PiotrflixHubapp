@@ -369,56 +369,6 @@
   <!-- Toast -->
   <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
 </section>
-
-<section id="section-search" hidden aria-hidden="true">
-  <div class="tx-container">
-
-    <!-- Sticky: logo + zakładki (identyczne klasy co w torrents) -->
-    <div class="tx-stickybar">
-      <div class="tx-brand">
-        <img src="/static/logo.png" alt="PiotrFlix" class="tx-logo" onerror="this.style.display='none'">
-      </div>
-      <div class="tx-tabs" role="tablist" aria-label="Tryb wyszukiwania">
-        <button class="tx-tab is-active" data-mode="yts_html" role="tab" aria-selected="true">Filmy</button>
-        <button class="tx-tab" data-mode="tpb_movies" role="tab" aria-selected="false">Filmy+</button>
-        <button class="tx-tab" data-mode="tpb_series" role="tab" aria-selected="false">Seriale</button>
-      </div>
-    </div>
-
-    <!-- Toolbar: pole wspólne + jakość (tylko dla YTS) -->
-    <div class="tx-toolbar" id="sx-toolbar">
-      <div class="tx-group" style="flex:1; min-width: 220px;">
-        <label for="sx-q" class="tx-label">Wyszukaj tytuł</label>
-        <input id="sx-q" class="sx-input" type="search" placeholder="np. Interstellar / The Office…" inputmode="search">
-      </div>
-
-      <div class="tx-group" id="sx-quality-wrap" aria-hidden="false">
-        <label for="sx-quality" class="tx-label">Jakość (YTS)</label>
-        <select id="sx-quality" class="select">
-          <option value="">Dowolna</option>
-          <option value="720p">720p</option>
-          <option value="1080p" selected>1080p</option>
-          <option value="2160p">2160p</option>
-        </select>
-      </div>
-
-      <div class="tx-group">
-        <button id="sx-btn-search" class="tbtn" type="button" aria-label="Szukaj">Szukaj</button>
-      </div>
-    </div>
-
-    <!-- Wyniki: używamy wyglądu kart jak w kolejce (.qcard) -->
-    <div id="sx-results" class="tx-list" aria-live="polite" aria-busy="false"></div>
-  </div>
-
-  <!-- Toast (auto-znikający) -->
-  <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
-</section>
-
-
-
-      </section>
-      
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
     </main>
