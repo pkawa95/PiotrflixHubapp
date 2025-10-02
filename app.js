@@ -6,23 +6,25 @@
   const btns = Array.from(root.querySelectorAll('.nawigacja__btn'));
   const STORAGE_KEY = 'nawigacja:lastSection';
 
-  function setActive(section){
-    btns.forEach(b=>{
-      const active = b.dataset.section === section;
-      b.classList.toggle('is-active', active);
-      b.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
+function setActive(section){
+  btns.forEach(b=>{
+    const active = b.dataset.section === section;
+    b.classList.toggle('is-active', active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
 
-    document.querySelectorAll('.section').forEach(sec=>{
-      const key = (sec.id || '').replace('section-','');
-      const on = key === section;
-      sec.classList.toggle('active', on);
-      sec.hidden = !on;
-    });
+  // pokaż/ukryj prawdziwe panele w <main>
+  document.querySelectorAll('#content > section').forEach(sec=>{
+    const key = (sec.id || '').replace('section-','');
+    const on = key === section;
+    sec.hidden = !on;
+    sec.setAttribute('aria-hidden', on ? 'false' : 'true');
+  });
 
-    try{ localStorage.setItem(STORAGE_KEY, section); }catch(_){}
-    try{ history.replaceState(null, '', '#'+section); }catch(_){}
-  }
+  try{ localStorage.setItem(STORAGE_KEY, section); }catch(_){}
+  try{ history.replaceState(null, '', '#'+section); }catch(_){}
+}
+
 
   root.addEventListener('click', (e)=>{
     const b = e.target.closest('.nawigacja__btn');
@@ -411,3 +413,216 @@ document.addEventListener('DOMContentLoaded', () => {
   ------------------------------------------------ */
 });
 
+
+/* ====== TORRENTS + QUEUE MODULE ====== */
+(function(){
+  const sec = document.getElementById('section-torrents');
+  if (!sec) return;
+
+  const devSel  = document.getElementById('t-devices');
+  const btnRef  = document.getElementById('t-refresh');
+  const listT   = document.getElementById('t-list');
+  const emptyT  = document.getElementById('t-empty');
+  const aggEl   = document.getElementById('t-agg');
+  const listQ   = document.getElementById('q-list');
+  const emptyQ  = document.getElementById('q-empty');
+
+  const LS_DEVICE = 'pf_selected_device';
+
+  const apiBase = (document.getElementById('auth-screen')?.dataset.apiBase || '').replace(/\/+$/,'');
+  const u = (p) => apiBase + p;
+
+  function fmtBytes(b){
+    const n = Number(b||0);
+    if (!isFinite(n) || n<=0) return '0 B/s';
+    const k = 1024; const units = ['B/s','KiB/s','MiB/s','GiB/s','TiB/s'];
+    const i = Math.floor(Math.log(n)/Math.log(k));
+    return `${(n/Math.pow(k,i)).toFixed(i?1:0)} ${units[i]}`;
+  }
+  function fmtPct(x){ const n = Math.max(0, Math.min(1, Number(x||0))); return (n*100).toFixed(1) + '%'; }
+  function isoToLocal(dt){
+    try { return new Date(dt).toLocaleString(); } catch { return dt || ''; }
+  }
+
+  /* ---------- DEVICES ---------- */
+  async function loadDevices(){
+    try {
+      const r = await authFetch(u('/torrents/devices'));
+      const data = await r.json();
+      const prev = localStorage.getItem(LS_DEVICE) || '';
+      devSel.innerHTML = `<option value="">Wszystkie</option>`;
+      (data||[]).forEach(d=>{
+        const opt = document.createElement('option');
+        opt.value = d.device_id;
+        opt.textContent = d.device_id + (d.torrents ? ` (${d.torrents})` : '');
+        devSel.appendChild(opt);
+      });
+      if (prev && [...devSel.options].some(o=>o.value===prev)) devSel.value = prev;
+    } catch(e){ console.warn('devices error', e); }
+  }
+
+  /* ---------- STATUS SUMMARY ---------- */
+  async function loadSummary(){
+    try {
+      const q = devSel.value ? `?device_id=${encodeURIComponent(devSel.value)}` : '';
+      const r = await authFetch(u('/torrents/status/summary'+q));
+      const s = await r.json();
+      const dl = fmtBytes(s.aggregate_dl_speed);
+      const ul = fmtBytes(s.aggregate_ul_speed);
+      aggEl.textContent = `Łącznie: ${s.total} • Pobieranie: ${dl} • Wysyłanie: ${ul}`;
+    } catch(e){ aggEl.textContent = ''; }
+  }
+
+  /* ---------- TORRENTS LIST ---------- */
+  function tRow(t){
+    const img = t.image_url || 'https://placehold.co/240x360?text=No+Image';
+    const title = t.display_title || t.name || '(bez tytułu)';
+    const pct = Math.max(0, Math.min(1, Number(t.progress||0)));
+    const pctTxt = fmtPct(pct);
+    const eta = (t.eta && t.eta>0) ? ` • ETA: ${Math.max(0, Math.floor(t.eta/60))} min` : '';
+    const rate = `${fmtBytes(t.dl_speed)} / ${fmtBytes(t.ul_speed)}`;
+
+    const card = document.createElement('article');
+    card.className = 'tcard';
+    card.innerHTML = `
+      <img class="tcard__img" src="${img}" alt="" />
+      <div class="tcard__body">
+        <h3 class="tcard__title">${escapeHtml(title)}</h3>
+        <div class="tcard__meta">
+          <span class="tbadge"><span class="tbadge__dot"></span>${escapeHtml(t.state)}</span>
+          <span>${rate}${eta}</span>
+          <span>Peers: ${Number(t.peers||0)} / Seeds: ${Number(t.seeds||0)}</span>
+        </div>
+        <div class="progress" aria-label="Postęp">
+          <div class="progress__bar" style="width:${(pct*100).toFixed(3)}%"></div>
+        </div>
+        <div class="progress__label">${pctTxt} • ${((t.downloaded_bytes||0)/1024/1024).toFixed(1)} / ${((t.size_bytes||0)/1024/1024).toFixed(1)} MiB</div>
+      </div>
+      <div class="tcard__actions">
+        <button class="btn btn--ghost" data-act="pause"  title="Pauzuj">⏸</button>
+        <button class="btn btn--ghost" data-act="resume" title="Wznów">▶️</button>
+        <button class="btn btn--ghost" data-act="recheck" title="Sprawdź">🔁</button>
+        <button class="btn btn--danger" data-act="remove" title="Usuń">🗑</button>
+        <button class="btn btn--danger" data-act="remove_data" title="Usuń z danymi">🗑💾</button>
+      </div>
+    `;
+
+    // actions
+    card.querySelectorAll('[data-act]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const kind = btn.getAttribute('data-act');
+        try{
+          await authFetch(u('/torrents/commands/push'), {
+            method: 'POST',
+            body: {
+              device_id: devSel.value || t.device_id || undefined, // prefer wybrane urządzenie
+              info_hash: t.info_hash,
+              kind,
+              args: {}
+            }
+          });
+          // szybkie odświeżenie
+          await Promise.all([loadTorrents(), loadQueue(), loadSummary()]);
+        }catch(e){ console.error(e); }
+      });
+    });
+
+    return card;
+  }
+
+  async function loadTorrents(){
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    params.set('limit', '200');
+    params.set('order', 'desc');
+    if (devSel.value) params.set('device_id', devSel.value);
+
+    const r = await authFetch(u('/torrents/status/list?'+params.toString()));
+    const data = await r.json();
+
+    listT.innerHTML = '';
+    if (!data || !data.length){
+      emptyT.hidden = false;
+      return;
+    }
+    emptyT.hidden = true;
+    data.forEach(t => listT.appendChild(tRow(t)));
+  }
+
+  /* ---------- QUEUE LIST ---------- */
+  function qRow(q){
+    const img = q.image_url || 'https://placehold.co/160x240?text=No+Image';
+    const title = q.display_title || q.kind;
+    const dt = q.created_at ? isoToLocal(q.created_at) : '';
+    const status = q.status || 'new';
+
+    const row = document.createElement('article');
+    row.className = 'qcard';
+    row.innerHTML = `
+      <img class="qcard__img" src="${img}" alt="">
+      <div>
+        <h3 class="qcard__title">${escapeHtml(title)}</h3>
+        <div class="qcard__meta">Rodzaj: ${escapeHtml(q.kind)} • Status: ${escapeHtml(status)} • Dodano: ${escapeHtml(dt)}</div>
+      </div>
+      <div class="qcard__actions">
+        <button class="btn btn--danger" data-del="${q.id}" title="Usuń zadanie">Usuń</button>
+      </div>
+    `;
+
+    row.querySelector('[data-del]').addEventListener('click', async ()=>{
+      try {
+        await authFetch(u(`/torrents/commands/${q.id}`), { method: 'DELETE' });
+        await loadQueue();
+      } catch(e){ console.error(e); }
+    });
+
+    return row;
+  }
+
+  async function loadQueue(){
+    const params = new URLSearchParams();
+    if (devSel.value) params.set('device_id', devSel.value);
+    params.set('status','all'); // pokazujemy wszystkie
+    params.set('page','1');
+    params.set('limit','100');
+
+    const r = await authFetch(u('/torrents/commands/list?'+params.toString()));
+    const data = await r.json();
+
+    listQ.innerHTML = '';
+    if (!data || !data.length){ emptyQ.hidden = false; return; }
+    emptyQ.hidden = true;
+    data.forEach(q => listQ.appendChild(qRow(q)));
+  }
+
+  /* ---------- helpers ---------- */
+  function escapeHtml(s){
+    return String(s??'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+  }
+
+  /* ---------- events ---------- */
+  devSel.addEventListener('change', ()=>{
+    try{ localStorage.setItem(LS_DEVICE, devSel.value || ''); }catch(_){}
+    Promise.all([loadTorrents(), loadQueue(), loadSummary()]);
+  });
+  btnRef.addEventListener('click', ()=> Promise.all([loadDevices(), loadTorrents(), loadQueue(), loadSummary()]));
+
+  // hook na przełączanie sekcji (Twoja nawigacja wywołuje window.showSection)
+  const origShow = window.showSection;
+  window.showSection = function(name){
+    if (typeof origShow === 'function') try{ origShow(name); }catch(_){}
+    if (name === 'torrents'){
+      // init once + refresh
+      loadDevices().then(()=> {
+        const saved = localStorage.getItem(LS_DEVICE);
+        if (saved && [...devSel.options].some(o=>o.value===saved)) devSel.value = saved;
+        return Promise.all([loadTorrents(), loadQueue(), loadSummary()]);
+      });
+    }
+  };
+
+  // jeśli sekcja startowa to „torrents”
+  if ((location.hash||'').replace('#','') === 'torrents'){
+    loadDevices().then(()=> Promise.all([loadTorrents(), loadQueue(), loadSummary()]));
+  }
+})();

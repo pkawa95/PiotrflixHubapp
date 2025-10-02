@@ -264,7 +264,47 @@
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
-      <section id="section-torrents" role="tabpanel" aria-hidden="true"></section>
+      <section id="section-torrents" role="tabpanel" aria-hidden="true">
+  <!-- Pasek sterowania -->
+  <header class="tbar">
+    <div class="tbar__left">
+      <label class="tbar__field">
+        <span class="tbar__label">Urządzenie</span>
+        <select id="t-devices" class="tbar__select" aria-label="Wybierz urządzenie">
+          <option value="">Wszystkie</option>
+        </select>
+      </label>
+
+      <button id="t-refresh" class="btn btn--primary tbar__btn" type="button" title="Odśwież">
+        Odśwież
+      </button>
+    </div>
+
+    <div class="tbar__right">
+      <span id="t-agg" class="tbar__agg" aria-live="polite"></span>
+    </div>
+  </header>
+
+  <!-- Siatka: Torrenty + Kolejka -->
+  <div class="tgrid">
+    <!-- Lista torrentów -->
+    <section class="tcol">
+      <h2 class="tcol__title">Aktywne torrenty</h2>
+      <div id="t-list" class="tlist" aria-live="polite"></div>
+      <div id="t-empty" class="empty" hidden>Brak torrentów do wyświetlenia.</div>
+    </section>
+
+    <!-- Kolejka zadań -->
+    <aside class="tcol">
+      <h2 class="tcol__title">Kolejka zadań</h2>
+      <div id="q-list" class="qlist" aria-live="polite"></div>
+      <div id="q-empty" class="empty" hidden>Brak zadań w kolejce.</div>
+    </aside>
+  </div>
+</section>
+
+
+      </section>
       <section id="section-search" role="tabpanel" aria-hidden="true"></section>
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
