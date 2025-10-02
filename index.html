@@ -567,48 +567,82 @@ const subsInfo = sel('subsInfo');
     return isNaN(t) ? null : t;
   }
 
-  function _canonAvailableItem(r){
-    const title = _first(r, ['display_title','title','name'],'—');
-    const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
+function _canonAvailableItem(r){
+  const title = _first(r, ['display_title','title','name'],'—');
+  const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
 
-    // próbujemy rozpoznać rodzaj
-    const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
-    const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
-    const kind = isSeries ? 'series' : 'movie';
+  // rodzaj
+  const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
+  const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
+  const kind = isSeries ? 'series' : 'movie';
 
-    const year = _first(r,['year','release_year','y'], null);
-    const dur = _num(_first(r,['duration','runtime','total_seconds','duration_sec'],0));
-    const pos = _num(_first(r,['watched_seconds','position','last_position','pos'],0));
-    let prog = _num(_first(r,['progress','ratio','percent'], null));
-    if(prog!=null){ prog = prog > 1.01 ? (prog/100) : prog; }
-    else if(dur>0){ prog = Math.max(0, Math.min(1, pos/dur)); }
-    else { prog = 0; }
+  const year = _first(r,['year','release_year','y'], null);
 
-    const season = _num(_first(r,['season','s'], null), null);
-    const episode = _num(_first(r,['episode','e'], null), null);
-    const updated_at = _first(r,['updated_at','mtime','added_at','ts', 'last_update'], null);
+  // --- czas: obsłuż ms i sekundy ---
+  let pos = null, dur = null;
 
-    // ID – jeśli mamy plex_id/ratingKey użyjemy go; inaczej spadamy do unikalnego base64
-    let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key'], null);
-    if(!idCand) idCand = _first(r, ['id','item_id','video_id','hash'], null);
-    let id;
-    if(idCand && String(idCand).match(/^\d+$/)){ id = String(idCand); }
-    else{
-      id = btoa(unescape(encodeURIComponent((title||'') + '|' + (year||'') + '|' + (season||'') + '|' + (episode||'')))).replace(/=+$/,'');
+  if (r.position_ms != null) pos = _num(r.position_ms)/1000;
+  else if (r.watched_ms != null) pos = _num(r.watched_ms)/1000;
+  else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
+  else pos = _num(_first(r,['watched_seconds','position','last_position','pos'],0));
+
+  if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
+  else if (r.total_ms != null) dur = _num(r.total_ms)/1000;
+  else if (r.runtime_ms != null) dur = _num(r.runtime_ms)/1000;
+  else dur = _num(_first(r,['duration','runtime','total_seconds','duration_sec'],0));
+
+  // --- progress: percent/ratio/progress lub wylicz z pozycji ---
+  let prog = null;
+  const rawProg = _first(r,['progress','ratio'], null);
+  const rawPerc = _first(r,['percent'], null);
+
+  if (rawProg != null && rawProg !== '') {
+    let v = Number(rawProg);
+    if (!isFinite(v)) {
+      // np. "0.37" jako string z przecinkiem
+      v = parseFloat(String(rawProg).replace(',', '.'));
     }
-
-    const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
-    const delRaw = _first(r, ['deleteAt','delete_at'], null);
-    const deleteAt = _parseDeleteAt(delRaw);
-    const favorite = _bool(_first(r, ['favorite'], false));
-
-    return {
-      id, title, poster, kind, year,
-      duration: dur, position: pos, progress: prog,
-      season, episode, updated_at, size_bytes,
-      deleteAt, favorite
-    };
+    if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;
+  } else if (rawPerc != null && rawPerc !== '') {
+    let s = String(rawPerc).trim().replace('%','');
+    let v = parseFloat(s.replace(',', '.'));
+    if (isFinite(v)) prog = v/100;
   }
+
+  if (prog == null) {
+    if (isFinite(pos) && isFinite(dur) && dur > 0) prog = Math.max(0, Math.min(1, pos/dur));
+    else prog = 0;
+  } else {
+    prog = Math.max(0, Math.min(1, prog));
+  }
+
+  const season = _num(_first(r,['season','s'], null), null);
+  const episode = _num(_first(r,['episode','e'], null), null);
+  const updated_at = _first(r,['updated_at','mtime','added_at','ts', 'last_update'], null);
+
+  // ID – preferuj plex_id/ratingKey; inaczej stabilne b64 z tytułu/roku/S/E
+  let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key'], null);
+  if(!idCand) idCand = _first(r, ['id','item_id','video_id','hash'], null);
+  let id;
+  if(idCand && String(idCand).match(/^\d+$/)){ id = String(idCand); }
+  else{
+    id = btoa(unescape(encodeURIComponent((title||'') + '|' + (year||'') + '|' + (season||'') + '|' + (episode||'')))).replace(/=+$/,'');
+  }
+
+  const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
+  const delRaw = _first(r, ['deleteAt','delete_at'], null);
+  const deleteAt = _parseDeleteAt(delRaw);
+  const favorite = _bool(_first(r, ['favorite'], false));
+
+  return {
+    id, title, poster, kind, year,
+    duration: isFinite(dur) ? dur : 0,
+    position: isFinite(pos) ? pos : 0,
+    progress: prog,
+    season, episode, updated_at, size_bytes,
+    deleteAt, favorite
+  };
+}
 
   function _episodeLabel(it){
     if(it.kind!=='series') return '';
