@@ -761,11 +761,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+/* ===================== WYSZUKAJ — logika ===================== */
 document.addEventListener('DOMContentLoaded', () => {
   const section = document.getElementById('section-search');
   if (!section) return;
 
-  // API base – spójnie z resztą
+  // API base (spójnie z resztą aplikacji)
   const API =
     document.getElementById('auth-screen')?.dataset.apiBase ||
     localStorage.getItem('pf_base') ||
@@ -784,9 +785,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const toast = section.querySelector('#sx-toast');
 
   // State
-  let mode = 'yts_html';   // 'yts_html' | 'tpb_movies' | 'tpb_series'
+  let mode = 'yts_html';   // 'yts_html' | 'tpb_premium' | 'tpb_series'
   let busy = false;
 
+  // ---------- helpers ----------
   const showToast = (msg, ok=true) => {
     if (!toast) return;
     toast.textContent = msg || '';
@@ -800,10 +802,34 @@ document.addEventListener('DOMContentLoaded', () => {
   ));
   const pick = (o, ...names) => { for (const k of names){ const v = o?.[k]; if (v!=null) return v; } };
 
-  // Mapy trybów (naprawa: Filmy+ → tpb_movies)
+  // 🔧 SANITYZACJA ZAPYTANIA (bez cyfr/roczników/sequeli)
+  function sanitizeQuery(raw){
+    let s = String(raw || '').trim();
+
+    // 1) Usuń rok w nawiasach na końcu: "Dune (2021)" → "Dune"
+    s = s.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, ' ');
+
+    // 2) Usuń frazy sequelowe na końcu: Part/Część/Season/Sezon/Episode/Odcinek/Vol. + liczby/rzym.
+    s = s.replace(/\s*(?:part|część|season|sezon|episode|odcinek|vol\.?)\s+[IVXLCM\d]+$/i, ' ');
+
+    // 3) Usuń pojedyncze tokeny rzymskie na końcu lub w całości (I, II, III, IV, V, VI, VII, VIII, IX, X, …)
+    s = s.replace(/\s+[IVXLCM]+\s*$/i, ' ');
+    s = s.replace(/(^|\s)[IVXLCM]+(\s|$)/gi, ' ');
+
+    // 4) Usuń wszystkie cyfry (w tym „007” – świadomie, wg założeń)
+    s = s.replace(/\d+/g, ' ');
+
+    // 5) Normalizuj spacje
+    s = s.replace(/\s+/g, ' ').trim();
+
+    // fallback: jakby zostało pusto – wróć oryginał
+    return s || String(raw || '').trim();
+  }
+
+  // Mapowanie na provider + type
   const providerForMode = (m) => (
-    m === 'tpb_movies' ? 'tpb_movies' :
-    m === 'tpb_series' ? 'tpb_series' :
+    m === 'tpb_premium' ? 'tpb_premium' :
+    m === 'tpb_series'  ? 'tpb_series'  :
     'yts_html'
   );
   const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
@@ -823,47 +849,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (inputQ.value.trim()) doSearch().catch(()=>{});
   }
-
   section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.tx-tab'); if (!btn) return;
     setMode(btn.dataset.mode);
   });
 
-  // Wyszukiwanie
+  // Busy
   function setBusy(on){
     busy = !!on;
     results?.setAttribute('aria-busy', on ? 'true' : 'false');
   }
 
+  // SZUKAJ
   async function doSearch(){
     if (!tokenOk()){
       results.innerHTML = `<div class="tx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
       return;
     }
-    const q = inputQ.value.trim();
-    if (!q){
+    const qRaw = inputQ.value.trim();
+    if (!qRaw){
       results.innerHTML = `<div class="tx-empty">Wpisz tytuł, aby rozpocząć.</div>`;
       return;
     }
 
-    const provider = providerForMode(mode);   // 🔧 tu naprawa Filmy+
+    const provider = providerForMode(mode);
     const type = typeForMode(mode);
+
+    // najważniejsze: szukamy „bez cyfr”
+    const qSan = sanitizeQuery(qRaw);
+
     const extra = {};
     const isYts = (provider === 'yts_html');
     const qual = isYts ? (selQuality.value || '') : '';
-
     if (isYts && qual) extra.quality = qual;
 
     setBusy(true);
-    results.innerHTML = `<div class="tx-empty">Szukam „${esc(q)}”…</div>`;
+    results.innerHTML = `<div class="tx-empty">Szukam „${esc(qSan)}”…</div>`;
 
     try{
       const r = await window.authFetch(joinUrl(API, '/search'), {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ query: q, type, provider, page: 1, extra })
+        body: JSON.stringify({ query: qSan, type, provider, page: 1, extra })
       });
       const data = await r.json().catch(()=> ({}));
+
+      // backend może zwrócić listę w .items / .results / root
       const arr = Array.isArray(data) ? data
                 : Array.isArray(data.items) ? data.items
                 : Array.isArray(data.results) ? data.results
@@ -887,12 +918,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const html = items.map((it) => {
       const title = esc(pick(it,'title','name','display_title') || 'Bez tytułu');
       const desc  = esc(pick(it,'description','desc','summary','snippet','overview') || 'Brak opisu.');
-      const url   = pick(it,'url','link','href') || '';
-      const poster= pick(it,'poster','image','thumb','cover','poster_url') ||
+      const url   = pick(it,'url','link','href') || '';           // dla YTS do resolve
+      const poster= pick(it,'image','poster','thumb','cover','poster_url') ||
                     'https://via.placeholder.com/300x450?text=Poster';
+      const magnet= pick(it,'magnet','magnet_uri');               // dla TPB mamy od razu
 
+      // provider w data, quality (dla YTS) + magnet (dla TPB)
       return `
-        <article class="qcard" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}">
+        <article class="qcard" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}" ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
           <img class="qcard__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
           <div>
             <div class="qcard__title">${title}</div>
@@ -908,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
     results.innerHTML = html;
   }
 
-  // Pobierz → resolve → add + obsługa YTS fallback jakości
+  // Pobierz → YTS: resolve; TPB: magnet od razu
   function guessQualityFromString(s){
     const m = String(s||'').match(/(2160p|1080p|720p)/i);
     return m ? m[1].toLowerCase() : '';
@@ -918,55 +951,52 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = e.target.closest('.sx-btn-get'); if (!btn) return;
     const card = btn.closest('.qcard'); if (!card) return;
 
-    const url = card.dataset.url || '';
     const provider = card.dataset.provider || providerForMode(mode);
     const type = card.dataset.type || typeForMode(mode);
     const wanted = (provider === 'yts_html') ? (card.dataset.quality || selQuality.value || '') : '';
 
-    if (!url){ showToast('Brak URL do rozwiązania', false); return; }
-
     try{
       btn.disabled = true; btn.textContent = 'Dodaję…';
 
-      // 1) resolve
-      const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ url, provider, quality: wanted || undefined })
-      });
-      const j1 = await r1.json().catch(()=> ({}));
-      const magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri;
-      const resolvedName = j1?.name || j1?.result?.name || '';
-      let resolvedQuality =
-        j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
+      let magnet = card.dataset.magnet || '';
 
-      if (!resolvedQuality) resolvedQuality = guessQualityFromString(magnet || resolvedName);
+      // YTS → resolve URL do magnet (z uwzględnieniem jakości)
+      if (provider === 'yts_html'){
+        const url = card.dataset.url || '';
+        if (!url){ showToast('Brak URL do rozwiązania', false); return; }
 
-      // 2) add
-      if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
+        const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ url, provider: 'yts_html', quality: wanted || undefined })
+        });
+        const j1 = await r1.json().catch(()=> ({}));
+        magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri || '';
+        const resolvedName = j1?.name || j1?.result?.name || '';
+        let resolvedQuality =
+          j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
+        if (!resolvedQuality) resolvedQuality = guessQualityFromString(magnet || resolvedName);
 
-      const meta = {
-        title: card.querySelector('.qcard__title')?.textContent?.trim() || '',
-        image_url: card.querySelector('.qcard__img')?.getAttribute('src') || ''
-      };
+        if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
 
-      const r2 = await window.authFetch(joinUrl(API, '/torrent/add'), {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ magnet, download_kind: type, meta })
-      });
-      if (!r2.ok){
-        const t = await r2.text().catch(()=> '');
-        console.warn('torrent/add failed:', t);
-        showToast('Błąd dodawania torrenta.', false);
+        // dodanie + komunikat o fallbacku jakości
+        await addMagnet(magnet, type, card);
+        if (wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
+          showToast(`Brak ${wanted} — pobieram ${resolvedQuality.toUpperCase()}`, true);
+        } else {
+          showToast('Torrent dodany ✅', true);
+        }
         return;
       }
 
-      // Komunikat o jakości YTS (fallback)
-      if (provider === 'yts_html' && wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
-        showToast(`Brak ${wanted} — pobieram ${resolvedQuality.toUpperCase()}`, true);
-      } else {
-        showToast('Torrent dodany ✅', true);
+      // TPB (tpb_premium / tpb_series) → magnet jest od razu
+      if (!magnet){
+        showToast('Brak magnet linku w wyniku TPB.', false);
+        return;
       }
+      await addMagnet(magnet, type, card);
+      showToast('Torrent dodany ✅', true);
+
     } catch(err){
       console.error(err);
       showToast('Błąd podczas dodawania.', false);
@@ -975,11 +1005,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  async function addMagnet(magnet, type, card){
+    const meta = {
+      title: card.querySelector('.qcard__title')?.textContent?.trim() || '',
+      image_url: card.querySelector('.qcard__img')?.getAttribute('src') || ''
+    };
+    const r2 = await window.authFetch(joinUrl(API, '/torrent/add'), {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ magnet, download_kind: type, meta })
+    });
+    if (!r2.ok){
+      const t = await r2.text().catch(()=> '');
+      console.warn('torrent/add failed:', t);
+      showToast('Błąd dodawania torrenta.', false);
+      throw new Error('add failed');
+    }
+  }
+
   // Szukaj (klik/Enter)
   btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
   inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
 
-  // Gdy sekcja aktywowana z nawigacji — focus w pole
+  // Po przejściu do sekcji — focus w pole
   window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
   window.showSection = function(name){
