@@ -413,19 +413,24 @@ document.addEventListener('DOMContentLoaded', () => {
   ------------------------------------------------ */
 });
 
-/* ===================== TORRENTY / KOLEJKA (sekcja) ===================== */
-(function(){
+/* ===================== TORRENTY / KOLEJKA (sekcja) — v2 z authFetch ===================== */
+document.addEventListener('DOMContentLoaded', () => {
   const section = document.getElementById('section-torrents');
-  if(!section) return;
+  if (!section) return;
 
   const API = document.getElementById('auth-screen')?.dataset.apiBase || '';
   const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/,'')}`;
-  const authHeaders = ()=>{
+
+  // preferuj globalne authFetch; w razie czego fallback z Bearer
+  async function afetch(url, init={}) {
+    if (typeof window.authFetch === 'function') {
+      return window.authFetch(url, init);
+    }
     const t = (window.getAuthToken && window.getAuthToken()) || null;
-    const h = new Headers();
-    if(t) h.set('Authorization', `Bearer ${t}`);
-    return h;
-  };
+    const headers = new Headers(init.headers || {});
+    if (t) headers.set('Authorization', `Bearer ${t}`);
+    return fetch(url, { ...init, headers });
+  }
 
   const elTorrents = section.querySelector('#tx-torrents');
   const elQueue    = section.querySelector('#tx-queue');
@@ -439,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTab = 'torrents';
   let refreshTimer = null;
 
-  // ——— przełączanie kart (pewne ukrywanie) ———
   function setTab(tab){
     currentTab = tab;
     elTorrents.hidden = (tab !== 'torrents');
@@ -448,26 +452,26 @@ document.addEventListener('DOMContentLoaded', () => {
     tabBar.querySelectorAll('.tx-tab').forEach(b=>{
       const on = (b.dataset.txTab === tab);
       b.classList.toggle('is-active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.setAttribute('aria-selected', on ? 'true':'false');
     });
     kickRefresh();
   }
-  tabBar.addEventListener('click', (e)=>{
+  tabBar.addEventListener('click', e=>{
     const btn = e.target.closest('[data-tx-tab]');
     if(!btn) return;
     const tab = btn.dataset.txTab;
     if(tab && tab !== currentTab) setTab(tab);
   });
 
-  // ——— limit prędkości (global) ———
+  // —— limit prędkości (global)
   speedSel?.addEventListener('change', async ()=>{
-    const val = Number(speedSel.value || 0);             // MB/s
-    const kib = val > 0 ? Math.round(val * 1024) : 0;    // KiB/s
+    const val = Number(speedSel.value || 0);           // MB/s
+    const kib = val > 0 ? Math.round(val * 1024) : 0;  // KiB/s
     speedFb.textContent = 'Ustawianie limitu…';
     try{
-      const r = await fetch(joinUrl(API, '/torrent/set-limit'), {
+      const r = await afetch(joinUrl(API, '/torrent/set-limit'), {
         method:'POST',
-        headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ limit_kib_per_s: kib })
       });
       if(!r.ok) throw new Error('HTTP '+r.status);
@@ -480,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ——— helpers ———
+  // —— helpers
   const pct = p => {
     const v = Number(p ?? 0);
     if(Number.isFinite(v)){
@@ -496,20 +500,20 @@ document.addEventListener('DOMContentLoaded', () => {
     while(n>=1024 && i<u.length-1){ n/=1024; i++; }
     return `${n.toFixed(n>=10?0:1)} ${u[i]}`;
   }
-  const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
 
-  // ——— TORRENTY ———
+  // —— TORRENTY (wszystkie urządzenia: BEZ device_id)
   async function loadTorrents(){
     try{
       const url = new URL(joinUrl(API, '/torrents/status/list'));
       url.searchParams.set('page','1');
-      url.searchParams.set('limit','200'); // wszystkie urządzenia (bez device_id)
-      const r = await fetch(url.toString(), { headers: authHeaders() });
+      url.searchParams.set('limit','200');
+      const r = await afetch(url.toString());
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
       const raw = Array.isArray(data?.items) ? data.items : [];
 
-      // deduplikacja po hash/id
+      // deduplikacja po info_hash/hash/id
       const byKey = new Map();
       for(const it of raw){
         const key = it.info_hash || it.hash || it.id || it.name;
@@ -517,6 +521,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!byKey.has(key)) byKey.set(key, it);
       }
       let items = Array.from(byKey.values());
+
+      // filtr: pokazuj tylko aktywne (opcjonalnie – jeśli backend zwraca state)
+      items = items.filter(it => String(it.state||'').toLowerCase() !== 'removed');
 
       // sort
       const s = (sortSel?.value || 'name');
@@ -530,13 +537,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderTorrents(items);
     }catch(e){
-      console.error('loadTorrents', e);
-      if(elTorrents) elTorrents.innerHTML = `<div class="tx-empty">Nie udało się pobrać torrentów.</div>`;
+      console.error('loadTorrents:', e);
+      elTorrents.innerHTML = `<div class="tx-empty">Nie udało się pobrać torrentów (czy jesteś zalogowany?).</div>`;
     }
   }
 
   function renderTorrents(items){
-    if(!elTorrents) return;
     if(!items.length){
       elTorrents.innerHTML = `<div class="tx-empty">Brak aktywnych torrentów.</div>`;
       return;
@@ -551,31 +557,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const ihash = it.info_hash || it.hash || it.id || name;
 
       return `
-      <article class="tcard" data-ih="${escapeHtml(ihash)}">
+      <article class="tcard" data-ih="${esc(ihash)}">
         <div class="tcard__left">
-          <div class="tcard__title">${escapeHtml(name)}</div>
+          <div class="tcard__title">${esc(name)}</div>
           <div class="tcard__meta">
             <span>${progress.toFixed(0)}%</span>
             <span>•</span>
-            <span>${escapeHtml(state)}</span>
+            <span>${esc(state)}</span>
             <span>•</span>
-            <span>${escapeHtml(rate)}</span>
+            <span>${esc(rate)}</span>
           </div>
           <div class="tcard__progress" aria-label="Postęp">
             <div class="tcard__bar" style="width:${progress}%;"></div>
           </div>
         </div>
         <div class="tcard__right">
-          <button class="tbtn tbtn--ghost" data-action="pause" data-ih="${escapeHtml(ihash)}">Pauza/Wznów</button>
-          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${escapeHtml(ihash)}" data-rm="0">Usuń</button>
-          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${escapeHtml(ihash)}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
+          <button class="tbtn tbtn--ghost" data-action="pause" data-ih="${esc(ihash)}">Pauza/Wznów</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${esc(ihash)}" data-rm="0">Usuń</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${esc(ihash)}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
         </div>
       </article>`;
     }).join('');
     if(elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
   }
 
-  // akcje torrentów
   elTorrents?.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button[data-action]');
     if(!btn) return;
@@ -583,16 +588,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const action = btn.dataset.action;
     try{
       if(action === 'pause'){
-        await fetch(joinUrl(API, '/torrent/toggle'), {
+        await afetch(joinUrl(API, '/torrent/toggle'), {
           method:'POST',
-          headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+          headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ torrent_id: ih })
         });
       }else if(action === 'remove'){
         const rm = btn.dataset.rm === '1';
-        await fetch(joinUrl(API, '/torrent/remove'), {
+        await afetch(joinUrl(API, '/torrent/remove'), {
           method:'POST',
-          headers: { ...Object.fromEntries(authHeaders()), 'Content-Type':'application/json' },
+          headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ torrent_id: ih, remove_data: rm })
         });
       }
@@ -601,29 +606,26 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   sortSel?.addEventListener('change', loadTorrents);
 
-  // ——— KOLEJKA ———
+  // —— KOLEJKA
   async function loadQueue(){
     try{
       const url = new URL(joinUrl(API, '/queue/list'));
-      const st = (qStatusSel?.value || 'new');
-      url.searchParams.set('status', st);
+      url.searchParams.set('status', qStatusSel?.value || 'new');
       url.searchParams.set('page','1');
       url.searchParams.set('limit','50');
 
-      const r = await fetch(url.toString(), { headers: authHeaders() });
+      const r = await afetch(url.toString());
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
-
       const items = Array.isArray(data?.items) ? data.items : [];
       renderQueue(items);
     }catch(e){
-      console.error('loadQueue', e);
-      if(elQueue) elQueue.innerHTML = `<div class="tx-empty">Nie udało się pobrać kolejki.</div>`;
+      console.error('loadQueue:', e);
+      elQueue.innerHTML = `<div class="tx-empty">Nie udało się pobrać kolejki (czy jesteś zalogowany?).</div>`;
     }
   }
 
   function renderQueue(items){
-    if(!elQueue) return;
     if(!items.length){
       elQueue.innerHTML = `<div class="tx-empty">Brak elementów w kolejce.</div>`;
       return;
@@ -634,14 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const when   = it.created_at ? new Date(it.created_at).toLocaleString() : '';
       return `
       <article class="qcard" data-qid="${it.id}">
-        <img class="qcard__img" src="${escapeHtml(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+        <img class="qcard__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
         <div>
-          <div class="qcard__title">${escapeHtml(title)}</div>
+          <div class="qcard__title">${esc(title)}</div>
           <div class="qcard__meta">
             <span>ID: ${it.id}</span>
             <span>•</span>
-            <span>Dodano: ${escapeHtml(when)}</span>
-            ${it.kind ? `<span>•</span><span>${escapeHtml(it.kind)}</span>` : ''}
+            <span>Dodano: ${esc(when)}</span>
+            ${it.kind ? `<span>•</span><span>${esc(it.kind)}</span>` : ''}
           </div>
         </div>
         <div class="qcard__right">
@@ -657,24 +659,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!btn) return;
     const id = btn.dataset.qdel;
     try{
-      await fetch(joinUrl(API, `/queue/${id}`), { method:'DELETE', headers: authHeaders() });
+      await afetch(joinUrl(API, `/queue/${id}`), { method:'DELETE' });
       setTimeout(loadQueue, 200);
     }catch(err){ console.error(err); }
   });
 
   qStatusSel?.addEventListener('change', loadQueue);
 
-  // ——— autoodświeżanie tylko aktywnej zakładki ———
-  function tick(){
-    if(currentTab === 'torrents') loadTorrents();
-    else loadQueue();
-  }
+  // —— auto-refresh tylko aktywnej karty
+  function tick(){ currentTab === 'torrents' ? loadTorrents() : loadQueue(); }
   function kickRefresh(){
-    if(refreshTimer) clearInterval(refreshTimer);
+    if (refreshTimer) clearInterval(refreshTimer);
     tick();
     refreshTimer = setInterval(tick, 3000);
   }
 
   // start
   setTab('torrents');
-})();
+});
