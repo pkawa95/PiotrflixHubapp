@@ -1348,3 +1348,38 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
 .qcard__right{display:flex;align-items:center;gap:8px}
 @media (max-width:640px){.qcard{grid-template-columns:70px 1fr}.qcard__right{grid-column:1/-1;justify-content:flex-end}}
 
+/* ====== Ikony nawigacji z plików SVG (kolorowane currentColor) ====== */
+.nawigacja__ico{
+  width:22px; height:22px; display:inline-block;
+  background-color: currentColor;                /* ← kolor z .nawigacja__btn */
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+  transition: transform .12s ease, filter .2s ease;  /* jak wcześniej */
+}
+
+/* Mapowanie ikon → pliki */
+.ico--torrents{
+  -webkit-mask-image:url("static/svg/secure-download-svgrepo-com.svg");
+          mask-image:url("static/svg/secure-download-svgrepo-com.svg");
+}
+.ico--search{
+  -webkit-mask-image:url("static/svg/search-alt-2-svgrepo-com.svg");
+          mask-image:url("static/svg/search-alt-2-svgrepo-com.svg");
+}
+.ico--available{
+  -webkit-mask-image:url("static/svg/film-gallery-svgrepo-com.svg");
+          mask-image:url("static/svg/film-gallery-svgrepo-com.svg");
+}
+.ico--options{
+  -webkit-mask-image:url("static/svg/settings-svgrepo-com.svg");
+          mask-image:url("static/svg/settings-svgrepo-com.svg");
+}
+
+/* (opcjonalnie) delikatny glow ikony na hover – pasuje do Twoich efektów */
+@media (hover:hover){
+  .nawigacja__btn:hover .nawigacja__ico{
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 10px rgba(124,58,237,.45));
+  }
+}
