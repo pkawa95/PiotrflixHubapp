@@ -1656,3 +1656,96 @@ html[data-theme="light"] .sx-card{
   box-shadow: 0 18px 48px rgba(16,24,40,.12), inset 0 1px 0 rgba(255,255,255,.8);
 }
 html[data-theme="light"] .sx-badge{ color:#0f172a; }
+
+/* =========================
+   SEARCH – mobile-only fixes
+   ========================= */
+@media (max-width: 480px){
+
+  /* kontener (zostawiamy tło sekcji przezroczyste) */
+  #section-search{
+    padding: 8px 8px calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* górny pasek (logo + zakładki) */
+  #section-search .s-topbar{
+    position: sticky; top: 8px; z-index: 60;
+    padding: 8px;
+    border-radius: 14px;
+  }
+  #section-search .s-brand{ gap: 8px; }
+  #section-search .s-logo{ height: 26px; }
+
+  /* zakładki */
+  #section-search .s-tabs{
+    gap: 6px; padding: 4px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  #section-search .s-tabs::-webkit-scrollbar{ display:none; }
+  #section-search .s-tab{ padding: 8px 10px; font-size: .95rem; white-space: nowrap; }
+
+  /* formularz: input + jakość + przycisk */
+  #section-search .s-form{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  #section-search .s-field{ display: grid; gap: 6px; }
+  #section-search .s-label{ font-size: .85rem; }
+
+  /* iOS zoom fix + wygodne tap-targety */
+  #section-search .s-input,
+  #section-search .s-select{
+    font-size: 16px;
+    height: 40px; padding: 10px 12px;
+  }
+  #section-search .s-select{ min-width: 120px; }
+  #section-search .s-searchbtn{
+    height: 40px; padding: 10px 14px; white-space: nowrap;
+  }
+
+  /* Jakość ukrywamy dla nie-YTS (JS powinien ustawić data-provider na #section-search) */
+  #section-search:not([data-provider="yts_html"]) .s-quality{ display: none !important; }
+
+  /* lista wyników – zwarta karta */
+  #section-search .s-card{
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: start;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+  #section-search .s-card__img{
+    width: 72px; aspect-ratio: 2 / 3; height: auto;
+    border-radius: 10px; object-fit: cover;
+  }
+  #section-search .s-card__title{ font-size: 1rem; line-height: 1.2; }
+  #section-search .s-card__meta{ font-size: .85rem; gap: 8px; flex-wrap: wrap; }
+  #section-search .s-badge{ font-size: .8rem; padding: 2px 8px; }
+
+  /* opis – 3 linie, bez overflow */
+  #section-search .s-card__desc{
+    font-size: .92rem;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* akcje pod kartą, pełna szerokość na tap */
+  #section-search .s-actions{
+    grid-column: 1 / -1;
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+  #section-search .s-download{
+    width: 100%; justify-content: center;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 360px){
+  #section-search .s-tab{ padding: 7px 8px; }
+  #section-search .s-card{ grid-template-columns: 64px 1fr; }
+  #section-search .s-card__img{ width: 64px; }
+}
