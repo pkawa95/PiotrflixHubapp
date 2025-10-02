@@ -1,282 +1,284 @@
-<!doctype html>
-<html lang="pl" data-theme="dark">
+<!DOCTYPE html>
+<html lang="pl" data-theme="light">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Piotrflix – panel</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PiotrFlix — Logowanie</title>
+
+  <!-- Bazowy CSS -->
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="/static/icon.png" type="image/png"/>
+
+  <!-- Preferencja systemowa: dark mode (opcjonalnie do wykorzystania w CSS) -->
+  <meta name="color-scheme" content="light dark" />
 </head>
 <body>
 
-  <!-- EKRAN LOGOWANIA / REJESTRACJI -->
-  <main id="auth" class="auth">
-    <div class="auth-card">
-      <img class="auth-logo" src="/static/logo.png" alt="Piotrflix" />
+  <noscript>
+    Ta aplikacja wymaga JavaScript do logowania i wyświetlania treści.
+  </noscript>
 
-      <div class="auth-tabs" role="tablist" aria-label="Authentication">
-        <button id="tab-login"  class="tab active" role="tab" aria-selected="true">Zaloguj</button>
-        <button id="tab-register" class="tab" role="tab" aria-selected="false">Zarejestruj</button>
-      </div>
+  <!-- Przycisk trybu jasny/ciemny (JS ustawi aria-pressed, data-theme na <html>) -->
+  <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" title="Przełącz tryb">
+    <span class="visually-hidden">Przełącz tryb jasny/ciemny</span>
+    <!-- Ikona w CSS lub pseudo-elementach -->
+  </button>
 
-      <!-- LOGIN -->
-      <form id="loginForm" class="form form-login" autocomplete="on" novalidate>
-        <div class="field">
-          <label for="loginEmail">Email</label>
-          <input id="loginEmail" type="email" inputmode="email" placeholder="np. user@domena.pl" required />
-          <p class="err" id="loginEmailErr"></p>
-        </div>
-        <div class="field">
-          <label for="loginPass">Hasło</label>
-          <input id="loginPass" type="password" placeholder="••••••••" required minlength="6"/>
-          <p class="err" id="loginPassErr"></p>
-        </div>
-        <button class="btn primary" id="loginBtn" type="submit">Zaloguj</button>
-        <p class="hint" id="loginMsg"></p>
-      </form>
+  <!-- ========================= EKRAN AUTORYZACJI ========================= -->
+  <!-- Widoczny dopóki użytkownik nie ma ważnego tokenu. JS ustawia/ukrywa. -->
+  <section
+    id="auth-screen"
+    class="auth"
+    aria-label="Ekran logowania i rejestracji"
+    data-api-base="https://api.pkportfolio.pl"
+    data-login-endpoint="/auth/login"
+    data-register-endpoint="/auth/register"
+  >
 
-      <!-- REGISTER -->
-      <form id="registerForm" class="form form-register hidden" autocomplete="off" novalidate>
-        <div class="row-2">
-          <div class="field">
-            <label for="regFirst">Imię</label>
-            <input id="regFirst" placeholder="Jan" required />
-            <p class="err" id="regFirstErr"></p>
-          </div>
-          <div class="field">
-            <label for="regLast">Nazwisko</label>
-            <input id="regLast" placeholder="Kowalski" required />
-            <p class="err" id="regLastErr"></p>
-          </div>
-        </div>
-        <div class="field">
-          <label for="regEmail">Email</label>
-          <input id="regEmail" type="email" inputmode="email" placeholder="np. user@domena.pl" required />
-          <p class="err" id="regEmailErr"></p>
-        </div>
-        <div class="row-2">
-          <div class="field">
-            <label for="regPass">Hasło</label>
-            <input id="regPass" type="password" placeholder="min. 6 znaków" required minlength="6" />
-            <p class="err" id="regPassErr"></p>
-          </div>
-          <div class="field">
-            <label for="regPass2">Powtórz hasło</label>
-            <input id="regPass2" type="password" placeholder="powtórz hasło" required minlength="6" />
-            <p class="err" id="regPass2Err"></p>
-          </div>
-        </div>
-        <button class="btn success" id="regBtn" type="submit">Utwórz konto</button>
-        <p class="hint" id="regMsg"></p>
-      </form>
-
-      <p class="swipe-hint">Możesz też <strong>przesunąć</strong> w lewo/prawo, aby przełączyć Zaloguj ↔ Zarejestruj.</p>
-
-      <footer class="auth-footer">
-        <img src="/static/icon.png" alt="" class="copyright-icon"/>
-        <span>© PiotrFlix 2025</span>
-      </footer>
-    </div>
-  </main>
-
-  <!-- GŁÓWNY INTERFEJS (ukryty gdy niezalogowany) -->
-  <div id="app" class="app hidden">
-
-    <header class="topbar">
-      <div class="left">
-        <img src="/static/logo.png" alt="Piotrflix" class="logo-small">
-        <span class="brand">Piotrflix</span>
-      </div>
-      <div class="right">
-        <span id="who" class="who muted">—</span>
-        <button id="themeToggle" class="btn ghost" title="Jasny/Ciemny tryb">🌓</button>
-        <button id="logoutBtn" class="btn ghost">Wyloguj</button>
-      </div>
+    <!-- Logo u góry, wyśrodkowane -->
+    <header class="auth__header">
+      <img src="/static/logo.png" alt="PiotrFlix" class="auth__logo" />
     </header>
 
-    <!-- Ekrany -->
-    <section id="view-torrents" class="view active" data-tab="torrents">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Torrenty</h2>
-          <div class="spacer"></div>
-          <button id="tAuto" class="btn">Auto: OFF</button>
-          <button id="tRefresh" class="btn primary">Odśwież</button>
-        </div>
+    <!-- Karta z panelem logowania/rejestracji -->
+    <div class="auth__card" data-swipe-area="true" aria-live="polite">
+      <!-- Zakładki: Zaloguj | Zarejestruj -->
+      <nav class="auth__tabs" role="tablist" aria-label="Przełączanie paneli">
+        <button
+          id="tab-login"
+          class="auth__tab is-active"
+          role="tab"
+          aria-controls="panel-login"
+          aria-selected="true"
+          tabindex="0"
+          data-auth-view="login"
+          type="button"
+        >
+          Zaloguj
+        </button>
+        <button
+          id="tab-register"
+          class="auth__tab"
+          role="tab"
+          aria-controls="panel-register"
+          aria-selected="false"
+          tabindex="-1"
+          data-auth-view="register"
+          type="button"
+        >
+          Zarejestruj
+        </button>
+      </nav>
 
-        <div class="row wrap">
-          <div class="field">
-            <label>Urządzenie</label>
-            <select id="deviceSel"></select>
-          </div>
-          <div class="field">
-            <label>Global limit (MiB/s, ≤0=OFF)</label>
-            <input id="globRate" type="number" step="0.1" placeholder="np. 10" />
-          </div>
-          <button id="setGlobRate" class="btn">Ustaw limit</button>
-          <span id="devInfo" class="hint"></span>
-        </div>
-
-        <div class="muted" id="tInfo">—</div>
-        <div class="table-scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Info hash</th>
-                <th>Nazwa</th>
-                <th>Postęp</th>
-                <th>Prędkości</th>
-                <th>Peers</th>
-                <th>Rozmiar</th>
-                <th>Ratio</th>
-                <th>Stan</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody id="tBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section id="view-search" class="view" data-tab="search">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Wyszukaj</h2>
-        </div>
-
-        <div class="row wrap">
-          <div class="field grow">
-            <label>Fraza</label>
-            <input id="query" placeholder="np. scary movie"/>
-          </div>
-          <div class="field">
-            <label>Provider</label>
-            <select id="provider">
-              <option value="yts_api">YTS (API)</option>
-              <option value="yts_html">YTS (HTML)</option>
-              <option value="tpb_premium">TPB – premium (207)</option>
-              <option value="tpb_series">TPB – seriale (208)</option>
-              <option value="tpb">TPB – ogólne</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Rodzaj</label>
-            <select id="mtype">
-              <option value="movie">movie</option>
-              <option value="series">series</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Jakość</label>
-            <select id="quality">
-              <option value="">auto jakość</option>
-              <option value="2160p">2160p</option>
-              <option value="1080p" selected>1080p</option>
-              <option value="720p">720p</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>TMDb API (opcjonalnie)</label>
-            <input id="tmdb" placeholder="klucz TMDb" />
-          </div>
-          <button id="searchBtn" class="btn success">Szukaj</button>
-        </div>
-        <p id="countInfo" class="hint">—</p>
-
-        <div id="results" class="cards"></div>
-      </div>
-    </section>
-
-    <section id="view-available" class="view" data-tab="available">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Dostępne</h2>
-        </div>
-
-        <div class="row wrap">
-          <div class="field grow">
-            <label>Szukaj</label>
-            <input id="avQuery" placeholder="np. Matrix"/>
-          </div>
-          <div class="field">
-            <label>Rodzaj</label>
-            <select id="avKind">
-              <option value="all" selected>all</option>
-              <option value="movie">movie</option>
-              <option value="series">series</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Sortowanie</label>
-            <select id="avSort">
-              <option value="recent" selected>ostatnio aktualizowane</option>
-              <option value="title">tytuł A→Z</option>
-              <option value="progress">postęp malejąco</option>
-            </select>
-          </div>
-          <button id="avRefresh" class="btn primary">Odśwież</button>
-          <button id="avAuto" class="btn">Auto: OFF</button>
-          <span id="avInfo" class="hint"></span>
-        </div>
-
-        <div id="availableGrid" class="grid"></div>
-      </div>
-    </section>
-
-    <section id="view-options" class="view" data-tab="options">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Opcje</h2>
-        </div>
-
-        <div class="row wrap">
-          <div class="field grow">
-            <label>Backend API</label>
-            <input id="baseUrlInput" placeholder="https://api.pkportfolio.pl"/>
-          </div>
-          <button id="saveBaseUrl" class="btn">Zapisz</button>
-        </div>
-
-        <div class="row wrap">
-          <div class="field">
-            <label>Tryb motywu</label>
-            <div class="seg">
-              <button class="seg-btn" data-theme="light">Jasny</button>
-              <button class="seg-btn active" data-theme="dark">Ciemny</button>
-              <button class="seg-btn" data-theme="auto">Auto</button>
+      <!-- Wrapper pod gesty (swipe). JS może robić przesuwany slider. -->
+      <div class="auth__panels" data-panels-slider="true">
+        <!-- ========= Panel: LOGOWANIE ========= -->
+        <section
+          id="panel-login"
+          class="auth__panel"
+          role="tabpanel"
+          aria-labelledby="tab-login"
+          aria-hidden="false"
+          data-view="login"
+        >
+          <form id="form-login" class="form" method="post" action="#" novalidate autocomplete="on">
+            <div class="form__row">
+              <label for="login-email" class="form__label">Adres e-mail</label>
+              <input
+                id="login-email"
+                name="email"
+                class="form__input"
+                type="email"
+                inputmode="email"
+                autocomplete="email"
+                required
+                aria-describedby="login-email-error"
+              />
+              <p id="login-email-error" class="form__error" role="alert" aria-live="assertive"></p>
             </div>
-          </div>
-        </div>
 
-        <div class="panel foot-note">
-          <p class="hint">Backend: <code id="baseUrlLabel"></code> (włącz CORS)</p>
-        </div>
+            <div class="form__row">
+              <label for="login-password" class="form__label">Hasło</label>
+              <input
+                id="login-password"
+                name="password"
+                class="form__input"
+                type="password"
+                autocomplete="current-password"
+                required
+                aria-describedby="login-password-error"
+              />
+              <p id="login-password-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__row form__row--inline">
+              <label class="checkbox">
+                <input id="login-remember" name="remember" type="checkbox" />
+                <span>Nie wylogowuj mnie</span>
+              </label>
+            </div>
+
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary" data-action="login-submit">Zaloguj się</button>
+            </div>
+
+            <!-- Błąd globalny logowania -->
+            <p id="login-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
+          </form>
+        </section>
+
+        <!-- ========= Panel: REJESTRACJA ========= -->
+        <section
+          id="panel-register"
+          class="auth__panel"
+          role="tabpanel"
+          aria-labelledby="tab-register"
+          aria-hidden="true"
+          data-view="register"
+        >
+          <form id="form-register" class="form" method="post" action="#" novalidate autocomplete="on">
+            <div class="form__row">
+              <label for="reg-firstname" class="form__label">Imię</label>
+              <input
+                id="reg-firstname"
+                name="firstname"
+                class="form__input"
+                type="text"
+                autocomplete="given-name"
+                required
+                aria-describedby="reg-firstname-error"
+              />
+              <p id="reg-firstname-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__row">
+              <label for="reg-lastname" class="form__label">Nazwisko</label>
+              <input
+                id="reg-lastname"
+                name="lastname"
+                class="form__input"
+                type="text"
+                autocomplete="family-name"
+                required
+                aria-describedby="reg-lastname-error"
+              />
+              <p id="reg-lastname-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__row">
+              <label for="reg-email" class="form__label">Adres e-mail</label>
+              <input
+                id="reg-email"
+                name="email"
+                class="form__input"
+                type="email"
+                inputmode="email"
+                autocomplete="email"
+                required
+                aria-describedby="reg-email-error"
+              />
+              <p id="reg-email-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__row">
+              <label for="reg-password" class="form__label">Hasło</label>
+              <input
+                id="reg-password"
+                name="password"
+                class="form__input"
+                type="password"
+                autocomplete="new-password"
+                required
+                aria-describedby="reg-password-error"
+              />
+              <p id="reg-password-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__row">
+              <label for="reg-password2" class="form__label">Powtórz hasło</label>
+              <input
+                id="reg-password2"
+                name="password_confirm"
+                class="form__input"
+                type="password"
+                autocomplete="new-password"
+                required
+                aria-describedby="reg-password2-error"
+              />
+              <p id="reg-password2-error" class="form__error" role="alert" aria-live="assertive"></p>
+            </div>
+
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary" data-action="register-submit">Utwórz konto</button>
+            </div>
+
+            <!-- Błąd globalny rejestracji -->
+            <p id="register-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
+          </form>
+        </section>
       </div>
-    </section>
 
-    <!-- DOLNE MENU -->
-    <nav class="bottom-nav" aria-label="Główne menu">
-      <button class="nav-btn active" data-target="torrents" title="Torrenty">
-        <img src="/static/svg/secure-download-svgrepo-com.svg" alt="" />
-        <span>Torrenty</span>
+      <!-- Podpowiedź gestu (opcjonalnie ukrywana w CSS) -->
+      <div class="auth__hint" aria-hidden="true">
+        Przesuń w lewo/prawo, aby przełączyć panele
+      </div>
+    </div>
+
+    <!-- Stopka na ekranie logowania -->
+    <footer class="auth__footer">
+      <img src="/static/icon.png" alt="" class="auth__footer-icon" />
+      <span>© PiotrFlix 2025</span>
+    </footer>
+  </section>
+
+  <!-- ========================= APLIKACJA (CONTENT) ========================= -->
+  <!-- Ukryta, dopóki brak ważnego tokenu. JS usunie hidden po zalogowaniu. -->
+  <div id="app" class="app" hidden>
+    <!-- ====== NAWIGACJA (nowa, izolowana) ====== -->
+    <nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
+      <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
+        <!-- secure-download -->
+        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12 3a4 4 0 0 0-4 4v2H6a1 1 0 0 0-1 1v1h14V10a1 1 0 0 0-1-1h-2V7a4 4 0 0 0-4-4Zm-1 11.59V9h2v5.59l1.29-1.3 1.42 1.42-3.7 3.7a1 1 0 0 1-1.42 0l-3.7-3.7 1.42-1.42L11 14.59ZM5 20a2 2 0 0 1-2-2v-4h2v4h14v-4h2v4a2 2 0 0 1-2 2H5z"/>
+        </svg>
+        <span class="nawigacja__label">Torrenty</span>
       </button>
-      <button class="nav-btn" data-target="search" title="Wyszukaj">
-        <img src="/static/svg/search-alt-2-svgrepo-com.svg" alt="" />
-        <span>Wyszukaj</span>
+
+      <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
+        <!-- search -->
+        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10 4a6 6 0 1 1 0 12A6 6 0 0 1 10 4m0-2a8 8 0 1 0 5.29 14.02l4.84 4.85 1.41-1.42-4.83-4.84A8 8 0 0 0 10 2z"/>
+        </svg>
+        <span class="nawigacja__label">Szukaj</span>
       </button>
-      <button class="nav-btn" data-target="available" title="Dostępne">
-        <img src="/static/svg/film-gallery-svgrepo-com.svg" alt="" />
-        <span>Dostępne</span>
+
+      <button class="nawigacja__btn" data-section="browse" role="tab" aria-controls="section-browse" aria-selected="false">
+        <!-- folder-search -->
+        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10 4l2 2h6a2 2 0 0 1 2 2v2H4V6a2 2 0 0 1 2-2h4zm-6 8h20v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6zm9 1.5a3.5 3.5 0 1 0 2.45 6l1.78 1.77 1.06-1.06-1.77-1.78A3.5 3.5 0 0 0 13 13.5zm0 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/>
+        </svg>
+        <span class="nawigacja__label">Przeglądaj</span>
       </button>
-      <button class="nav-btn" data-target="options" title="Opcje">
-        <img src="/static/svg/settings-svgrepo-com.svg" alt="" />
-        <span>Opcje</span>
+
+      <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
+        <!-- film -->
+        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M4 4h3v3H4V4Zm0 6h3v3H4v-3Zm0 6h3v3H4v-3ZM9 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9V4Zm-5 0a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h1v-2H4V6h1V4H4Zm11 0v3h3V4h-3Zm0 6v3h3v-3h-3Zm0 6v3h3v-3h-3Z"/>
+        </svg>
+        <span class="nawigacja__label">Dostępne</span>
       </button>
     </nav>
 
+    <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
+    <main id="content" role="region" aria-live="polite">
+      <!-- Sekcje/tabpanele możesz zapełniać dynamicznie w app.js -->
+      <section id="section-torrents" role="tabpanel" aria-hidden="true"></section>
+      <section id="section-search" role="tabpanel" aria-hidden="true"></section>
+      <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
+      <section id="section-available" role="tabpanel" aria-hidden="true"></section>
+    </main>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Główny skrypt aplikacji -->
+  <script src="app.js" defer></script>
 </body>
 </html>
