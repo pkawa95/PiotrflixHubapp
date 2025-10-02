@@ -208,20 +208,20 @@ document.addEventListener('DOMContentLoaded', () => {
   window.authFetch = authFetch;
 
   /* ---------- Konfiguracja endpointów z data-* ---------- */
-  const apiBase         = authScreen?.dataset.apiBase         || '';
-  const loginEndpoint   = authScreen?.dataset.loginEndpoint   || '/auth/login';
-  const registerEndpoint= authScreen?.dataset.registerEndpoint|| '/auth/register';
+  const apiBase          = authScreen?.dataset.apiBase          || '';
+  const loginEndpoint    = authScreen?.dataset.loginEndpoint    || '/auth/login';
+  const registerEndpoint = authScreen?.dataset.registerEndpoint || '/auth/register';
 
   const LOGIN_URL    = joinUrl(apiBase, loginEndpoint);
   const REGISTER_URL = joinUrl(apiBase, registerEndpoint);
 
   /* ---------- Zakładki & Slider (Zaloguj | Zarejestruj) ---------- */
-  const tabLogin     = document.getElementById('tab-login');
-  const tabRegister  = document.getElementById('tab-register');
-  const panelLogin   = document.getElementById('panel-login');
-  const panelRegister= document.getElementById('panel-register');
-  const panels       = qs('.auth__panels');
-  const card         = qs('.auth__card');
+  const tabLogin      = document.getElementById('tab-login');
+  const tabRegister   = document.getElementById('tab-register');
+  const panelLogin    = document.getElementById('panel-login');
+  const panelRegister = document.getElementById('panel-register');
+  const panels        = qs('.auth__panels');
+  const card          = qs('.auth__card');
 
   function setActiveTab(view) {
     const isLogin = view === 'login';
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ---------- REJESTRACJA ---------- */
+  /* ---------- REJESTRACJA (z automatycznym logowaniem) ---------- */
   const registerForm = document.getElementById('form-register');
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -378,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn?.setAttribute('disabled', 'true');
 
     try {
+      // 1) Rejestracja
       const res = await fetch(REGISTER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -401,18 +402,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // jeśli API od razu zwraca token → zaloguj
-      const token = data?.access_token || data?.token;
-      if (token) {
-        try { localStorage.setItem(REMEMBER_KEY, '1'); } catch(_){}
-        handleAuthorized(token);
+      // 2) Jeśli backend zwrócił token — zaloguj od razu
+      let token = data?.access_token || data?.token;
+
+      // 3) Jeśli NIE zwrócił — automatycznie zaloguj używając właśnie podanego email/hasła
+      if (!token) {
+        const loginRes = await fetch(LOGIN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        let loginData = {};
+        const loginTxt = await loginRes.text();
+        try { loginData = loginTxt ? JSON.parse(loginTxt) : {}; } catch { loginData = { message: loginTxt }; }
+        if (!loginRes.ok) {
+          const msg = loginData?.message || loginData?.error || `Błąd ${loginRes.status}`;
+          if (globalErr) globalErr.textContent = `Konto utworzone, ale logowanie nie powiodło się: ${msg}`;
+          return;
+        }
+        token = loginData?.access_token || loginData?.token;
+      }
+
+      if (!token) {
+        if (globalErr) globalErr.textContent = 'Konto utworzone, brak tokenu logowania.';
         return;
       }
 
-      // inaczej przełącz na logowanie
-      const loginGlobal = document.getElementById('login-global-error');
-      if (loginGlobal) loginGlobal.textContent = 'Konto utworzone. Możesz się zalogować.';
-      setActiveTab('login');
+      // zapamiętaj jak "pamiętaj mnie"
+      try { localStorage.setItem(REMEMBER_KEY, '1'); } catch(_){}
+      handleAuthorized(token);
     } catch (err) {
       if (globalErr) globalErr.textContent = 'Błąd sieci / CORS. Spróbuj ponownie.';
       console.error(err);
