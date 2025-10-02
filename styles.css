@@ -796,8 +796,14 @@ html[data-theme="light"] .tbar__select {
 /* stan aktualizacji – bez migania */
 .tlist.updating, .qlist.updating { opacity: .92; transition: opacity .12s ease; }
 
-/* ===== Wyśrodkowanie i szerokość kontenera sekcji ===== */
-.tgrid--container { max-width: 1340px; margin: 12px auto 96px; padding: 0 12px; }
+.tgrid--container {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* całość wyśrodkowana */
+}
 
 /* Sticky tabs (bez niczego więcej u góry) */
 .tsticky { position: sticky; top: 0; z-index: 60; padding: 8px 6px;
@@ -833,8 +839,16 @@ html[data-theme="light"] .tbar__select { background:#fff; color:#0f172a; border-
 /* Feedback */
 .tlimit__feedback { margin:6px 6px 0; font-size:.95rem; color:var(--muted); }
 
-/* Listy – szerzej i czytelniej */
-.tlist, .qlist { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; padding: 8px 6px; }
+/* listy kart */
+.tlist,
+.qlist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  justify-content: center;   /* 🔑 to centruje kafelki */
+  width: 100%;
+  max-width: 1100px;         /* możesz dopasować do gustu */
+}
 .empty { text-align:center; color:var(--muted); padding:18px; }
 
 /* Karta (wycentrowana zawartość kolumny) */
