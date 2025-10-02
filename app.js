@@ -177,7 +177,111 @@ document.addEventListener('DOMContentLoaded', () => {
   if (existing) { inMemoryToken = existing; showApp(); scheduleAutoLogout(existing); }
   else { showAuth(); }
 
-  /* ---------- authFetch z Authorization ---------- */
+/* ===================== AUTH & GATING ===================== */
+document.addEventListener('DOMContentLoaded', () => {
+  const authScreen = document.getElementById('auth-screen');
+  const appRoot    = document.getElementById('app');
+  const navRoot    = document.getElementById('nawigacja');
+
+  const qs = sel => document.querySelector(sel);
+  const joinUrl = (base, path) => {
+    if (!base) return path || '';
+    if (!path) return base;
+    return `${base.replace(/\/+$/,'')}/${String(path).replace(/^\/+/,'')}`;
+  };
+
+  const TOKEN_KEY    = 'pf_token';
+  const REMEMBER_KEY = 'pf_remember';
+  let inMemoryToken  = null;
+
+  /* ---------- Token helpers ---------- */
+  const getStoredToken = () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || null;
+  const getToken       = () => inMemoryToken || getStoredToken();
+  function setToken(token, remember){
+    inMemoryToken = token || null;
+    try {
+      if (remember) {
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(REMEMBER_KEY, '1');
+        sessionStorage.removeItem(TOKEN_KEY);
+      } else {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+    } catch (e) { console.warn('Storage error:', e); }
+  }
+  function clearToken(){
+    inMemoryToken = null;
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REMEMBER_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+    } catch(e){}
+  }
+
+  window.getAuthToken   = getToken;
+  window.clearAuthToken = () => { clearToken(); showAuth(); };
+
+  /* ---------- JWT auto-logout (opcjonalnie) ---------- */
+  function getJwtExpMs(token) {
+    try {
+      const base64 = token.split('.')[1];
+      if (!base64) return null;
+      const json = JSON.parse(atob(base64.replace(/-/g,'+').replace(/_/g,'/')));
+      if (!json || !json.exp) return null;
+      return json.exp * 1000;
+    } catch { return null; }
+  }
+  function scheduleAutoLogout(token) {
+    const expMs = getJwtExpMs(token);
+    if (!expMs) return;
+    const delta = expMs - Date.now();
+    if (delta <= 0) { handleUnauthorized(); return; }
+    setTimeout(() => handleUnauthorized('Sesja wygasła. Zaloguj się ponownie.'), Math.min(delta, 2147000000));
+  }
+
+  /* ---------- HARD GATING ---------- */
+  function hardHide(el){
+    if(!el) return;
+    el.hidden = true;
+    el.setAttribute('aria-hidden','true');
+    el.style.display = 'none';
+  }
+  function hardShow(el, display='block'){
+    if(!el) return;
+    el.hidden = false;
+    el.removeAttribute('aria-hidden');
+    el.style.display = display;
+  }
+
+  function showApp(){
+    document.body.classList.add('is-auth');
+    hardHide(authScreen);
+    hardShow(appRoot);
+    hardShow(navRoot, 'grid');
+  }
+  function showAuth(message){
+    document.body.classList.remove('is-auth');
+    hardShow(authScreen);
+    hardHide(appRoot);
+    hardHide(navRoot);
+    if (message) {
+      const el = document.getElementById('login-global-error');
+      if (el) el.textContent = message;
+    }
+  }
+  function handleAuthorized(token){
+    setToken(token, (localStorage.getItem(REMEMBER_KEY) === '1'));
+    showApp();
+    scheduleAutoLogout(token);
+  }
+  function handleUnauthorized(msg){
+    clearToken();
+    showAuth(msg || 'Sesja wygasła lub nieautoryzowana.');
+  }
+
+  // ---------- authFetch ----------
   async function authFetch(input, init = {}) {
     const token   = getToken();
     const headers = new Headers(init.headers || {});
@@ -195,14 +299,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   window.authFetch = authFetch;
 
-  /* ---------- Konfiguracja endpointów ---------- */
+  /* ---------- Konfiguracja endpointów + GLOBALS ---------- */
   const apiBase          = authScreen?.dataset.apiBase          || '';
   const loginEndpoint    = authScreen?.dataset.loginEndpoint    || '/auth/login';
   const registerEndpoint = authScreen?.dataset.registerEndpoint || '/auth/register';
   const LOGIN_URL        = joinUrl(apiBase, loginEndpoint);
   const REGISTER_URL     = joinUrl(apiBase, registerEndpoint);
 
-  /* ---------- Zakładki / slider ---------- */
+  // >>> GLOBAL: API_BASE + api() helper <<<
+  window.API_BASE = apiBase;
+  window.apiJoin  = joinUrl;
+  window.api = async function api(path, opt = {}){
+    const url = /^https?:\/\//.test(path) ? path : joinUrl(window.API_BASE || '', path);
+    const res = await authFetch(url, opt);
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return await res.json();
+    return await res.text();
+  };
+
+  // ---------- Zakładki / slider ----------
   const tabLogin      = document.getElementById('tab-login');
   const tabRegister   = document.getElementById('tab-register');
   const panelLogin    = document.getElementById('panel-login');
@@ -279,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       try { remember ? localStorage.setItem(REMEMBER_KEY,'1') : localStorage.removeItem(REMEMBER_KEY); } catch(_){}
 
-      const res = await fetch(joinUrl(apiBase, loginEndpoint), {
+      const res = await fetch(LOGIN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -298,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const token = data?.access_token || data?.token;
       if (!token) { if (globalErr) globalErr.textContent = 'Brak tokenu w odpowiedzi serwera.'; return; }
 
-      handleAuthorized(token); // <<< TU CHOWAMY AUTH „na twardo”
+      handleAuthorized(token);
     } catch (err) {
       if (globalErr) globalErr.textContent = 'Błąd sieci / CORS. Uruchom przez http(s).';
       console.error(err);
@@ -307,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ---------- REJESTRACJA (z automatycznym logowaniem) ---------- */
+  /* ---------- REJESTRACJA ---------- */
   const registerForm = document.getElementById('form-register');
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -337,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn?.setAttribute('disabled', 'true');
 
     try {
-      const res = await fetch(joinUrl(apiBase, registerEndpoint), {
+      const res = await fetch(REGISTER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ firstname, lastname, email, password })
@@ -360,10 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // token bezpośrednio z rejestracji albo do-logowanie
+      // token bezpośrednio albo do-logowanie
       let token = data?.access_token || data?.token;
       if (!token) {
-        const loginRes = await fetch(joinUrl(apiBase, loginEndpoint), {
+        const loginRes = await fetch(LOGIN_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -385,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try { localStorage.setItem(REMEMBER_KEY, '1'); } catch(_){}
-      handleAuthorized(token); // <<< TU TAKŻE CHOWAMY AUTH
+      handleAuthorized(token);
     } catch (err) {
       if (globalErr) globalErr.textContent = 'Błąd sieci / CORS. Spróbuj ponownie.';
       console.error(err);
@@ -403,12 +518,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ---------- Przykład: użycie tokenu ----------
-     // authFetch(joinUrl(apiBase, '/protected/endpoint'))
-     //   .then(r => r.json())
-     //   .then(console.log)
-     //   .catch(console.error);
-  ------------------------------------------------ */
+  // Start
+  const existing = getStoredToken();
+  if (existing) { inMemoryToken = existing; showApp(); scheduleAutoLogout(existing); }
+  else { showAuth(); }
+
+  // >>> callback z nawigacji (lazy mount sekcji) <<<
+  window.showSection = (name)=>{
+    try{
+      if (name === 'available' && window.mountAvailable) window.mountAvailable();
+      if (name === 'search'    && window.mountSearch)    window.mountSearch();
+      if (name === 'browse'    && window.mountBrowse)    window.mountBrowse();
+      if (name === 'torrents'  && window.loadTorrents)   window.loadTorrents();
+    }catch(e){ console.warn(e); }
+  };
 });
 
 /* ===================== TORRENTY: helpers ===================== */
@@ -996,3 +1119,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // start: zostań na „AKTYWNE”
   setTorTab('active');
 })();
+}
+)
