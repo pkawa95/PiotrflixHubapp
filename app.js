@@ -21,12 +21,8 @@
       sec.setAttribute("aria-hidden", on ? "false" : "true");
     });
 
-    try {
-      localStorage.setItem(STORAGE_KEY, section);
-    } catch (_) {}
-    try {
-      history.replaceState(null, "", "#" + section);
-    } catch (_) {}
+    try { localStorage.setItem(STORAGE_KEY, section); } catch (_) {}
+    try { history.replaceState(null, "", "#" + section); } catch (_) {}
   }
 
   root.addEventListener("click", (e) => {
@@ -35,9 +31,7 @@
     const section = b.dataset.section;
     setActive(section);
     if (typeof window.showSection === "function") {
-      try {
-        window.showSection(section);
-      } catch (e) {}
+      try { window.showSection(section); } catch (e) {}
     }
   });
 
@@ -45,10 +39,7 @@
   const hash = (location.hash || "").replace("#", "");
   if (/^(torrents|queue)$/.test(hash)) start = hash;
   else {
-    try {
-      const ls = localStorage.getItem(STORAGE_KEY);
-      if (ls) start = ls;
-    } catch (_) {}
+    try { const ls = localStorage.getItem(STORAGE_KEY); if (ls) start = ls; } catch (_) {}
   }
   setActive(start);
 
@@ -95,15 +86,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const apiBase = authScreen?.dataset.apiBase || "";
   const loginEndpoint = authScreen?.dataset.loginEndpoint || "/auth/login";
-  const registerEndpoint =
-    authScreen?.dataset.registerEndpoint || "/auth/register";
+  const registerEndpoint = authScreen?.dataset.registerEndpoint || "/auth/register";
   const refreshEndpoint = "/auth/refresh";
 
   /* ------------ tokeny ------------- */
   const getStoredToken = () =>
-    localStorage.getItem(TOKEN_KEY) ||
-    sessionStorage.getItem(TOKEN_KEY) ||
-    null;
+    localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || null;
   const getToken = () => inMemoryToken || getStoredToken();
   const getRefreshToken = () => localStorage.getItem(REFRESH_KEY) || null;
 
@@ -137,10 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch {}
   }
   window.getAuthToken = getToken;
-  window.clearAuthToken = () => {
-    clearToken();
-    showAuth();
-  };
+  window.clearAuthToken = () => { clearToken(); showAuth(); };
 
   /* --------- UI gating ---------- */
   function hardHide(el) {
@@ -177,26 +162,16 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const b64 = token.split(".")[1];
       if (!b64) return null;
-      const json = JSON.parse(
-        atob(b64.replace(/-/g, "+").replace(/_/g, "/"))
-      );
+      const json = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
       return json?.exp ? json.exp * 1000 : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
   function scheduleAutoLogout(token) {
     const exp = getJwtExpMs(token);
     if (!exp) return;
     const delta = exp - Date.now();
-    if (delta <= 0) {
-      handleUnauthorized();
-      return;
-    }
-    setTimeout(
-      () => handleUnauthorized("Sesja wygasła. Zaloguj się ponownie."),
-      Math.min(delta, 2147000000)
-    );
+    if (delta <= 0) { handleUnauthorized(); return; }
+    setTimeout(() => handleUnauthorized("Sesja wygasła. Zaloguj się ponownie."), Math.min(delta, 2147000000));
   }
 
   function handleAuthorized(access, refresh) {
@@ -214,13 +189,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // start
   const existing = getStoredToken();
-  if (existing) {
-    inMemoryToken = existing;
-    showApp();
-    scheduleAutoLogout(existing);
-  } else {
-    showAuth();
-  }
+  if (existing) { inMemoryToken = existing; showApp(); scheduleAutoLogout(existing); }
+  else { showAuth(); }
 
   /* --------- AUTO-REFRESH TOKENU + authFetch ---------- */
   async function refreshAccessTokenOnce() {
@@ -241,11 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
       handleAuthorized(newAccess, newRefresh);
       return newAccess;
     })();
-    try {
-      return await refreshingPromise;
-    } finally {
-      refreshingPromise = null;
-    }
+    try { return await refreshingPromise; } finally { refreshingPromise = null; }
   }
 
   function addTokenToUrl(u, token) {
@@ -253,9 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = new URL(u, location.href);
       if (token) url.searchParams.set("access_token", token);
       return url.toString();
-    } catch {
-      return u;
-    }
+    } catch { return u; }
   }
 
   async function authFetch(input, init = {}) {
@@ -275,16 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
       token = await refreshAccessTokenOnce();
       const headers2 = new Headers(init.headers || {});
       if (token) headers2.set("Authorization", `Bearer ${token}`);
-      if (init.body && typeof init.body === "string") {
-        headers2.set("Content-Type", "application/json");
-      }
-      const url2 =
-        typeof input === "string" ? addTokenToUrl(input, token) : input;
+      if (init.body && typeof init.body === "string") headers2.set("Content-Type", "application/json");
+      const url2 = typeof input === "string" ? addTokenToUrl(input, token) : input;
       const retry = await fetch(url2, { ...init, headers: headers2 });
-      if (retry.status === 401) {
-        handleUnauthorized();
-        throw new Error("Unauthorized");
-      }
+      if (retry.status === 401) { handleUnauthorized(); throw new Error("Unauthorized"); }
       return retry;
     } catch (e) {
       handleUnauthorized();
@@ -301,13 +259,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (err) err.textContent = message || "";
   }
   function clearFormErrors(form) {
-    form
-      .querySelectorAll(".form__input")
-      .forEach((el) => el.classList.remove("form__input--invalid"));
+    form.querySelectorAll(".form__input").forEach((el) => el.classList.remove("form__input--invalid"));
     form.querySelectorAll(".form__error").forEach((el) => (el.textContent = ""));
   }
-  const isEmail = (v) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").toLowerCase());
+  const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").toLowerCase());
 
   /* ---------- LOGOWANIE ---------- */
   const loginForm = document.getElementById("form-login");
@@ -329,38 +284,24 @@ document.addEventListener("DOMContentLoaded", () => {
     btn?.setAttribute("disabled", "true");
 
     try {
-      try {
-        remember
-          ? localStorage.setItem(REMEMBER_KEY, "1")
-          : localStorage.removeItem(REMEMBER_KEY);
-      } catch (_) {}
+      try { remember ? localStorage.setItem(REMEMBER_KEY, "1") : localStorage.removeItem(REMEMBER_KEY); } catch (_) {}
 
       const res = await fetch(joinUrl(apiBase, loginEndpoint), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = data?.message || data?.error || `Błąd ${res.status}`;
-        if (globalErr) globalErr.textContent = msg;
-        return;
-      }
+      if (!res.ok) { const msg = data?.message || data?.error || `Błąd ${res.status}`; if (globalErr) globalErr.textContent = msg; return; }
 
       const access = data?.access_token || data?.token;
       const refresh = data?.refresh_token || null;
-      if (!access) {
-        if (globalErr) globalErr.textContent = "Brak tokenu w odpowiedzi serwera.";
-        return;
-      }
+      if (!access) { if (globalErr) globalErr.textContent = "Brak tokenu w odpowiedzi serwera."; return; }
       handleAuthorized(access, refresh);
     } catch (err) {
       if (globalErr) globalErr.textContent = "Błąd sieci / CORS. Uruchom przez http(s).";
       console.error(err);
-    } finally {
-      btn?.removeAttribute("disabled");
-    }
+    } finally { btn?.removeAttribute("disabled"); }
   });
 
   /* ---------- REJESTRACJA (z automatycznym logowaniem) ---------- */
@@ -376,26 +317,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     clearFormErrors(registerForm);
     let bad = false;
-    if (!first_name) {
-      setFieldError("reg-firstname", "Podaj imię.");
-      bad = true;
-    }
-    if (!last_name) {
-      setFieldError("reg-lastname", "Podaj nazwisko.");
-      bad = true;
-    }
-    if (!email || !isEmail(email)) {
-      setFieldError("reg-email", !email ? "Podaj adres e-mail." : "Nieprawidłowy adres e-mail.");
-      bad = true;
-    }
-    if (!password) {
-      setFieldError("reg-password", "Ustaw hasło.");
-      bad = true;
-    }
-    if (!password2 || password2 !== password) {
-      setFieldError("reg-password2", !password2 ? "Powtórz hasło." : "Hasła muszą być identyczne.");
-      bad = true;
-    }
+    if (!first_name) { setFieldError("reg-firstname", "Podaj imię."); bad = true; }
+    if (!last_name) { setFieldError("reg-lastname", "Podaj nazwisko."); bad = true; }
+    if (!email || !isEmail(email)) { setFieldError("reg-email", !email ? "Podaj adres e-mail." : "Nieprawidłowy adres e-mail."); bad = true; }
+    if (!password) { setFieldError("reg-password", "Ustaw hasło."); bad = true; }
+    if (!password2 || password2 !== password) { setFieldError("reg-password2", !password2 ? "Powtórz hasło." : "Hasła muszą być identyczne."); bad = true; }
     if (bad) return;
 
     const btn = registerForm.querySelector('[data-action="register-submit"]');
@@ -403,32 +329,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const res = await fetch(joinUrl(apiBase, registerEndpoint), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ first_name, last_name, email, password }),
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = data?.message || data?.error || `Błąd ${res.status}`;
-        if (globalErr) globalErr.textContent = msg;
-        return;
-      }
+      if (!res.ok) { const msg = data?.message || data?.error || `Błąd ${res.status}`; if (globalErr) globalErr.textContent = msg; return; }
 
       const access = data?.access_token || data?.token;
       const refresh = data?.refresh_token || null;
-      if (!access) {
-        if (globalErr) globalErr.textContent = "Konto utworzone, ale brak tokenu.";
-        return;
-      }
+      if (!access) { if (globalErr) globalErr.textContent = "Konto utworzone, ale brak tokenu."; return; }
       localStorage.setItem(REMEMBER_KEY, "1");
       handleAuthorized(access, refresh);
     } catch (err) {
       if (globalErr) globalErr.textContent = "Błąd sieci / CORS. Spróbuj ponownie.";
       console.error(err);
-    } finally {
-      btn?.removeAttribute("disabled");
-    }
+    } finally { btn?.removeAttribute("disabled"); }
   });
 
   /* ---------- Cross-tab sync ---------- */
@@ -440,6 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
 /* -------------------- TORRENTS & QUEUE (v3 z auto-refresh) -------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   const section = document.getElementById("section-torrents");
@@ -448,8 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ✅ API base także z pf_base (jak w test panelu)
   const API =
     document.getElementById("auth-screen")?.dataset.apiBase ||
-    localStorage.getItem("pf_base") ||
-    "";
+    localStorage.getItem("pf_base") || "";
 
   const joinUrl = (b, p) =>
     `${(b || "").replace(/\/+$/, "")}/${String(p || "").replace(/^\/+/, "")}`;
@@ -490,7 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
       { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
     ));
 
-  // --- NEW: solidne pobieranie DL/UL w B/s z różnych możliwych pól ---
+  // --- DL/UL picking z wielu możliwych pól ---
   function pickNum(obj, ...names){
     for (const k of names){
       const v = obj?.[k];
@@ -536,11 +452,15 @@ document.addEventListener("DOMContentLoaded", () => {
     return 0;
   }
 
-  // ✅ UI — bezpieczne taby
+  // ✅ UI — bezpieczne taby + wejście panelu
   function setTab(tab) {
     currentTab = tab;
     elTorrents.hidden = tab !== "torrents";
     elQueue.hidden = tab !== "queue";
+    [elTorrents, elQueue].forEach(p=>{ if(!p) return; p.classList.remove('tx-reveal'); });
+    const vis = (tab === "torrents" ? elTorrents : elQueue);
+    vis?.classList.add('tx-reveal');
+
     toolbars.forEach((tb) => (tb.hidden = tb.dataset.txTools !== tab));
     if (tabBar) {
       tabBar.querySelectorAll(".tx-tab").forEach((b) => {
@@ -580,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ── AUTH guard (unikamy 401 i mówimy userowi co jest grane)
+  // ── AUTH guard
   const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
   function showNeedLogin() {
     elTorrents.innerHTML = `<div class="tx-empty">Musisz się zalogować (brak tokenu).</div>`;
@@ -636,7 +556,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const res = await Promise.allSettled(jobs);
         items = res.flatMap(x => x.status === "fulfilled" ? x.value : []);
       } else {
-        // fallback: globalne listowanie (gdy backend tak zwraca)
+        // fallback: globalne listowanie
         const url = new URL(joinUrl(API, "/torrents/status/list"));
         url.searchParams.set("page", "1");
         url.searchParams.set("limit", "200");
@@ -673,7 +593,7 @@ document.addEventListener("DOMContentLoaded", () => {
       elTorrents.innerHTML = `<div class="tx-empty">Brak aktywnych torrentów.</div>`;
       return;
     }
-    const html = items.map((it) => {
+    const html = items.map((it, idx) => {
       const name = it.name || it.display_title || it.title || "Nieznany";
       const progress = pct(it.progress ?? it.progress_percent ?? it.percent ?? 0);
 
@@ -686,9 +606,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const state = (it.state || "unknown").toUpperCase();
       const ihash = it.info_hash || it.hash || it.id || name;
       const devId = it.device_id || it.device || "";
+      const isDl = /downloading|stalled_dl|fetching/i.test(String(it.state||""));
 
       return `
-      <article class="tcard" data-ih="${esc(ihash)}" data-dev="${esc(devId)}">
+      <article class="tcard ${isDl?'downloading':''}" data-ih="${esc(ihash)}" data-dev="${esc(devId)}" style="--delay:${Math.min(idx*30,450)}ms;">
         <div class="tcard__left">
           <div class="tcard__title">${esc(name)}</div>
           <div class="tcard__meta">
@@ -707,9 +628,18 @@ document.addEventListener("DOMContentLoaded", () => {
       </article>`;
     }).join("");
     if (elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
+
+    // opcjonalny „ping” po renderze
+    requestAnimationFrame(()=>{
+      document.querySelectorAll('#tx-torrents .tcard').forEach((el,i)=>{
+        el.style.animationDelay = Math.min(i*30, 450)+'ms';
+        el.classList.add('tx-ping');
+        setTimeout(()=>el.classList.remove('tx-ping'), 500);
+      });
+    });
   }
 
-  // ✅ Akcje: zawsze z device_id (trafiamy w właściwego klienta)
+  // ✅ Akcje: zawsze z device_id
   elTorrents?.addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
@@ -734,14 +664,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
       setTimeout(loadTorrents, 300);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   });
 
   sortSel?.addEventListener("change", loadTorrents);
 
-  // ── Auto-refresh: tylko gdy jest token
+  // ── Auto-refresh
   function tick() { currentTab === "torrents" ? loadTorrents() : loadQueue(); }
   function kickRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
@@ -758,7 +686,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // start
   setTab("torrents");
 
-  // ── kolejka (bez zmian)
+  // ── kolejka
   async function loadQueue() {
     if (!tokenOk()) { elQueue.innerHTML = `<div class="tx-empty">Musisz się zalogować.</div>`; return; }
     try {
@@ -801,8 +729,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await window.authFetch(joinUrl(API, `/queue/${btn.dataset.qdel}`), { method: "DELETE" });
       setTimeout(loadQueue, 200);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   });
 });
