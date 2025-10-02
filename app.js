@@ -761,20 +761,23 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-/* ===================== PIOTRFLIX — SEARCH (gotowiec) ===================== */
+/* ===================== PIOTRFLIX — SEARCH (final) ===================== */
 (function(){
   const section = document.getElementById('section-search');
   if (!section) return;
 
-  // --- API base / auth ---
+  // --- API / auth ---
   const API =
     document.getElementById('auth-screen')?.dataset.apiBase ||
     localStorage.getItem('pf_base') || '';
   const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
   const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
+  const getTmdbKey = () =>
+    document.getElementById('auth-screen')?.dataset.tmdbKey ||
+    localStorage.getItem('tmdb_api_key') || '';
 
   // --- Elements ---
-  const tabs = Array.from(section.querySelectorAll('.tx-tab'));
+  const tabs = Array.from(section.querySelectorAll('.tx-tab')); // data-mode: yts_html | tpb_premium | tpb_series
   const inputQ = section.querySelector('#sx-q');
   const selQuality = section.querySelector('#sx-quality');
   const qualityWrap = section.querySelector('#sx-quality-wrap');
@@ -783,53 +786,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const toast = section.querySelector('#sx-toast');
 
   // --- State ---
-  let mode = 'yts_html'; // 'yts_html' | 'tpb_premium' | 'tpb_series'
+  let mode = 'yts_html'; // default
   let busy = false;
 
   // --- Helpers ---
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => (
     { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
   ));
-  const pick = (o, ...keys) => { for (const k of keys){ if (o && o[k] != null) return o[k]; } };
+  const pick = (o, ...k) => { for (const key of k){ if (o && o[key] != null) return o[key]; } };
+  const inferQuality = (s) => {
+    const m = String(s||'').match(/(2160p|1080p|720p)/i);
+    return m ? m[1].toLowerCase() : '';
+  };
   const showToast = (msg, ok=true) => {
     if (!toast) return;
     toast.textContent = msg || '';
     toast.classList.toggle('is-error', !ok);
     toast.classList.add('is-show');
-    setTimeout(() => toast.classList.remove('is-show'), 1900);
+    setTimeout(() => toast.classList.remove('is-show'), 1800);
   };
-
-  // 🔧 Mega-sanityzacja frazy: bez cyfr/roczników/rzymskich i „Part/Season/Vol/…”
-  function sanitizeQuery(raw){
-    if (!raw) return '';
-    let s = String(raw).trim();
-
-    // ujednolicenie separatorów
-    s = s.replace(/[.:_\-\[\]\(\)\u2013\u2014]/g, ' ');
-
-    // rok w nawiasach na końcu
-    s = s.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, ' ');
-
-    // frazy sequelowe (PL/EN) – na końcu lub w środku
-    const seq = /\b(part|część|season|sezon|episode|odcinek|ep|vol(?:ume)?|chapter|rozdział)\s+[IVXLCM\d]+\b/gi;
-    s = s.replace(seq, ' ');
-
-    // standalone rzymskie oraz cyfry
-    s = s.replace(/\b[IVXLCM]+\b/gi, ' ');
-    s = s.replace(/\d+/g, ' ');
-
-    // wielospacje
-    s = s.replace(/\s+/g, ' ').trim();
-
-    // jeżeli wszystko wycięliśmy – wróć do oryginału
-    return s || String(raw).trim();
-  }
-
   const providerForMode = (m) =>
     m === 'tpb_premium' ? 'tpb_premium' :
     m === 'tpb_series'  ? 'tpb_series'  :
     'yts_html';
-
   const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
 
   function setMode(newMode){
@@ -844,7 +823,6 @@ document.addEventListener("DOMContentLoaded", () => {
     qualityWrap.style.display = isYts ? '' : 'none';
     qualityWrap.setAttribute('aria-hidden', isYts ? 'false' : 'true');
 
-    // opcjonalnie odśwież wyniki po przełączeniu
     if (inputQ.value.trim()) doSearch().catch(()=>{});
   }
 
@@ -880,7 +858,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <div>
             <div class="qcard__title">${title}</div>
             <p class="qcard__desc">${desc}</p>
-            ${rating ? `<div class="qcard__meta">${rating} • <span class="tbadge"><span class="tbadge__dot"></span>${provider}</span></div>` : `<div class="qcard__meta"><span class="tbadge"><span class="tbadge__dot"></span>${provider}</span></div>`}
+            <div class="qcard__meta">
+              ${rating ? `${rating} • ` : ''}<span class="tbadge"><span class="tbadge__dot"></span>${provider}</span>
+            </div>
           </div>
           <div class="qcard__actions">
             <button class="tbtn sx-btn-get">Pobierz</button>
@@ -905,27 +885,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const provider = providerForMode(mode);
     const type = typeForMode(mode);
 
-    // 🔑 WYŚLIJEMY wersję BEZ CYFR / ROMANÓW / SEQUELI
-    const qSan = sanitizeQuery(qRaw);
-
-    const extra = {};
-    const isYts = (provider === 'yts_html');
-    const qual = isYts ? (selQuality.value || '') : '';
-    if (isYts && qual) extra.quality = qual;
+    const headers = { 'Content-Type': 'application/json' };
+    const tmdb = getTmdbKey();
+    if (tmdb) headers['X-TMDB-Key'] = tmdb;
 
     setBusy(true);
-    results.innerHTML = `<div class="tx-empty">Szukam „${esc(qSan)}”…</div>`;
+    results.innerHTML = `<div class="tx-empty">Szukam „${esc(qRaw)}”…</div>`;
 
     try{
       const r = await window.authFetch(joinUrl(API, '/search'), {
         method: 'POST',
-        headers: { 'Content-Type':'application/json' },
+        headers,
+        // <<<<<< KLUCZOWE: wysyłamy dokładnie to, co wpisał użytkownik >>>>>>
         body: JSON.stringify({
-          query: qSan,
-          provider,
-          type,
+          query: qRaw,                 // backend sam tłumaczy + czyści sequele/cyfry
+          provider,                    // yts_html | tpb_premium | tpb_series
+          type,                        // movie | series
           page: 1,
-          extra
+          extra: {}                    // TMDb idzie w nagłówku
         })
       });
       const data = await r.json().catch(() => ({}));
@@ -933,7 +910,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 : Array.isArray(data.results) ? data.results
                 : Array.isArray(data.items) ? data.items
                 : [];
-      renderResults(arr, { provider, type, qual });
+      renderResults(arr, { provider, type });
     } catch (err){
       console.error(err);
       results.innerHTML = `<div class="tx-empty">Błąd wyszukiwania. Spróbuj ponownie.</div>`;
@@ -946,11 +923,6 @@ document.addEventListener("DOMContentLoaded", () => {
   inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
 
   // --------- Download / Add ---------
-  function inferQualityFromString(s){
-    const m = String(s||'').match(/(2160p|1080p|720p)/i);
-    return m ? m[1].toLowerCase() : '';
-  }
-
   async function addMagnet(magnet, type, title, image, wantedQuality){
     const meta = {
       display_title: title || undefined,
@@ -976,7 +948,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const type = card.dataset.type || typeForMode(mode);
     const title = card.querySelector('.qcard__title')?.textContent?.trim() || '';
     const image = card.querySelector('.qcard__img')?.getAttribute('src') || '';
-    const wanted = (provider === 'yts_html') ? (selQuality.value || '') : '';
+
+    const headers = { 'Content-Type': 'application/json' };
+    const tmdb = getTmdbKey();
+    if (tmdb) headers['X-TMDB-Key'] = tmdb;
 
     try{
       btn.disabled = true; btn.textContent = 'Dodaję…';
@@ -987,17 +962,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const url = card.dataset.url || '';
         if (!url) { showToast('Brak URL do YTS.', false); return; }
 
+        const wanted = selQuality.value || '';
+
         // Resolve z uwzględnieniem jakości
         const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
+          method:'POST', headers,
           body: JSON.stringify({ url, provider:'yts_html', quality: wanted || undefined })
         });
         const j1 = await r1.json().catch(()=> ({}));
         magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri || '';
         const resolvedName = j1?.name || j1?.result?.name || '';
         let resolvedQuality = j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
-        if (!resolvedQuality) resolvedQuality = inferQualityFromString(magnet || resolvedName);
+        if (!resolvedQuality) resolvedQuality = inferQuality(magnet || resolvedName);
 
         if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
 
@@ -1013,7 +989,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // TPB (Filmy+ / Seriale)
+      // TPB (Filmy+ / Seriale) — magnet musi być w wyniku
       if (!magnet){ showToast('Brak magnet linku w wyniku TPB.', false); return; }
       await addMagnet(magnet, type, title, image, undefined);
       showToast('Torrent dodany ✅', true);
@@ -1026,7 +1002,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- Integracja z główną nawigacją — focus po wejściu w sekcję ---
+  // --- Integracja z główną nawigacją (focus po wejściu w sekcję) ---
   window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
   window.showSection = function(name){
@@ -1036,9 +1012,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Ustal tryb startowy na podstawie aktywnej zakładki (jeśli HTML go zmienia)
+  // Start: dopasuj tryb do aktywnej zakładki w HTML (jeśli już podświetlona)
   const active = tabs.find(t => t.classList.contains('is-active'));
   if (active) mode = active.dataset.mode || mode;
+
 })();
-
-
