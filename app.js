@@ -766,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const section = document.getElementById('section-search');
   if (!section) return;
 
-  // API base (spójnie z resztą aplikacji)
+  // API base (jak w appce)
   const API =
     document.getElementById('auth-screen')?.dataset.apiBase ||
     localStorage.getItem('pf_base') ||
@@ -802,36 +802,37 @@ document.addEventListener('DOMContentLoaded', () => {
   ));
   const pick = (o, ...names) => { for (const k of names){ const v = o?.[k]; if (v!=null) return v; } };
 
-  // 🔧 SANITYZACJA ZAPYTANIA (bez cyfr/roczników/sequeli)
+  // 🔧 SUPER-SANITYZACJA: bez cyfr/roczników/rzymskich/„Part/Season/Vol/Chapter/…”
   function sanitizeQuery(raw){
     let s = String(raw || '').trim();
 
-    // 1) Usuń rok w nawiasach na końcu: "Dune (2021)" → "Dune"
+    // jednolite separatory, wytnij „:.-_()[]”
+    s = s.replace(/[.:_\-\[\]\u2013\u2014]/g, ' ');
+
+    // rok w nawiasach na końcu: "(2021)"
     s = s.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, ' ');
 
-    // 2) Usuń frazy sequelowe na końcu: Part/Część/Season/Sezon/Episode/Odcinek/Vol. + liczby/rzym.
-    s = s.replace(/\s*(?:part|część|season|sezon|episode|odcinek|vol\.?)\s+[IVXLCM\d]+$/i, ' ');
+    // frazy sequelowe + liczby / rzymskie
+    const seq = /(part|część|season|sezon|episode|odcinek|ep|vol(?:ume)?|chapter|rozdział)\s+[IVXLCM\d]+$/i;
+    s = s.replace(new RegExp(seq, 'i'), ' ');
 
-    // 3) Usuń pojedyncze tokeny rzymskie na końcu lub w całości (I, II, III, IV, V, VI, VII, VIII, IX, X, …)
-    s = s.replace(/\s+[IVXLCM]+\s*$/i, ' ');
-    s = s.replace(/(^|\s)[IVXLCM]+(\s|$)/gi, ' ');
+    // standalone rzymskie (na końcu i w środku)
+    s = s.replace(/\b[IVXLCM]+\b/gi, ' ');
 
-    // 4) Usuń wszystkie cyfry (w tym „007” – świadomie, wg założeń)
+    // wszystkie cyfry (też "007")
     s = s.replace(/\d+/g, ' ');
 
-    // 5) Normalizuj spacje
+    // wielospacje
     s = s.replace(/\s+/g, ' ').trim();
 
-    // fallback: jakby zostało pusto – wróć oryginał
     return s || String(raw || '').trim();
   }
 
-  // Mapowanie na provider + type
-  const providerForMode = (m) => (
+  // Mapowanie provider/type
+  const providerForMode = (m) =>
     m === 'tpb_premium' ? 'tpb_premium' :
     m === 'tpb_series'  ? 'tpb_series'  :
-    'yts_html'
-  );
+    'yts_html';
   const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
 
   // Przełączanie zakładek
@@ -854,13 +855,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setMode(btn.dataset.mode);
   });
 
-  // Busy
+  // Busy flag
   function setBusy(on){
     busy = !!on;
     results?.setAttribute('aria-busy', on ? 'true' : 'false');
   }
 
-  // SZUKAJ
+  // Szukanie
   async function doSearch(){
     if (!tokenOk()){
       results.innerHTML = `<div class="tx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
@@ -875,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const provider = providerForMode(mode);
     const type = typeForMode(mode);
 
-    // najważniejsze: szukamy „bez cyfr”
+    // 🔑 najważniejsze – do backendu idzie wersja BEZ CYFR
     const qSan = sanitizeQuery(qRaw);
 
     const extra = {};
@@ -890,11 +891,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = await window.authFetch(joinUrl(API, '/search'), {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ query: qSan, type, provider, page: 1, extra })
+        body: JSON.stringify({
+          query: qSan,           // <—— wysyłamy oczyszczone
+          type,
+          provider,
+          page: 1,
+          extra                  // {quality} dla YTS
+        })
       });
       const data = await r.json().catch(()=> ({}));
-
-      // backend może zwrócić listę w .items / .results / root
       const arr = Array.isArray(data) ? data
                 : Array.isArray(data.items) ? data.items
                 : Array.isArray(data.results) ? data.results
@@ -923,7 +928,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'https://via.placeholder.com/300x450?text=Poster';
       const magnet= pick(it,'magnet','magnet_uri');               // dla TPB mamy od razu
 
-      // provider w data, quality (dla YTS) + magnet (dla TPB)
       return `
         <article class="qcard" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}" ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
           <img class="qcard__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
@@ -941,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     results.innerHTML = html;
   }
 
-  // Pobierz → YTS: resolve; TPB: magnet od razu
+  // Pobieranie
   function guessQualityFromString(s){
     const m = String(s||'').match(/(2160p|1080p|720p)/i);
     return m ? m[1].toLowerCase() : '';
@@ -973,13 +977,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const j1 = await r1.json().catch(()=> ({}));
         magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri || '';
         const resolvedName = j1?.name || j1?.result?.name || '';
-        let resolvedQuality =
-          j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
+        let resolvedQuality = j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
         if (!resolvedQuality) resolvedQuality = guessQualityFromString(magnet || resolvedName);
 
         if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
 
-        // dodanie + komunikat o fallbacku jakości
         await addMagnet(magnet, type, card);
         if (wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
           showToast(`Brak ${wanted} — pobieram ${resolvedQuality.toUpperCase()}`, true);
@@ -989,7 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // TPB (tpb_premium / tpb_series) → magnet jest od razu
+      // TPB (Filmy+ / Seriale) → magnet od razu
       if (!magnet){
         showToast('Brak magnet linku w wyniku TPB.', false);
         return;
@@ -1027,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
   inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
 
-  // Po przejściu do sekcji — focus w pole
+  // Po wejściu do sekcji focus w pole
   window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
   window.showSection = function(name){
