@@ -231,36 +231,29 @@
 
   <!-- ========================= APLIKACJA (CONTENT) ========================= -->
   <div id="app" class="app" hidden>
-    <!-- ====== NAWIGACJA (nowa, izolowana) ====== -->
-    <nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
-      <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
-        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M12 3a4 4 0 0 0-4 4v2H6a1 1 0 0 0-1 1v1h14V10a1 1 0 0 0-1-1h-2V7a4 4 0 0 0-4-4Zm-1 11.59V9h2v5.59l1.29-1.3 1.42 1.42-3.7 3.7a1 1 0 0 1-1.42 0l-3.7-3.7 1.42-1.42L11 14.59ZM5 20a2 2 0 0 1-2-2v-4h2v4h14v-4h2v4a2 2 0 0 1-2 2H5z"/>
-        </svg>
-        <span class="nawigacja__label">Torrenty</span>
-      </button>
+<!-- ====== NAWIGACJA (nowa, izolowana) ====== -->
+<nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
+  <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
+    <span class="nawigacja__ico ico--torrents" aria-hidden="true"></span>
+    <span class="nawigacja__label">Torrenty</span>
+  </button>
 
-      <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
-        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M10 4a6 6 0 1 1 0 12A6 6 0 0 1 10 4m0-2a8 8 0 1 0 5.29 14.02l4.84 4.85 1.41-1.42-4.83-4.84A8 8 0 0 0 10 2z"/>
-        </svg>
-        <span class="nawigacja__label">Szukaj</span>
-      </button>
+  <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
+    <span class="nawigacja__ico ico--search" aria-hidden="true"></span>
+    <span class="nawigacja__label">Wyszukaj</span>
+  </button>
 
-      <button class="nawigacja__btn" data-section="browse" role="tab" aria-controls="section-browse" aria-selected="false">
-        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M10 4l2 2h6a2 2 0 0 1 2 2v2H4V6a2 2 0 0 1 2-2h4zm-6 8h20v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6zm9 1.5a3.5 3.5 0 1 0 2.45 6l1.78 1.77 1.06-1.06-1.77-1.78A3.5 3.5 0 0 0 13 13.5zm0 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/>
-        </svg>
-        <span class="nawigacja__label">Przeglądaj</span>
-      </button>
+  <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
+    <span class="nawigacja__ico ico--available" aria-hidden="true"></span>
+    <span class="nawigacja__label">Dostępne</span>
+  </button>
 
-      <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
-        <svg class="nawigacja__ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M4 4h3v3H4V4Zm0 6h3v3H4v-3Zm0 6h3v3H4v-3ZM9 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9V4Zm-5 0a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h1v-2H4V6h1V4H4Zm11 0v3h3V4h-3Zm0 6v3h3v-3h-3Zm0 6v3h3v-3h-3Z"/>
-        </svg>
-        <span class="nawigacja__label">Dostępne</span>
-      </button>
-    </nav>
+  <button class="nawigacja__btn" data-section="options" role="tab" aria-controls="section-options" aria-selected="false">
+    <span class="nawigacja__ico ico--options" aria-hidden="true"></span>
+    <span class="nawigacja__label">Opcje</span>
+  </button>
+</nav>
+
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
