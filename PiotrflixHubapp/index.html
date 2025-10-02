@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Piotrflix – test panel</title>
+  <style>
+/* =========================
+   Piotrflix — Mobile-first UI
+   Drop-in replacement CSS
+   ========================= */
+
+:root{
+  /* Theme */
+  --bg:#0b1021; --bg-2:#0f172a;
+  --panel:#0f172a; --panel-2:#0b1224;
+  --card:#111827; --card2:#0b1220;
+
+  --text:#e5e7eb; --muted:#94a3b8;
+  --accent:#3b82f6; --accent-2:#60a5fa;
+  --good:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+
+  --stroke:#1a2340; --stroke-2:#1e293b;
+  --radius:14px; --radius-lg:18px; --radius-sm:10px;
+
+  --gap:14px; --gap-lg:18px; --gap-sm:10px;
+
+  --shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02);
+
+  /* Type scale (clamp = fluid on mobile/desktop) */
+  --f-xs: clamp(11px, 2.4vw, 12px);
+  --f-sm: clamp(12px, 2.6vw, 13px);
+  --f-md: clamp(14px, 2.8vw, 15px);
+  --f-lg: clamp(15px, 3.4vw, 18px);
+  --f-xl: clamp(18px, 4.2vw, 22px);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; color:var(--text);
+  font: var(--f-md)/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+  background:
+    radial-gradient(1200px 800px at -20% -20%, #0c1631 0%, transparent 60%),
+    radial-gradient(900px 700px at 120% -10%, #0c1a38 0%, transparent 60%),
+    linear-gradient(180deg,var(--bg),var(--bg-2));
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth but respectful animations */
+@media (prefers-reduced-motion:no-preference){
+  :root{ --anim-fast: 160ms; --anim: 260ms; }
+  .hover-lift{ transition: transform var(--anim-fast) ease, box-shadow var(--anim-fast) ease; }
+  .hover-lift:hover{ transform: translateY(-2px); box-shadow: var(--shadow); }
+}
+
+/* Header */
+header{
+  position:sticky; top:0; z-index:20;
+  padding:12px max(16px, env(safe-area-inset-left)) 12px max(16px, env(safe-area-inset-right));
+  background:linear-gradient(90deg,#0a1228,var(--panel));
+  border-bottom:1px solid #151c2e;
+  backdrop-filter:saturate(1.15) blur(6px);
+}
+h1{margin:0;font-size:var(--f-lg);letter-spacing:.3px}
+
+/* Layout containers */
+.wrap{max-width:1200px;margin:16px auto;padding:0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--gap)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.right{margin-left:auto}
+.hidden{display:none}
+.muted{color:var(--muted);font-size:var(--f-sm)}
+.ok{color:var(--good)} .err{color:var(--danger)}
+
+/* Panels / Cards */
+.panel{
+  background:linear-gradient(180deg,var(--panel),var(--panel-2));
+  border:1px solid var(--stroke);
+  padding:14px;border-radius:var(--radius);margin-bottom:16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+
+.card{
+  background:linear-gradient(180deg,var(--card),var(--card2));
+  border:1px solid var(--stroke); border-radius:var(--radius);
+  overflow:hidden; display:flex; flex-direction:column;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+.card img{width:100%;aspect-ratio:3/4;object-fit:cover;background:#0e162e;display:block}
+.card .body{padding:12px 12px 14px}
+.card h3{margin:0 0 6px;font-size:var(--f-md)}
+.badge{display:inline-block;font-size:var(--f-sm);color:#cbd5e1;background:#0b1220;border:1px solid #1d2746;padding:2px 8px;border-radius:999px;margin-right:6px}
+.desc{color:#cbd5e1;opacity:.85;font-size:var(--f-sm);min-height:40px}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+/* Inputs & Buttons */
+input,select{
+  background:#0b1220;border:1px solid var(--stroke-2);color:#e5e7eb;border-radius:12px;padding:10px 12px;
+  font-size:var(--f-md); outline:none;
+}
+input::placeholder{color:#8aa0bd}
+input:focus,select:focus{border-color:#30508e; box-shadow:0 0 0 3px rgba(59,130,246,.25)}
+
+button,.btn{
+  cursor:pointer; border:1px solid #24407a;
+  background:linear-gradient(180deg,#14264a,#0f1f3f); color:#dbeafe;
+  padding:10px 12px; border-radius:12px; font-size:var(--f-md);
+}
+button.primary{border-color:#1f4ed8;background:linear-gradient(180deg,#1e3a8a,#1a2e68)}
+button.green{border-color:#11653a;background:linear-gradient(180deg,#0e5130,#0b3f25)}
+button.red{border-color:#7a2430;background:linear-gradient(180deg,#4a1420,#3f0f1a);color:#fecaca}
+button:disabled{opacity:.6;cursor:not-allowed}
+button:hover{filter:brightness(1.03)}
+button:active{transform:translateY(1px)}
+
+/* Code chip */
+code.k{background:#0b1220;border:1px solid var(--stroke-2);border-radius:8px;padding:2px 6px;font-size:var(--f-sm)}
+
+/* Tables (mobile-friendly scroll) */
+table{width:100%;border-collapse:separate;border-spacing:0 8px; font-size:var(--f-md)}
+th,td{padding:10px 12px;text-align:left;vertical-align:top}
+thead th{color:#cbd5e1;font-weight:600}
+tbody tr{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--stroke)}
+tbody tr td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+tbody tr td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+.nowrap{white-space:nowrap}
+
+/* Table responsive wrapper suggestion (keep your existing markup) */
+.panel table{display:block; overflow:auto; border-radius:12px;}
+
+/* Pills */
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #263251;background:#0b1220;color:#d1d5db;font-size:var(--f-sm)}
+.pill.new{border-color:#1f4ed8}
+.pill.picked{border-color:#a16207}
+.pill.done{border-color:#11653a}
+.pill.error{border-color:#7a2430}
+
+/* Details */
+details summary{cursor:pointer;color:#cbd5e1}
+
+/* Queue meta */
+.qmeta{display:flex;gap:10px;align-items:flex-start;max-width:480px}
+.qmeta img{width:54px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--stroke);background:#0e162e;flex:0 0 auto}
+.qmeta .t{font-weight:600;line-height:1.25}
+.qmeta .sub{color:#94a3b8;font-size:var(--f-sm);margin-top:4px}
+
+/* Torrents */
+.tname{max-width:420px}
+.progress{height:8px;background:#0b1220;border:1px solid var(--stroke);border-radius:999px;overflow:hidden}
+.progress > span{display:block;height:100%;background:linear-gradient(90deg,#1f4ed8,#22c55e);width:0%}
+.tiny{font-size:var(--f-sm);color:#94a3b8}
+.stat{display:inline-block;min-width:72px}
+
+/* AVAILABLE (library) */
+.avail-controls .chip{
+  display:inline-block;border:1px solid var(--stroke-2);background:#0b1220;color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:var(--f-sm)
+}
+.avail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:var(--gap)}
+@media (min-width: 520px){ .avail-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));} }
+@media (min-width: 880px){ .avail-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));} }
+
+.av-card{
+  background:linear-gradient(180deg,var(--card),var(--card2));
+  border:1px solid var(--stroke);border-radius:var(--radius);overflow:hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+.av-card .poster{position:relative;background:#0e162e}
+.av-card .poster img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block}
+.av-card .vprog{position:absolute;left:0;right:0;bottom:0;height:8px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,255,255,.06)}
+.av-card .vprog > span{display:block;height:100%;background:linear-gradient(90deg,#1f4ed8,#22c55e);width:0%}
+.av-card .body{padding:10px 10px 12px}
+.av-card .title{font-size:var(--f-md);font-weight:700;line-height:1.25;min-height:36px}
+.av-card .meta{color:#94a3b8;font-size:var(--f-sm);margin:6px 0 4px}
+.av-card .tiny{font-size:var(--f-sm);color:#94a3b8}
+.av-card .actions{display:flex;gap:8px;margin-top:8px}
+
+/* Delete timer badge */
+.del-badge{
+  position:absolute;top:8px;right:8px;
+  font-size:var(--f-sm);padding:3px 8px;border-radius:999px;
+  border:1px solid #3a1a27;background:linear-gradient(180deg,#4a1420,#3b0f1a);color:#fecaca;
+  box-shadow:0 2px 8px rgba(0,0,0,.35)
+}
+.del-badge.warn{border-color:#3a2f1a;background:linear-gradient(180deg,#4a3314,#3b2a0f);color:#fff3c4}
+.del-badge.ok{border-color:#183a2a;background:linear-gradient(180deg,#144a2f,#0f3b24);color:#d1fae5}
+
+/* Links / notes */
+.link{color:#93c5fd;text-decoration:none;cursor:pointer}
+.link:hover{text-decoration:underline}
+.note{font-size:var(--f-sm);color:#94a3b8}
+
+/* Footer */
+footer{padding:20px;color:#94a3b8;text-align:center}
+
+/* Utility hover lift */
+.panel.hover-lift, .card.hover-lift, .av-card.hover-lift { will-change: transform; }
+
+/* Mobile tweaks */
+@media (max-width: 480px){
+  header{padding:12px 12px}
+  .wrap{padding:0 12px}
+  .panel{padding:12px}
+  .qmeta{max-width:100%}
+  .tname{max-width:100%}
+  .actions{gap:6px}
+  button,.btn{padding:9px 10px}
+}
+
+/* Force dark if user prefers */
+@media (prefers-color-scheme: dark){
+  :root{ color-scheme: dark; }
+}
+</style>
+
+</head>
+<body>
+<header>
+  <div class="wrap row">
+    <h1>Piotrflix – test panel</h1>
+    <div class="right muted" id="who">niezalogowany</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- LOGOWANIE -->
+<div class="panel" id="loginPanel">
+  <div class="row">
+    <input id="email" type="email" placeholder="email" value="dev@localhost">
+    <input id="password" type="password" placeholder="hasło" value="dev">
+    <button id="loginBtn" class="primary">Zaloguj</button>
+    <button id="logoutBtn" class="">Wyloguj</button>
+    <div class="muted" id="loginMsg"></div>
+  </div>
+  <div class="row"><span class="note">Nie masz konta?</span>
+    <a id="showRegister" class="link">Zarejestruj się</a>
+  </div>
+</div>
+
+  <!-- REJESTRACJA -->
+<div class="panel hidden" id="registerPanel">
+  <div class="row">
+    <strong>Rejestracja</strong>
+    <div class="note">Utwórz konto i zaloguj się automatycznie</div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="regEmail" type="email" placeholder="email (np. user@domena.pl)" style="min-width:260px;flex:1">
+    <input id="regPassword" type="password" placeholder="hasło (min. 6 znaków)">
+    <input id="regPassword2" type="password" placeholder="powtórz hasło">
+    <button id="regBtn" class="green">Zarejestruj</button>
+    <div class="muted" id="regMsg"></div>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <span class="note">Masz już konto?</span>
+    <a id="showLogin" class="link">Zaloguj się</a>
+  </div>
+</div>
+
+  <!-- PLEX CAST -->
+  <div class="panel" id="castPanel">
+    <div class="row">
+      <strong>Plex Cast</strong>
+      <select id="castDeviceSel" style="min-width:320px"></select>
+      <button id="castRefresh" class="primary">Odśwież</button>
+      <input id="castItemId" placeholder="Plex item_id (ratingKey)" style="width:220px">
+      <button id="castStartBtn" class="green">Castuj ▶</button>
+      <div class="right muted" id="castInfo">—</div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="castPlay">Play</button>
+      <button id="castPause">Pause</button>
+      <button id="castStop" class="red">Stop</button>
+      <input id="castSeekMs" type="number" placeholder="seek (ms)" style="width:140px">
+      <button id="castSeek">Seek</button>
+      <button id="castStatusBtn">Status</button>
+      <button id="castAutoBtn">Auto: OFF</button>
+    </div>
+
+    <!-- NEW: Napisy -->
+<div class="row" style="margin-top:10px">
+  <strong>Napisy</strong>
+  <select id="subsSel" style="min-width:280px">
+    <option value="">— brak danych —</option>
+  </select>
+  <input id="subsLang" placeholder="Język (np. pl)" style="width:130px">
+  <button id="subsRefresh" class="primary" title="Pobierz dostępne napisy dla bieżącego elementu">Odśwież</button>
+  <button id="subsApply" class="green" title="Ustaw po stream_id (z listy) lub po języku">Ustaw</button>
+  <button id="subsOff" class="red" title="Wyłącz napisy">Off</button>
+  <div class="right muted" id="subsInfo">—</div>
+</div>
+
+    <div id="castSessions" class="muted" style="margin-top:10px">—</div>
+  </div>
+
+  <!-- URZĄDZENIA (torrentowe) -->
+  <div class="panel">
+    <div class="row">
+      <strong>Urządzenia (klienci)</strong>
+      <select id="deviceSel" style="min-width:320px"></select>
+      <button id="devRefresh" class="primary">Odśwież</button>
+      <div class="right muted" id="devInfo">—</div>
+    </div>
+  </div>
+
+  <!-- DOSTĘPNE (Z BAZY + PROGRESS) -->
+  <div class="panel" id="availablePanel">
+    <div class="row avail-controls">
+      <strong>Dostępne lokalnie</strong>
+      <input id="avQuery" placeholder="Szukaj w dostępnych..." style="min-width:260px;flex:1">
+      <select id="avKind">
+        <option value="all" selected>all</option>
+        <option value="movie">movie</option>
+        <option value="series">series</option>
+      </select>
+      <select id="avSort" title="sortowanie">
+        <option value="recent" selected>ostatnio aktualizowane</option>
+        <option value="title">tytuł A→Z</option>
+        <option value="progress">postęp malejąco</option>
+      </select>
+      <button id="avRefresh" class="primary">Odśwież</button>
+      <button id="avAuto" class="">Auto: OFF</button>
+      <div class="right muted" id="avInfo">—</div>
+    </div>
+    <div id="availableGrid" class="avail-grid" style="margin-top:12px"></div>
+  </div>
+
+  <!-- WYSZUKIWARKA -->
+  <div class="panel" id="searchPanel">
+    <div class="row">
+      <input id="query" placeholder="Wpisz tytuł (np. scary movie)" style="min-width:260px;flex:1">
+      <select id="provider">
+        <option value="yts_api">YTS (API)</option>
+        <option value="yts_html">YTS (HTML)</option>
+        <option value="tpb_premium">TPB – premium (207)</option>
+        <option value="tpb_series">TPB – seriale (208)</option>
+        <option value="tpb">TPB – ogólne</option>
+      </select>
+      <select id="mtype" title="rodzaj do kolejki">
+        <option value="movie">movie</option>
+        <option value="series">series</option>
+      </select>
+      <select id="quality">
+        <option value="">auto jakość</option>
+        <option value="2160p">2160p</option>
+        <option value="1080p" selected>1080p</option>
+        <option value="720p">720p</option>
+      </select>
+      <input id="tmdb" placeholder="TMDb API key (opcjonalnie)" style="width:220px">
+      <button id="searchBtn" class="green">Szukaj</button>
+      <div class="right muted" id="countInfo"></div>
+    </div>
+  </div>
+
+  <!-- TORRENTS (STATUSY + STEROWANIE) -->
+  <div class="panel" id="torrentsPanel">
+    <div class="row">
+      <strong>Torrenty – statusy</strong>
+      <button id="tRefresh" class="primary">Odśwież</button>
+      <button id="tAuto" class="">Auto: OFF</button>
+      <div class="right row">
+        <input id="globRate" type="number" step="0.1" placeholder="global limit (MiB/s, ≤0=OFF)" style="width:220px">
+        <button id="setGlobRate">Ustaw globalny limit</button>
+      </div>
+    </div>
+    <div class="muted" id="tInfo">—</div>
+    <div style="overflow:auto;margin-top:10px">
+      <table>
+        <thead>
+        <tr>
+          <th>Info hash</th>
+          <th>Nazwa</th>
+          <th>Postęp</th>
+          <th>Prędkości</th>
+          <th>Peers</th>
+          <th>Rozmiar</th>
+          <th>Ratio</th>
+          <th>Stan</th>
+          <th>Akcje</th>
+        </tr>
+        </thead>
+        <tbody id="tBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PRZEGLĄDAJ YTS -->
+  <div class="panel" id="browsePanel">
+    <div class="row">
+      <strong>Przeglądaj YTS</strong>
+      <input id="bQuery" placeholder="Fraza (po polsku – serwer przetłumaczy)" style="min-width:220px;flex:1">
+      <select id="bQuality" title="jakość">
+        <option value="0" selected>all</option>
+        <option value="720p">720p</option>
+        <option value="1080p">1080p</option>
+        <option value="2160p">2160p</option>
+        <option value="3D">3D</option>
+      </select>
+      <select id="bGenre" title="gatunek">
+        <option value="">genre (any)</option>
+        <option>action</option><option>adventure</option><option>animation</option>
+        <option>biography</option><option>comedy</option><option>crime</option>
+        <option>documentary</option><option>drama</option><option>family</option>
+        <option>fantasy</option><option>film-noir</option><option>history</option>
+        <option>horror</option><option>music</option><option>musical</option>
+        <option>mystery</option><option>romance</option><option>sci-fi</option>
+        <option>sport</option><option>thriller</option><option>war</option><option>western</option>
+      </select>
+      <select id="bSortBy" title="sortuj wg">
+        <option value="0" selected>sort: default</option>
+        <option value="date_added">date_added</option>
+        <option value="year">year</option>
+        <option value="rating">rating</option>
+        <option value="title">title</option>
+        <option value="peers">peers</option>
+        <option value="seeds">seeds</option>
+        <option value="download_count">download_count</option>
+        <option value="like_count">like_count</option>
+      </select>
+      <select id="bOrder" title="kolejność">
+        <option value="">order (default)</option>
+        <option value="desc">desc</option>
+        <option value="asc">asc</option>
+      </select>
+      <input id="bRating" placeholder="min rating (0..9)" style="width:120px">
+      <input id="bYear" placeholder="rok (np. 2021)" style="width:120px">
+      <button id="browseBtn" class="primary">Przeglądaj</button>
+
+      <div class="right muted" id="browseInfo">—</div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="bPrev">Prev</button>
+      <button id="bNext">Next</button>
+      <span class="muted" id="bPageInfo">Page: 1</span>
+    </div>
+  </div>
+
+  <!-- KOLEJKA -->
+  <div class="panel" id="queuePanel">
+    <div class="row">
+      <strong>Queue</strong>
+      <select id="qStatus">
+        <option value="new">new</option>
+        <option value="picked">picked</option>
+        <option value="done">done</option>
+        <option value="error">error</option>
+        <option value="all" selected>all</option>
+      </select>
+      <input id="qDevice" placeholder="device_id (opcjonalnie)" style="width:280px">
+      <input id="qLimit" type="number" min="1" max="500" value="100" style="width:110px">
+      <button id="qRefresh" class="primary">Odśwież</button>
+      <button id="qAuto" class="">Auto: OFF</button>
+      <div class="right muted" id="qInfo"></div>
+    </div>
+    <div style="overflow:auto;margin-top:10px">
+      <table>
+        <thead>
+        <tr>
+          <th>NO</th>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Kind</th>
+          <th>Device</th>
+          <th class="nowrap">Created</th>
+          <th class="nowrap">Picked</th>
+          <th class="nowrap">Done</th>
+          <th>Title / Poster</th>
+          <th>Payload</th>
+          <th>Akcje</th>
+        </tr>
+        </thead>
+        <tbody id="qBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- WYNIKI (z wyszukiwarki) -->
+  <div id="results" class="grid"></div>
+
+  <footer>
+    <span class="muted">Backend: <code class="k" id="baseUrlLabel"></code> (włącz CORS)</span>
+  </footer>
+</div>
+
+<script>
+  // ←← ZMIEŃ, jeżeli serwer nie jest na localhost:8000
+  const BASE_URL = localStorage.getItem("pf_base") || "https://api.pkportfolio.pl";
+  document.getElementById('baseUrlLabel').textContent = BASE_URL;
+
+  const sel = id => document.getElementById(id);
+  const who = sel('who');
+  const loginMsg = sel('loginMsg');
+
+  // available
+  const avInfo = sel('avInfo');
+  const avQuery = sel('avQuery');
+  const avKind = sel('avKind');
+  const avSort = sel('avSort');
+  const avRefreshBtn = sel('avRefresh');
+  const avAutoBtn = sel('avAuto');
+  const availableGrid = sel('availableGrid');
+  let avAutoTimer = null;
+  let delTimer = null;
+  let _availableRaw = [];
+  let _availableIndex = {}; // canonical_id -> raw row
+  let _posterByPlexId = {}; // NEW: ratingKey -> poster URL
+
+  // browse
+  const results = sel('results');
+  const countInfo = sel('countInfo');
+  const browseInfo = sel('browseInfo');
+  const bPageInfo = sel('bPageInfo');
+  let bPage = 1, bHasMore = false;
+
+  // devices (torrent)
+  const deviceSel = sel('deviceSel');
+  const devInfo = sel('devInfo');
+
+  // torrents
+  const tBody = sel('tBody');
+  const tInfo = sel('tInfo');
+  const tAutoBtn = sel('tAuto');
+  const tRefreshBtn = sel('tRefresh');
+  let tAutoTimer = null;
+
+  // queue
+  const qBody = sel('qBody');
+  const qInfo = sel('qInfo');
+  const qStatus = sel('qStatus');
+  const qDevice = sel('qDevice');
+  const qLimit  = sel('qLimit');
+  const qRefreshBtn = sel('qRefresh');
+  const qAutoBtn = sel('qAuto');
+  let qAutoTimer = null;
+
+  // CAST (Plex)
+  const castDeviceSel = sel('castDeviceSel');
+  const castRefreshBtn = sel('castRefresh');
+  const castStartBtn = sel('castStartBtn');
+  const castItemIdInput = sel('castItemId');
+  const castInfo = sel('castInfo');
+  const castSessions = sel('castSessions');
+  const castPlayBtn = sel('castPlay');
+  const castPauseBtn = sel('castPause');
+  const castStopBtn = sel('castStop');
+  const castSeekBtn = sel('castSeek');
+  const castSeekMs = sel('castSeekMs');
+  const castStatusBtn = sel('castStatusBtn');
+  const castAutoBtn = sel('castAutoBtn');
+  let castAutoTimer = null;
+
+  // NEW: Subtitles UI refs
+const subsSel = sel('subsSel');
+const subsLang = sel('subsLang');
+const subsRefreshBtn = sel('subsRefresh');
+const subsApplyBtn = sel('subsApply');
+const subsOffBtn = sel('subsOff');
+const subsInfo = sel('subsInfo');
+
+  // runtime
+  let castLastSessions = [];
+  let castCurrentItemId = null;
+
+  function token(){ return localStorage.getItem("pf_token") || ""; }
+  function setToken(t){ if(t){localStorage.setItem("pf_token", t);} else {localStorage.removeItem("pf_token");} }
+  function tmdbKey(){ return (sel('tmdb')?.value || '').trim(); }
+
+  // CAST client storage
+  function castClient(){ return localStorage.getItem('pf_cast_client') || ''; }
+  function setCastClient(id){ id? localStorage.setItem('pf_cast_client', id) : localStorage.removeItem('pf_cast_client'); if(castDeviceSel.value!==id) castDeviceSel.value = id || ''; }
+
+  function activeDevice(){ return localStorage.getItem("pf_device") || ""; }
+  function setActiveDevice(id){
+    if(id){ localStorage.setItem("pf_device", id); } else { localStorage.removeItem("pf_device"); }
+    if(deviceSel.value !== id) deviceSel.value = id || "";
+    qDevice.value = id || "";
+    updateDevInfoLabel();
+    loadTorrents();
+    loadQueue();
+  }
+
+  async function api(path, opt={}){
+    const headers = opt.headers || {};
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+    const t = token();
+    if (t) headers['Authorization'] = 'Bearer ' + t;
+    const url = path.startsWith('http') ? path : (BASE_URL + path);
+    const res = await fetch(url, {...opt, headers});
+    if(res.status === 401) throw new Error("401 Unauthorized");
+    const ct = res.headers.get('content-type') || '';
+    if(ct.includes('application/json')) return await res.json();
+    return await res.text();
+  }
+
+  async function refreshUser(){
+    try{
+      const j = await api('/auth/whoami', {method:'GET'});
+      who.innerHTML = `<span class="ok">zalogowany:</span> ${j.email} (id: ${j.user_id})`;
+    }catch(e){
+      who.textContent = 'niezalogowany';
+    }
+  }
+
+  sel('loginBtn').onclick = async ()=>{
+    loginMsg.textContent = '';
+    try{
+      const email = sel('email').value.trim();
+      const password = sel('password').value;
+      const j = await api('/auth/login', {method:'POST', body: JSON.stringify({email, password})});
+      setToken(j.access_token);
+      loginMsg.innerHTML = '<span class="ok">OK!</span>';
+      await refreshUser();
+      await loadDevices();
+      await loadAvailable();
+      await loadQueue();
+      await loadTorrents();
+      await loadCastPlayers();
+      await loadCastStatus();
+    }catch(e){
+      loginMsg.innerHTML = `<span class="err">${e.message||e}</span>`;
+      setToken('');
+      await refreshUser();
+    }
+  };
+  sel('logoutBtn').onclick = async ()=>{ setToken(''); await refreshUser(); };
+
+  // ───────────── DEVICES (torrent) ─────────────
+  function updateDevInfoLabel(){
+    const d = activeDevice();
+    devInfo.textContent = d ? `Aktywne: ${d}` : 'Wybierz urządzenie';
+  }
+
+  async function loadDevices(){
+    deviceSel.innerHTML = '';
+    try{
+      let list = [];
+      try{
+        list = await api('/torrents/devices', {method:'GET'});
+      }catch(_){
+        // fallback: wyciągnij device_id z ostatnich statusów
+        const j = await api('/torrents/status/list?limit=1&order=desc', {method:'GET'});
+        const one = Array.isArray(j) ? j[0] : null;
+        if(one?.device_id) list = [{device_id: one.device_id, torrents:1, last_status_at: one.updated_at, pending_commands:0}];
+      }
+
+      if(!Array.isArray(list)) list = [];
+      const opts = list.map(d=>{
+        const label = `${d.device_id}  —  torrents:${d.torrents||0}  pending:${d.pending_commands||0}  ${d.last_status_at?`(${new Date(d.last_status_at).toLocaleString()})`:''}`;
+        return `<option value="${d.device_id}">${label}</option>`;
+      });
+      deviceSel.innerHTML = `<option value="">— wybierz urządzenie —</option>` + opts.join('');
+      const prev = activeDevice();
+      if(prev && list.some(x=>x.device_id===prev)) deviceSel.value = prev;
+      else if(list.length===1) deviceSel.value = list[0].device_id;
+
+      setActiveDevice(deviceSel.value);
+    }catch(e){
+      deviceSel.innerHTML = `<option value="">(błąd: ${e.message||e})</option>`;
+    }
+  }
+
+  sel('devRefresh').onclick = loadDevices;
+  deviceSel.addEventListener('change', ()=> setActiveDevice(deviceSel.value));
+
+  // ───────────── AVAILABLE (library) ─────────────
+function _first(obj, keys, dflt=''){
+  for(const k of keys){ if(obj && obj[k]!=null && obj[k]!== '') return obj[k]; }
+  return dflt;
+}
+function _num(x, d=0){ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; }
+function _bool(x){ return !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true'); }
+
+function _parseDeleteAt(val){
+  if(val==null || val==='') return null;
+  if(typeof val === 'number'){ const n = Number(val); if(!isFinite(n)) return null; return n < 1e12 ? Math.round(n*1000) : Math.round(n); }
+  const s = String(val).trim();
+  if(!s) return null;
+  const asNum = Number(s.replace(',','.'));
+  if(isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum*1000) : Math.round(asNum);
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
+
+function _canonAvailableItem(r){
+  const title  = _first(r, ['display_title','title','name'],'—');
+  const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
+
+  // rodzaj
+  const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
+  const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
+  const kind = isSeries ? 'series' : 'movie';
+
+  const year = _first(r,['year','release_year','y'], null);
+
+  // --- czas: obsłuż ms i sekundy (najpierw *_ms) ---
+  let pos = null, dur = null;
+  if (r.position_ms != null) pos = _num(r.position_ms)/1000;
+  else if (r.watched_ms != null) pos = _num(r.watched_ms)/1000;
+  else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
+  else pos = _num(_first(r,['watched_seconds','position','last_position','pos'],0));
+
+  if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
+  else if (r.total_ms != null) dur = _num(r.total_ms)/1000;
+  else if (r.runtime_ms != null) dur = _num(r.runtime_ms)/1000;
+  else dur = _num(_first(r,['duration','runtime','total_seconds','duration_sec'],0));
+
+  // --- progress: percent/ratio/progress lub wylicz z pozycji ---
+  let prog = null;
+  const rawProg = _first(r,['progress','ratio'], null);
+  const rawPerc = _first(r,['percent'], null);
+
+  if (rawProg != null && rawProg !== '') {
+    let v = Number(String(rawProg).replace(',','.'));
+    if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;       // 74.5 → 0.745, 0.745 → 0.745
+  } else if (rawPerc != null && rawPerc !== '') {
+    const s = String(rawPerc).trim().replace('%','').replace(',','.');
+    const v = parseFloat(s);
+    if (isFinite(v)) prog = v/100;
+  }
+  if (prog == null) {
+    if (isFinite(pos) && isFinite(dur) && dur > 0) prog = Math.max(0, Math.min(1, pos/dur));
+    else prog = 0;
+  } else {
+    prog = Math.max(0, Math.min(1, prog));
+  }
+
+  const season     = _num(_first(r,['season','s'], null), null);
+  const episode    = _num(_first(r,['episode','e'], null), null);
+  const updated_at = _first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
+
+  // ID – preferuj plex_id/ratingKey; inaczej stabilne b64
+  let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'], null);
+  let id;
+  if(idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
+  else {
+    const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'');
+    id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
+  }
+
+  const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
+  const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
+  const favorite   = _bool(_first(r, ['favorite'], false));
+
+  return {
+    id, title, poster, kind, year,
+    duration: isFinite(dur) ? dur : 0,
+    position: isFinite(pos) ? pos : 0,
+    progress: prog,
+    season, episode, updated_at, size_bytes,
+    deleteAt, favorite
+  };
+}
+
+  function _episodeLabel(it){
+    if(it.kind!=='series') return '';
+    const s = it.season!=null ? String(it.season).padStart(2,'0') : '--';
+    const e = it.episode!=null ? String(it.episode).padStart(2,'0') : '--';
+    return `S${s}E${e}`;
+  }
+  function fmtBytes(n){
+    n = Number(n||0);
+    const u = ['B','KiB','MiB','GiB','TiB'];
+    let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+    return `${n.toFixed(n<10?2:1)} ${u[i]}`;
+  }
+  function fmtDateShort(ms){
+    if(!ms) return '';
+    const d = new Date(ms);
+    return d.toLocaleString();
+  }
+  function fmtTTL(diffMs){
+    if(diffMs<=0) return 'do usunięcia';
+    const s = Math.floor(diffMs/1000);
+    const d = Math.floor(s/86400);
+    const h = Math.floor((s%86400)/3600);
+    const m = Math.floor((s%3600)/60);
+    if(d>=2) return `za ${d} dni`;
+    if(d===1) return `za 1 dzień`;
+    if(h>=1) return `za ${h} h`;
+    return `za ${m} min`;
+  }
+  function delClass(diffMs){
+    if(diffMs<=0) return 'danger';
+    const d = diffMs/86400000;
+    if(d<=1) return 'warn';
+    return 'ok';
+  }
+
+  // pick plex ratingKey from raw
+  function pickPlexId(raw){
+    const cand = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key, raw?.id].find(v => v!=null && String(v).trim()!=='');
+    if(!cand) return null;
+    const s = String(cand).trim();
+    return /^\d+$/.test(s) ? s : null;
+  }
+
+  function renderAvailable(list){
+    if(delTimer){ clearInterval(delTimer); delTimer=null; } // reset auto-refresh badge
+    if(!Array.isArray(list) || !list.length){
+      availableGrid.innerHTML = '';
+      avInfo.textContent = 'Brak danych w cache / brak endpointu.';
+      return;
+    }
+    const q = (avQuery.value||'').toLowerCase();
+    const k = avKind.value||'all';
+    const sort = avSort.value||'recent';
+
+    _availableIndex = {};
+    let items = list.map(r=>{ const c=_canonAvailableItem(r); _availableIndex[c.id]=r; return c; });
+    if(k!=='all') items = items.filter(x=>x.kind===k);
+    if(q) items = items.filter(x=> (x.title||'').toLowerCase().includes(q));
+
+    // NEW: zbuduj mapę plakatów po ratingKey
+    _posterByPlexId = {};
+    for (const raw of list) {
+      const pid = pickPlexId(raw);
+      if (!pid) continue;
+      const c = _canonAvailableItem(raw);
+      if (c.poster) _posterByPlexId[String(pid)] = c.poster;
+    }
+
+    if(sort==='title') items.sort((a,b)=> (a.title||'').localeCompare(b.title||'')); 
+    else if(sort==='progress') items.sort((a,b)=> (b.progress||0) - (a.progress||0));
+    else items.sort((a,b)=> String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
+
+    availableGrid.innerHTML = items.map(it=>{
+      const pct = Math.max(0, Math.min(100, Math.round((it.progress||0)*100)));
+      const year = it.year ? ` (${it.year})` : '';
+      const ep = _episodeLabel(it);
+      const metaL = `${it.kind}${ep? ' · '+ep:''}${it.size_bytes? ' · '+fmtBytes(it.size_bytes):''}`;
+      const delDiff = it.deleteAt ? (it.deleteAt - Date.now()) : null;
+      const delTxt  = (it.deleteAt && !it.favorite) ? fmtTTL(delDiff) : '';
+      const delCls  = (it.deleteAt && !it.favorite) ? delClass(delDiff) : '';
+      const delDate = (it.deleteAt && !it.favorite) ? ` · usunie: ${fmtDateShort(it.deleteAt)}` : '';
+      const delBadge = (it.deleteAt && !it.favorite) ? `<div class="del-badge ${delCls}" data-delete-at="${it.deleteAt}">${delTxt}</div>` : '';
+
+      // guzik CAST ▶
+      const canAutoId = /^\d+$/.test(String(it.id));
+      const tip = canAutoId ? `Cast ratingKey=${it.id}` : `Wpisz ratingKey przy starcie`;
+
+      return `
+        <div class="av-card" title="${(it.title||'').replace(/"/g,'&quot;')}">
+          <div class="poster">
+            <img src="${it.poster||''}" alt="">
+            ${delBadge}
+            <div class="vprog"><span style="width:${pct}%;"></span></div>
+          </div>
+          <div class="body">
+            <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
+            <div class="meta">${metaL}${delDate}</div>
+            <div class="tiny">Postęp: ${pct}% ${it.duration? `· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min` : ''}</div>
+            <div class="actions">
+              <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+    avInfo.textContent = `Pozycji: ${items.length}`;
+
+    // odświeżaj badge co 30s (tylko tekst, bez re-renderu kart)
+    const refreshBadges = ()=>{
+      document.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
+        const ts = Number(el.getAttribute('data-delete-at')||'');
+        if(!isFinite(ts)) return;
+        const diff = ts - Date.now();
+        el.textContent = fmtTTL(diff);
+        el.classList.remove('ok','warn','danger');
+        el.classList.add(delClass(diff));
+      });
+    };
+    delTimer = setInterval(refreshBadges, 30000);
+  }
+
+async function loadAvailable(){
+  avInfo.textContent = 'Ładuję...';
+  availableGrid.innerHTML = '';
+  try{
+    // BACKEND: zwraca { films: [...], series: [...] } bez MERGE
+    const j = await api('/me/available', {method:'GET'});
+    const films  = Array.isArray(j?.films)  ? j.films  : [];
+    const series = Array.isArray(j?.series) ? j.series : [];
+    const data   = films.concat(series);        // płaska lista raw z cache
+    _availableRaw = data;
+    renderAvailable(_availableRaw);             // dalej jak było
+  }catch(e){
+    avInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+  }
+}
+
+  avRefreshBtn.onclick = loadAvailable;
+  avAutoBtn.onclick = ()=>{
+    if(avAutoTimer){ clearInterval(avAutoTimer); avAutoTimer=null; avAutoBtn.textContent='Auto: OFF'; }
+    else{ avAutoTimer=setInterval(loadAvailable, 10000); avAutoBtn.textContent='Auto: ON'; loadAvailable(); }
+  };
+  avQuery.addEventListener('input', ()=>renderAvailable(_availableRaw));
+  avKind.addEventListener('change', ()=>renderAvailable(_availableRaw));
+  avSort.addEventListener('change', ()=>renderAvailable(_availableRaw));
+
+  // Cast z available
+  window.castFromAvailable = async (canonId)=>{
+    const raw = _availableIndex[canonId] || {};
+    let itemId = pickPlexId(raw);
+    if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
+    if(!itemId){
+      itemId = prompt('Brak plex_id w pozycji. Podaj Plex ratingKey (item_id):', '');
+    }
+    if(!itemId || !/^\d+$/.test(String(itemId))){
+      alert('Nieprawidłowy item_id (ratingKey).');
+      return;
+    }
+    await castStart(itemId);
+  };
+
+  // ───────────── SEARCH (bez zmian) ─────────────
+  function cardTemplate(item){
+    const img = item.image || '';
+    const title = item.title || '—';
+    const desc = item.description || '';
+    const provider = item.provider || '—';
+    const hasMagnet = !!item.magnet;
+    const url = item.url || '';
+    const rating = item.rating ? `★ ${item.rating}` : '';
+    const id = btoa((url || item.magnet || title).slice(0,200)).replace(/=+/g,'');
+    const qSel = `<select id="q_${id}">
+      <option value="">auto</option>
+      <option value="2160p">2160p</option>
+      <option value="1080p" selected>1080p</option>
+      <option value="720p">720p</option>
+    </select>`;
+    const resolveBtn = (!hasMagnet && url)
+      ? `<button class="primary" onclick="resolveAndQueue('${encodeURIComponent(url)}','${provider}','${id}')">Resolve & Add to Queue</button>` : '';
+    const addBtn = hasMagnet
+      ? `<button class="green" onclick="addToQueue('${encodeURIComponent(item.magnet)}','${id}')">Add to Queue</button>` : '';
+    return `
+      <div class="card" id="card_${id}">
+        <img src="${img}" alt="">
+        <div class="body">
+          <h3>${title}</h3>
+          <div class="muted"><span class="badge">${provider}</span> ${rating}</div>
+          <p class="desc">${desc}</p>
+          <div class="actions">${resolveBtn}${addBtn}<span class="muted">Jakość: ${qSel}</span></div>
+        </div>
+      </div>`;
+  }
+  function extractCardMeta(id){
+    const card = document.getElementById('card_' + id);
+    if(!card) return {title:'', image:''};
+    const title = (card.querySelector('h3')?.textContent || '').trim();
+    const image = (card.querySelector('img')?.getAttribute('src') || '').trim();
+    return {title, image};
+  }
+  async function searchNow(){
+    results.innerHTML = '';
+    countInfo.textContent = 'szukam...';
+    const body = {
+      query: sel('query').value.trim(),
+      provider: sel('provider').value.trim(),
+      type: sel('mtype').value.trim(),
+      page: 1,
+      extra: {}
+    };
+    const tmdb = tmdbKey(); if(tmdb) body.extra.tmdb_api_key = tmdb;
+    if(!body.query){ countInfo.textContent = 'wpisz frazę'; return; }
+    try{
+      const j = await api('/search', {method:'POST', body: JSON.stringify(body)});
+      const items = j.results || [];
+      countInfo.textContent = `Wyniki: ${items.length}`;
+      results.innerHTML = items.map(cardTemplate).join('');
+    }catch(e){ countInfo.innerHTML = `<span class="err">${e.message||e}</span>`; }
+  }
+  sel('searchBtn').onclick = searchNow;
+  sel('query').addEventListener('keydown', e=>{ if(e.key==='Enter') searchNow(); });
+  window.resolveAndQueue = async (encodedUrl, provider, id)=>{
+    const url = decodeURIComponent(encodedUrl);
+    const quality = (document.getElementById('q_'+id)?.value) || sel('quality').value || '';
+    try{
+      const j = await api('/search/resolve', {method:'POST', body: JSON.stringify({url, provider, quality})});
+      if(!j.magnet){ alert('Nie udało się wyciągnąć magnet linku.'); return; }
+      await addToQueue(encodeURIComponent(j.magnet), id);
+      await loadQueue();
+    }catch(e){ alert('Resolve error: ' + (e.message||e)); }
+  };
+  window.addToQueue = async (encMagnet, id)=>{
+    const magnet = decodeURIComponent(encMagnet);
+    const download_kind = sel('mtype').value || 'movie';
+    const qsel = (id && document.getElementById('q_'+id)) ? document.getElementById('q_'+id).value : (sel('quality').value || '');
+    const metaFromCard = id ? extractCardMeta(id) : {title:'', image:''};
+    try{
+      const meta = { from:'index.html', save_slot:download_kind, display_title:metaFromCard.title||undefined, image_url:metaFromCard.image||undefined, quality:qsel||undefined };
+      const payload = { magnet, download_kind, meta };
+      const j = await api('/torrent/add', {method:'POST', body: JSON.stringify(payload)});
+      alert('Dodano do kolejki. task_id=' + (j.task_id||'?'));
+      await loadQueue();
+    }catch(e){ alert('Add error: ' + (e.message||e)); }
+  };
+
+  // ───────────── TORRENTS (status + sterowanie) ─────────────
+  function fmtSpeed(bps){ return fmtBytes(bps) + '/s'; }
+  function fmtETA(sec){
+    sec = Number(sec||-1); if(sec<0) return '—';
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    return `${h? h+'h ':''}${m? m+'m ':''}${s?s+'s':''}`.trim() || '0s';
+  }
+  function pill(status){
+    const s = (status||'').toLowerCase();
+    return `<span class="pill ${s}">${s||'?'}</span>`;
+  }
+
+  async function pushCmd(kind, info_hash=null, args={}){
+    const dev = activeDevice();
+    if(!dev){ alert('Najpierw wybierz urządzenie.'); return; }
+    await api('/torrents/commands/push', {method:'POST', body: JSON.stringify({
+      device_id: dev, info_hash, kind, args
+    })});
+  }
+
+  function renderTorrents(items){
+    if(!Array.isArray(items) || !items.length){
+      tBody.innerHTML = '';
+      tInfo.textContent = 'Brak danych (uruchom klienta lub poczekaj na pierwszy raport).';
+      return;
+    }
+    tInfo.textContent = `Pozycje: ${items.length}`;
+    tBody.innerHTML = items.map(r=>{
+      const p = Math.round((r.progress||0)*100);
+      const size = fmtBytes(r.size_bytes);
+      const dled = fmtBytes(r.downloaded_bytes);
+      const sp = `<div class="tiny"><span class="stat">DL:</span>${fmtSpeed(r.dl_speed)} &nbsp; <span class="stat">UL:</span>${fmtSpeed(r.ul_speed)} &nbsp; <span class="stat">ETA:</span>${fmtETA(r.eta)}</div>`;
+      const peers = `${r.peers||0} / ${r.seeds||0}`;
+      const rateId = 'rate_' + r.info_hash;
+      return `
+        <tr>
+          <td class="nowrap"><code class="k">${r.info_hash}</code></td>
+          <td class="tname">${(r.display_title||r.name||'').replace(/</g,'&lt;')}</td>
+          <td style="min-width:180px">
+            <div class="progress"><span style="width:${p}%;"></span></div>
+            <div class="tiny">${p}% &nbsp; (${dled}/${size})</div>
+          </td>
+          <td>${sp}</td>
+          <td>${peers}</td>
+          <td>${size}</td>
+          <td>${(r.ratio||0).toFixed(2)}</td>
+          <td>${pill(r.state)}</td>
+          <td class="nowrap">
+            <button onclick="tcmd_pause('${r.info_hash}')">Pause</button>
+            <button class="green" onclick="tcmd_resume('${r.info_hash}')">Resume</button>
+            <button class="red" onclick="tcmd_remove('${r.info_hash}', false)">Remove</button>
+            <button class="red" onclick="tcmd_remove('${r.info_hash}', true)" title="usuń z danymi">Remove+Data</button>
+            <button onclick="tcmd_recheck('${r.info_hash}')">Recheck</button>
+            <div class="tiny" style="margin-top:6px">
+              Limit MiB/s: <input id="${rateId}" type="number" step="0.1" style="width:110px">
+              <button onclick="tcmd_set_rate('${r.info_hash}', '${rateId}')">Ustaw</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  window.tcmd_pause = async (ih)=>{ await pushCmd('pause', ih); setTimeout(loadTorrents, 500); };
+  window.tcmd_resume = async (ih)=>{ await pushCmd('resume', ih); setTimeout(loadTorrents, 500); };
+  window.tcmd_remove = async (ih, withData)=>{
+    if(!confirm(withData?'Usunąć TORRENT + DANE?':'Usunąć torrent z klienta?')) return;
+    await pushCmd(withData?'remove_data':'remove', ih);
+    setTimeout(loadTorrents, 700);
+  };
+  window.tcmd_recheck = async (ih)=>{ await pushCmd('recheck', ih); setTimeout(loadTorrents, 500); };
+  window.tcmd_set_rate = async (ih, inputId)=>{
+    const v = parseFloat(document.getElementById(inputId).value || '0');
+    await pushCmd('set_rate', ih, {limit_mbs: isNaN(v)?0:v});
+    setTimeout(loadTorrents, 400);
+  };
+  sel('setGlobRate').onclick = async ()=>{
+    const v = parseFloat(sel('globRate').value || '0');
+    await pushCmd('set_rate_global', null, {limit_mbs: isNaN(v)?0:v});
+  };
+
+  async function loadTorrents(){
+    const dev = activeDevice();
+    if(!dev){ tInfo.textContent = 'Wybierz urządzenie'; tBody.innerHTML=''; return; }
+    try{
+      const qs = new URLSearchParams({device_id: dev, limit: '500', order: 'desc'});
+      const j = await api('/torrents/status/list?' + qs.toString(), {method:'GET'});
+      renderTorrents(Array.isArray(j) ? j : []);
+    }catch(e){
+      tInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+    }
+  }
+
+  tRefreshBtn.onclick = loadTorrents;
+  tAutoBtn.onclick = ()=>{
+    if(tAutoTimer){ clearInterval(tAutoTimer); tAutoTimer=null; tAutoBtn.textContent='Auto: OFF'; }
+    else{ tAutoTimer=setInterval(loadTorrents, 4000); tAutoBtn.textContent='Auto: ON'; loadTorrents(); }
+  };
+
+  // ───────────── BROWSE (YTS) ─────────────
+  function bParams(){
+    return {
+      query: (sel('bQuery').value || '').trim(),
+      rating: (sel('bRating').value || '0').trim(),
+      quality: sel('bQuality').value || '0',
+      genre: (sel('bGenre').value || '').trim().toLowerCase(),
+      order: sel('bOrder').value || '',
+      year: (sel('bYear').value || '0').trim(),
+      sort_by: sel('bSortBy').value || '0',
+      page: bPage
+    };
+  }
+  async function browseYTS(resetPage=false){
+    if(resetPage) bPage = 1;
+    const p = bParams(); const qs = new URLSearchParams(); for(const [k,v] of Object.entries(p)){ if(v!=='' && v!=null) qs.set(k,v); }
+    const headers = {}; if (tmdbKey()) headers['X-TMDB-Key'] = tmdbKey();
+    browseInfo.textContent = 'szukam...'; results.innerHTML = '';
+    try{
+      const j = await api('/search/browse?' + qs.toString(), {method:'GET', headers});
+      const items = j.results || []; bHasMore = !!j.has_more;
+      bPageInfo.textContent = 'Page: ' + (j.page || bPage);
+      browseInfo.textContent = `Wyniki: ${items.length}`;
+      results.innerHTML = items.map(cardTemplate).join('');
+      updateBrowseButtons();
+    }catch(e){ browseInfo.innerHTML = `<span class="err">${e.message||e}</span>`; }
+  }
+  function updateBrowseButtons(){ sel('bPrev').disabled = (bPage <= 1); sel('bNext').disabled = !bHasMore; }
+  sel('browseBtn').onclick = ()=>browseYTS(true);
+  sel('bPrev').onclick = ()=>{ if(bPage>1){ bPage--; browseYTS(false); } };
+  sel('bNext').onclick = ()=>{ if(bHasMore){ bPage++; browseYTS(false); } };
+  sel('bQuery').addEventListener('keydown', e=>{ if(e.key==='Enter') browseYTS(true); });
+
+  // ───────────── QUEUE ─────────────
+  function fmt(ts){ if(!ts) return ''; try{ const d=new Date(ts); return d.toLocaleString(); }catch{return String(ts)} }
+  function pickMeta(row){
+    let title = row.display_title || ''; let image = row.image_url || '';
+    const p = row.payload || {};
+    if(!title) title = p.display_title || p.title || (p.meta?.display_title) || (p.meta?.title) || '';
+    if(!image) image = p.image_url || p.image || p.poster || p.poster_url || p.thumb || (p.meta?.image_url) || (p.meta?.poster_url) || '';
+    return {title, image};
+  }
+  function pillQ(status){ const s=(status||'').toLowerCase(); return `<span class="pill ${s}">${s||'?'}</span>`; }
+  function renderQueue(items){
+    qBody.innerHTML = (items||[]).map(row=>{
+      const canDelete = !row.status || row.status==='new' || row.status==='picked' || row.status==='error';
+      const payload = row.payload || {}; const payloadPretty = JSON.stringify(payload, null, 2);
+      const no = (row.task_no ?? ''); const meta = pickMeta(row);
+      const img = meta.image ? `<img src="${meta.image}" alt="">` : '';
+      const titleHtml = (meta.title||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `
+        <tr>
+          <td class="nowrap">${no}</td>
+          <td class="nowrap">${row.id}</td>
+          <td>${pillQ(row.status)}</td>
+          <td>${row.kind||''}</td>
+          <td class="nowrap"><code class="k">${row.device_id || '—'}</code></td>
+          <td class="nowrap">${fmt(row.created_at)}</td>
+          <td class="nowrap">${fmt(row.picked_at)}</td>
+          <td class="nowrap">${fmt(row.done_at)}</td>
+          <td>
+            <div class="qmeta">
+              ${img}
+              <div>
+                <div class="t">${titleHtml || '—'}</div>
+                ${payload.quality ? `<div class="sub">quality: ${payload.quality}</div>` : ''}
+              </div>
+            </div>
+          </td>
+          <td style="max-width:360px">
+            <details><summary>payload</summary><pre style="margin:8px 0;white-space:pre-wrap">${payloadPretty}</pre></details>
+          </td>
+          <td class="nowrap">
+            <button class="red" ${canDelete?'':'disabled'} onclick="deleteTask(${row.id})">Usuń</button>
+            ${no ? `<button class="red" ${canDelete?'':'disabled'} onclick="deleteTaskByNo(${no})" title="Usuń po numerze per-user">Usuń NO</button>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+    qInfo.textContent = `Items: ${(items||[]).length}`;
+  }
+  async function loadQueue(){
+    const params = new URLSearchParams();
+    const status = qStatus.value; if(status && status!=='all') params.set('status', status);
+    const dev = qDevice.value.trim(); if(dev) params.set('device_id', dev);
+    const lim = parseInt(qLimit.value||'100',10); if(lim) params.set('limit', Math.max(1, Math.min(500, lim)));
+    try{
+      const j = await api('/queue/list' + (params.toString()?('?' + params.toString()):''), {method:'GET'});
+      const items = Array.isArray(j) ? j : (j.items || []);
+      renderQueue(items);
+    }catch(e){ qInfo.innerHTML = `<span class="err">${e.message||e}</span>`; }
+  }
+  window.deleteTask = async (id)=>{ if(!confirm(`Na pewno usunąć task ${id}?`)) return; try{ await api(`/queue/${id}`, {method:'DELETE'}); await loadQueue(); }catch(e){ alert('Delete error: ' + (e.message||e)); } };
+  window.deleteTaskByNo = async (no)=>{ if(!confirm(`Na pewno usunąć task NO ${no}?`)) return; try{ await api(`/queue/by-no/${no}`, {method:'DELETE'}); await loadQueue(); }catch(e){ alert('Delete error: ' + (e.message||e)); } };
+  qRefreshBtn.onclick = loadQueue;
+  qAutoBtn.onclick = ()=>{ if(qAutoTimer){ clearInterval(qAutoTimer); qAutoTimer=null; qAutoBtn.textContent='Auto: OFF'; } else { qAutoTimer=setInterval(loadQueue, 5000); qAutoBtn.textContent='Auto: ON'; loadQueue(); } };
+
+  // ───────────── CAST: API helpers ─────────────
+  async function loadCastPlayers(){
+    castDeviceSel.innerHTML = '';
+    castInfo.textContent = 'Ładuję urządzenia...';
+    try{
+      const j = await api('/cast/players', {method:'GET'});
+      const list = (j && Array.isArray(j.devices)) ? j.devices : [];
+      if(!list.length){
+        castDeviceSel.innerHTML = `<option value="">(brak klientów Plex)</option>`;
+        castInfo.textContent = '—';
+        return;
+      }
+      const opts = list.map(d=>{
+        const label = `${d.name || d.product || 'Plex Client'} — ${d.platform || ''} — ${d.id}`;
+        return `<option value="${d.id}">${label}</option>`;
+      }).join('');
+      castDeviceSel.innerHTML = `<option value="">— wybierz klienta —</option>` + opts;
+
+      const prev = castClient();
+      if(prev && list.some(x=>x.id === prev)) castDeviceSel.value = prev;
+      else castDeviceSel.value = list[0].id;
+
+      setCastClient(castDeviceSel.value);
+      castInfo.textContent = `Klientów: ${list.length}`;
+    }catch(e){
+      castDeviceSel.innerHTML = `<option value="">(błąd: ${e.message||e})</option>`;
+      castInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+    }
+  }
+  castRefreshBtn.onclick = loadCastPlayers;
+  castDeviceSel.addEventListener('change', ()=> setCastClient(castDeviceSel.value));
+
+  async function castStart(itemId){
+    const cid = castClient();
+    if(!cid){ alert('Najpierw wybierz klienta Plex (Plex Cast).'); return; }
+    try{
+      castInfo.textContent = 'Startuję odtwarzanie...';
+      const body = { item_id: String(itemId), client_id: cid, client_name: castDeviceSel.options[castDeviceSel.selectedIndex]?.text || '' };
+      const j = await api('/cast/start', {method:'POST', body: JSON.stringify(body)});
+      castInfo.innerHTML = `<span class="ok">OK</span> resume=${j.resume_ms}ms`;
+      castCurrentItemId = String(itemId);
+      await loadCastStatus();
+      await loadSubtitles(castCurrentItemId); // NEW: od razu dociągnij listę napisów
+    }catch(e){
+      castInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+    }
+  }
+  castStartBtn.onclick = async ()=> {
+    const v = (castItemIdInput.value || '').trim();
+    if(!/^\d+$/.test(v)){ alert('Podaj numericzne item_id (Plex ratingKey).'); return; }
+    await castStart(v);
+  };
+
+  async function sendCastCmd(cmd, seek_ms=null){
+    const cid = castClient();
+    if(!cid){ alert('Najpierw wybierz klienta Plex.'); return; }
+    const body = { client_id: cid, cmd };
+    if(cmd==='seek' && seek_ms!=null) body.seek_ms = Number(seek_ms)||0;
+    try{
+      await api('/cast/cmd', {method:'POST', body: JSON.stringify(body)});
+      if(cmd!=='seek') await loadCastStatus();
+    }catch(e){
+      alert('Cast cmd error: ' + (e.message||e));
+    }
+  }
+  castPlayBtn.onclick = ()=>sendCastCmd('play');
+  castPauseBtn.onclick = ()=>sendCastCmd('pause');
+  castStopBtn.onclick = ()=>sendCastCmd('stop');
+  castSeekBtn.onclick = ()=>{ const ms = parseInt(castSeekMs.value||'0',10); sendCastCmd('seek', ms); };
+
+  // NEW: napisy – API & UI
+// NEW: napisy – API & UI
+function fillSubsUI(streams, selectedId){
+  if(!Array.isArray(streams) || streams.length===0){
+    subsSel.innerHTML = `<option value="">(brak napisów)</option>`;
+    subsInfo.textContent = '—';
+    return;
+  }
+  const opts = streams.map(st=>{
+    const id = st.id;
+    const parts = [
+      st.language || st.language_code || '—',
+      st.title ? `· ${st.title}` : '',
+      st.external ? '· external' : '',
+      st.forced ? '· forced' : '',
+      st.sdh ? '· SDH' : '',
+    ].join(' ').replace(/\s+/g,' ').trim();
+    const sel = (selectedId!=null && Number(id)===Number(selectedId)) ? 'selected' : '';
+    return `<option value="${id}" ${sel}>${id} — ${parts}</option>`;
+  }).join('');
+  subsSel.innerHTML = `<option value="">— wybierz stream_id —</option>` + opts;
+  subsInfo.textContent = selectedId!=null ? `wybrane: ${selectedId}` : '—';
+}
+
+async function loadSubtitles(itemId=null){
+  const cid = castClient();
+  const id = itemId || castCurrentItemId || (getClientActiveItemId(cid) || null);
+  if(!id){ subsInfo.innerHTML = '<span class="err">brak item_id</span>'; return; }
+  try{
+    subsInfo.textContent = 'ładuję...';
+    const j = await api('/cast/subtitles?item_id=' + encodeURIComponent(String(id)), {method:'GET'});
+    fillSubsUI(j.streams || [], j.selected_id);
+    castCurrentItemId = String(j.item_id || id);
+  }catch(e){
+    subsInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+    subsSel.innerHTML = `<option value="">(error)</option>`;
+  }
+}
+
+async function applySubtitles(){
+  const cid = castClient();
+  if(!cid){ alert('Najpierw wybierz klienta Plex.'); return; }
+  const id = castCurrentItemId || (getClientActiveItemId(cid) || null);
+  if(!id){ alert('Brak item_id – odśwież status lub rozpocznij odtwarzanie.'); return; }
+
+  const streamIdStr = subsSel.value;
+  const lang = (subsLang.value || '').trim();
+  const payload = { client_id: cid, item_id: String(id), enable: true };
+
+  if(streamIdStr){
+    payload.stream_id = Number(streamIdStr);
+  }else if(lang){
+    payload.language = lang;
+  }else{
+    alert('Wybierz stream_id z listy albo wpisz język (np. pl).');
+    return;
+  }
+
+  try{
+    const j = await api('/cast/subtitles/select', {method:'POST', body: JSON.stringify(payload)});
+    subsInfo.innerHTML = `<span class="ok">OK</span> id=${j.selected_id||'?'}${j.fallback?' · fb':''}`;
+    setTimeout(()=>loadSubtitles(id), 400); // refresh po ustawieniu
+  }catch(e){
+    subsInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+  }
+}
+
+async function subtitlesOff(){
+  const cid = castClient();
+  if(!cid){ alert('Najpierw wybierz klienta Plex.'); return; }
+  try{
+    const j = await api('/cast/subtitles/off?client_id=' + encodeURIComponent(cid), {method:'POST'});
+    subsInfo.innerHTML = `<span class="ok">OFF</span>${j.fallback?' · fb':''}`;
+    setTimeout(()=>loadSubtitles(), 300);
+  }catch(e){
+    subsInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+  }
+}
+
+subsRefreshBtn.onclick = ()=>loadSubtitles();
+subsApplyBtn.onclick = ()=>applySubtitles();
+subsOffBtn.onclick = ()=>subtitlesOff();
+
+
+  function getClientActiveItemId(cid){
+    try{
+      const s = castLastSessions.find(x=> String(x.client_id||'') === String(cid));
+      const id = s?.item_id || s?.ratingKey || s?.metadata_id;
+      return id ? String(id) : null;
+    }catch(_){ return null; }
+  }
+
+  // NEW: poprawione obrazki w sesjach (fallback z biblioteki po ratingKey)
+  function renderCastSessions(sessions){
+    castLastSessions = Array.isArray(sessions) ? sessions : [];
+    if(!castLastSessions.length){
+      castSessions.textContent = 'Brak aktywnych sesji.';
+      return;
+    }
+    // ustaw bieżący item na podstawie sesji klienta
+    const cid = castClient();
+    const mine = castLastSessions.find(s => String(s.client_id||'')===String(cid));
+    if(mine && (mine.item_id || mine.ratingKey || mine.metadata_id)){
+      castCurrentItemId = String(mine.item_id || mine.ratingKey || mine.metadata_id);
+    }
+
+    const html = castLastSessions.map(s=>{
+      // ① pełny URL od backendu/Plex
+      let imgUrl = (s.thumb && /^https?:\/\//.test(s.thumb)) ? s.thumb : '';
+
+      // ② fallback: plakat z biblioteki po ratingKey
+      const pid = String(s.ratingKey || s.item_id || s.metadata_id || '').trim();
+      if(!imgUrl && pid && _posterByPlexId[pid]){
+        imgUrl = _posterByPlexId[pid];
+      }
+
+      // ③ względna ścieżka (jeśli backend proxuje)
+      if(!imgUrl && s.thumb && s.thumb.startsWith('/')){
+        imgUrl = `${BASE_URL}${s.thumb}`;
+      }
+
+      const pct = s.duration_ms>0 ? Math.round((s.view_offset_ms||0)/s.duration_ms*100) : 0;
+      const thumb = imgUrl ? `<img src="${imgUrl}" style="width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #1a2340">` : '';
+      return `
+        <div class="row" style="align-items:center;border:1px solid #1a2340;background:linear-gradient(180deg,var(--card),var(--card2));border-radius:12px;padding:8px 10px;margin-bottom:8px">
+          ${thumb}
+          <div style="min-width:220px"><strong>${(s.title||'—').replace(/</g,'&lt;')}</strong><br><span class="tiny">${s.type||''}</span></div>
+          <div class="progress" style="flex:1;max-width:320px"><span style="width:${pct}%;"></span></div>
+          <div class="tiny" style="min-width:140px;text-align:right">${pct}% · ${s.state||''}</div>
+        </div>`;
+    }).join('');
+    castSessions.innerHTML = html;
+  }
+
+  async function loadCastStatus(){
+    const cid = castClient();
+    try{
+      const qs = cid ? `?client_id=${encodeURIComponent(cid)}` : '';
+      const j = await api('/cast/status' + qs, {method:'GET'});
+      renderCastSessions(j.sessions || []);
+    }catch(e){
+      castSessions.innerHTML = `<span class="err">${e.message||e}</span>`;
+    }
+  }
+  castStatusBtn.onclick = loadCastStatus;
+  castAutoBtn.onclick = ()=>{
+    if(castAutoTimer){ clearInterval(castAutoTimer); castAutoTimer=null; castAutoBtn.textContent='Auto: OFF'; }
+    else { castAutoTimer=setInterval(async ()=>{ await loadCastStatus(); if(castCurrentItemId) await loadSubtitles(castCurrentItemId); }, 3000); castAutoBtn.textContent='Auto: ON'; loadCastStatus(); }
+  };
+
+  // Start
+  (async ()=>{
+    await refreshUser();
+    await loadDevices();
+    await loadAvailable();
+    await loadQueue();
+    await loadCastPlayers();
+    await loadCastStatus();
+    // browse pagination init label
+    (function(){ sel('bPrev').disabled = true; sel('bNext').disabled = true; })();
+  })();
+
+// --- Toggle: logowanie <-> rejestracja ---
+const registerPanel = sel('registerPanel');
+const loginPanel = sel('loginPanel');
+const showRegisterLink = sel('showRegister');
+const showLoginLink = sel('showLogin');
+
+function showRegister(){ registerPanel.classList.remove('hidden'); loginPanel.classList.add('hidden'); }
+function showLogin(){ loginPanel.classList.remove('hidden'); registerPanel.classList.add('hidden'); }
+
+if (showRegisterLink) showRegisterLink.onclick = showRegister;
+if (showLoginLink) showLoginLink.onclick = showLogin;
+
+  // --- Rejestracja ---
+const regEmail = sel('regEmail');
+const regPassword = sel('regPassword');
+const regPassword2 = sel('regPassword2');
+const regBtn = sel('regBtn');
+const regMsg = sel('regMsg');
+
+function _emailOk(e){ return /^\S+@\S+\.\S+$/.test(String(e||'').trim()); }
+
+async function registerNow(){
+  regMsg.textContent = '';
+  const email = (regEmail.value || '').trim().toLowerCase();
+  const p1 = regPassword.value || '';
+  const p2 = regPassword2.value || '';
+
+  if(!_emailOk(email)){ regMsg.innerHTML = '<span class="err">Nieprawidłowy email.</span>'; return; }
+  if(p1.length < 6){ regMsg.innerHTML = '<span class="err">Hasło min. 6 znaków.</span>'; return; }
+  if(p1 !== p2){ regMsg.innerHTML = '<span class="err">Hasła się różnią.</span>'; return; }
+
+  try{
+    // 1) spróbuj utworzyć konto
+    const regRes = await api('/auth/register', {
+      method:'POST',
+      body: JSON.stringify({ email, password: p1 })
+    });
+
+    // 2) jeśli backend już zwraca tokeny – zaloguj od razu
+    let tokens = regRes && regRes.access_token ? regRes : null;
+
+    // 3) jeśli nie ma tokenu w odpowiedzi – wykonaj login
+    if(!tokens){
+      const j = await api('/auth/login', {
+        method:'POST',
+        body: JSON.stringify({ email, password: p1 })
+      });
+      tokens = j;
+    }
+
+    if(tokens && tokens.access_token){
+      setToken(tokens.access_token);
+      regMsg.innerHTML = '<span class="ok">Konto utworzone. Zalogowano.</span>';
+      // to samo co po loginie:
+      await refreshUser();
+      await loadDevices();
+      await loadAvailable();
+      await loadQueue();
+      await loadTorrents();
+      await loadCastPlayers();
+      await loadCastStatus();
+      showLogin();
+    }else{
+      regMsg.innerHTML = '<span class="ok">Konto utworzone. Zaloguj się.</span>';
+      showLogin();
+    }
+  }catch(e){
+    regMsg.innerHTML = `<span class="err">${e.message||e}</span>`;
+  }
+}
+
+if (regBtn) regBtn.onclick = registerNow;
+['regEmail','regPassword','regPassword2'].forEach(id=>{
+  const el = sel(id); if(!el) return;
+  el.addEventListener('keydown', e=>{ if(e.key==='Enter') registerNow(); });
+});
+</script>
+</body>
+</html>
