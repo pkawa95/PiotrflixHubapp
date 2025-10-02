@@ -335,7 +335,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const token = data?.token;
+      // akceptuj zarówno `access_token`, jak i `token`
+      const token = data?.access_token || data?.token;
       if (!token) { if (globalErr) globalErr.textContent = 'Brak tokenu w odpowiedzi serwera.'; return; }
 
       handleAuthorized(token);
@@ -401,9 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // jeśli API od razu zwraca token → zaloguj
-      if (data?.token) {
+      const token = data?.access_token || data?.token;
+      if (token) {
         try { localStorage.setItem(REMEMBER_KEY, '1'); } catch(_){}
-        handleAuthorized(data.token);
+        handleAuthorized(token);
         return;
       }
 
