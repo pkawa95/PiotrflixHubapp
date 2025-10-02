@@ -761,259 +761,300 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-/* ===================== PIOTRFLIX — SEARCH (final) ===================== */
-(function(){
-  const section = document.getElementById('section-search');
-  if (!section) return;
-
-  // --- API / auth ---
-  const API =
-    document.getElementById('auth-screen')?.dataset.apiBase ||
-    localStorage.getItem('pf_base') || '';
-  const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
-  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
-  const getTmdbKey = () =>
-    document.getElementById('auth-screen')?.dataset.tmdbKey ||
-    localStorage.getItem('tmdb_api_key') || '';
-
-  // --- Elements ---
-  const tabs = Array.from(section.querySelectorAll('.tx-tab')); // data-mode: yts_html | tpb_premium | tpb_series
-  const inputQ = section.querySelector('#sx-q');
-  const selQuality = section.querySelector('#sx-quality');
-  const qualityWrap = section.querySelector('#sx-quality-wrap');
-  const btnSearch = section.querySelector('#sx-btn-search');
-  const results = section.querySelector('#sx-results');
-  const toast = section.querySelector('#sx-toast');
-
-  // --- State ---
-  let mode = 'yts_html'; // default
-  let busy = false;
-
-  // --- Helpers ---
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => (
-    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
-  ));
-  const pick = (o, ...k) => { for (const key of k){ if (o && o[key] != null) return o[key]; } };
-  const inferQuality = (s) => {
-    const m = String(s||'').match(/(2160p|1080p|720p)/i);
-    return m ? m[1].toLowerCase() : '';
+(() => {
+  // ───────────────────────────────────────────────────────────────────────────
+  // Konfiguracja selektorów / elementów
+  // ───────────────────────────────────────────────────────────────────────────
+  const els = {
+    tabs:     document.getElementById('sx-tabs'),
+    query:    document.getElementById('sx-query'),
+    quality:  document.getElementById('sx-quality'),   // tylko Filmy (yts_html)
+    search:   document.getElementById('sx-search'),
+    results:  document.getElementById('sx-results'),
+    count:    document.getElementById('sx-count')
   };
-  const showToast = (msg, ok=true) => {
-    if (!toast) return;
-    toast.textContent = msg || '';
-    toast.classList.toggle('is-error', !ok);
-    toast.classList.add('is-show');
-    setTimeout(() => toast.classList.remove('is-show'), 1800);
+
+  // aktywny tryb (domyślnie: Filmy / yts_html)
+  let state = {
+    provider: 'yts_html',     // 'yts_html' | 'tpb_premium' | 'tpb_series'
+    type:     'movie',        // 'movie' | 'series' | 'any'
+    page:     1,
+    lastQuery:''
   };
-  const providerForMode = (m) =>
-    m === 'tpb_premium' ? 'tpb_premium' :
-    m === 'tpb_series'  ? 'tpb_series'  :
-    'yts_html';
-  const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
 
-  function setMode(newMode){
-    if (mode === newMode) return;
-    mode = newMode;
-    tabs.forEach(t => {
-      const on = t.dataset.mode === mode;
-      t.classList.toggle('is-active', on);
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    const isYts = (mode === 'yts_html');
-    qualityWrap.style.display = isYts ? '' : 'none';
-    qualityWrap.setAttribute('aria-hidden', isYts ? 'false' : 'true');
+  // ───────────────────────────────────────────────────────────────────────────
+  // Pomocnicze
+  // ───────────────────────────────────────────────────────────────────────────
+  const tmdbKey = () => (localStorage.getItem('tmdb_key') || '').trim();
 
-    if (inputQ.value.trim()) doSearch().catch(()=>{});
-  }
-
-  section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tx-tab'); if (!btn) return;
-    setMode(btn.dataset.mode);
-  });
-
-  function setBusy(on){
-    busy = !!on;
-    results?.setAttribute('aria-busy', on ? 'true' : 'false');
-  }
-
-  // --------- Render ---------
-  function renderResults(items, ctx){
-    if (!Array.isArray(items) || !items.length){
-      results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
-      return;
-    }
-    const html = items.map((it) => {
-      const title = esc(pick(it,'title','name','display_title') || '—');
-      const desc  = esc(pick(it,'description','overview','summary') || '');
-      const img   = pick(it,'image','poster','thumb','poster_url') || 'https://via.placeholder.com/300x450?text=Poster';
-      const url   = pick(it,'url','link','href') || '';
-      const magnet= pick(it,'magnet','magnet_uri') || '';
-      const rating= it.rating ? `★ ${esc(String(it.rating))}` : '';
-      const provider = esc(it.provider || ctx.provider || '—');
-
-      return `
-        <article class="qcard" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}"
-                 ${url ? `data-url="${esc(url)}"` : ''} ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
-          <img class="qcard__img" src="${esc(img)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
-          <div>
-            <div class="qcard__title">${title}</div>
-            <p class="qcard__desc">${desc}</p>
-            <div class="qcard__meta">
-              ${rating ? `${rating} • ` : ''}<span class="tbadge"><span class="tbadge__dot"></span>${provider}</span>
-            </div>
-          </div>
-          <div class="qcard__actions">
-            <button class="tbtn sx-btn-get">Pobierz</button>
-          </div>
-        </article>`;
-    }).join('');
-    results.innerHTML = html;
-  }
-
-  // --------- Search ---------
-  async function doSearch(){
-    if (!tokenOk()){
-      results.innerHTML = `<div class="tx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
-      return;
-    }
-    const qRaw = inputQ.value.trim();
-    if (!qRaw){
-      results.innerHTML = `<div class="tx-empty">Wpisz tytuł, aby rozpocząć.</div>`;
-      return;
-    }
-
-    const provider = providerForMode(mode);
-    const type = typeForMode(mode);
-
-    const headers = { 'Content-Type': 'application/json' };
-    const tmdb = getTmdbKey();
-    if (tmdb) headers['X-TMDB-Key'] = tmdb;
-
-    setBusy(true);
-    results.innerHTML = `<div class="tx-empty">Szukam „${esc(qRaw)}”…</div>`;
-
-    try{
-      const r = await window.authFetch(joinUrl(API, '/search'), {
-        method: 'POST',
-        headers,
-        // <<<<<< KLUCZOWE: wysyłamy dokładnie to, co wpisał użytkownik >>>>>>
-        body: JSON.stringify({
-          query: qRaw,                 // backend sam tłumaczy + czyści sequele/cyfry
-          provider,                    // yts_html | tpb_premium | tpb_series
-          type,                        // movie | series
-          page: 1,
-          extra: {}                    // TMDb idzie w nagłówku
-        })
-      });
-      const data = await r.json().catch(() => ({}));
-      const arr = Array.isArray(data) ? data
-                : Array.isArray(data.results) ? data.results
-                : Array.isArray(data.items) ? data.items
-                : [];
-      renderResults(arr, { provider, type });
-    } catch (err){
-      console.error(err);
-      results.innerHTML = `<div class="tx-empty">Błąd wyszukiwania. Spróbuj ponownie.</div>`;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
-  inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
-
-  // --------- Download / Add ---------
-  async function addMagnet(magnet, type, title, image, wantedQuality){
-    const meta = {
-      display_title: title || undefined,
-      image_url: image || undefined,
-      quality: wantedQuality || undefined
+  async function api(path, { method='GET', body=null, headers={} } = {}) {
+    const h = {
+      'Accept': 'application/json',
+      ...(body ? {'Content-Type':'application/json'} : {}),
+      ...headers
     };
-    const r = await window.authFetch(joinUrl(API, '/torrent/add'), {
+    const k = tmdbKey();
+    if (k) h['X-TMDB-Key'] = k;
+    const res = await fetch(path, { method, body, headers: h, credentials: 'include' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  // mini toast (autozanik)
+  function toast(msg, kind='ok') {
+    const t = document.createElement('div');
+    t.className = `sx-toast sx-toast--${kind}`;
+    t.textContent = msg;
+    // minimalne inline, żeby działało bez dodatkowego CSS
+    t.style.position='fixed'; t.style.right='16px'; t.style.bottom='16px';
+    t.style.padding='10px 14px'; t.style.borderRadius='12px';
+    t.style.fontWeight='800'; t.style.zIndex='9999';
+    t.style.color='#0b1220';
+    t.style.background='linear-gradient(135deg,#7c3aed,#06b6d4)';
+    t.style.boxShadow='0 10px 24px rgba(0,0,0,.25)';
+    document.body.appendChild(t);
+    setTimeout(() => t.style.opacity='0', 1800);
+    setTimeout(() => t.remove(), 2200);
+  }
+
+  // usuwanie diakrytyków (do lokalnego rankingu; NIE do zapytań!)
+  const deburrMap = { 'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
+                      'Ą':'A','Ć':'C','Ę':'E','Ł':'L','Ń':'N','Ó':'O','Ś':'S','Ź':'Z','Ż':'Z' };
+  const deburr = s => (s||'').replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, m => deburrMap[m] || m);
+
+  // normalizacja do dopasowania (bez cyfr, interpunkcji)
+  function normNoDigits(s){
+    return deburr(s||'')
+      .toLowerCase()
+      .replace(/\s*\(\d{4}\)\s*$/, ' ')
+      .replace(/\b(part|season|episode|vol\.?)\s+[ivxlcm\d]+$/gi,' ')
+      .replace(/[0-9]+/g,' ')
+      .replace(/[^\p{L}\s]/gu,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  // skoring wyników (tylko dla YTS aby promować bazowy tytuł bez numerków)
+  function scoreYtsItem(item, rawQuery){
+    const q0 = rawQuery || '';
+    const hasDigitsInQuery = /\d/.test(q0);
+    const nq = hasDigitsInQuery ? deburr(q0).toLowerCase().trim()
+                                : normNoDigits(q0);
+    const title = item.title || '';
+    const nt = hasDigitsInQuery ? deburr(title).toLowerCase().trim()
+                                : normNoDigits(title);
+
+    let s = 0;
+    if (!nq) return s;
+    if (nt === nq) s += 6;
+    if (nt.startsWith(nq)) s += 4;
+    if (nt.includes(nq)) s += 2;
+
+    // jeżeli użytkownik nie podał cyfr, a tytuł je ma → lekka kara
+    if (!hasDigitsInQuery && /\d/.test(title)) s -= 2;
+
+    // lekkie podbicie lepszej oceny
+    const rating = parseFloat(item.rating || '0') || 0;
+    s += Math.min(2, rating / 4.5); // 0..~2
+
+    return s;
+  }
+
+  function rankResults(items, provider, rawQuery){
+    if (provider !== 'yts_html') return items; // TPB: zostaw kolejność z backendu
+    return [...items].sort((a,b)=> scoreYtsItem(b,rawQuery) - scoreYtsItem(a,rawQuery));
+  }
+
+  function providerBadge(p){
+    if (p === 'yts_html' || p === 'yts_api') return 'yts_html';
+    if (p === 'tpb_premium' || p === 'tpb_hd' || p === 'premium') return 'tpb_premium';
+    if (p === 'tpb_series') return 'tpb_series';
+    return p || '—';
+  }
+
+  function qualityFromMagnet(m){
+    const m0 = (m||'').toLowerCase();
+    const found = (m0.match(/(2160p|1080p|720p)/) || [null])[0];
+    return found || '';
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Render kart
+  // ───────────────────────────────────────────────────────────────────────────
+  let current = []; // ostatnio wyrenderowane items (po reranku)
+
+  function cardTemplate(item, idx){
+    const img = item.image || '';
+    const title = item.title || '—';
+    const desc = (item.description || '').trim();
+    const provider = providerBadge(item.provider || state.provider);
+    const rating = item.rating ? `★ ${item.rating}` : '';
+    const qInfo = (state.provider === 'yts_html')
+      ? `<span class="sx-qhint">Jakość: <strong>${els.quality.value || 'auto'}</strong></span>`
+      : '';
+    return `
+      <article class="sx-card" data-idx="${idx}">
+        <img class="sx-card__img" src="${img}" alt="">
+        <div class="sx-card__body">
+          <h3 class="sx-card__title">${title}</h3>
+          <div class="sx-card__meta">
+            ${rating ? `<span class="sx-badge">${rating}</span>`:''}
+            <span class="sx-badge sx-badge--provider">${provider}</span>
+          </div>
+          <p class="sx-card__desc">${desc}</p>
+          <div class="sx-card__actions">
+            ${qInfo}
+            <button class="sx-btn sx-btn--primary" data-action="download" data-idx="${idx}">Pobierz</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function render(items){
+    current = items || [];
+    if (!current.length){
+      els.results.innerHTML = `<div class="sx-empty">Brak wyników dla podanego zapytania.</div>`;
+      els.count.textContent = '';
+      return;
+    }
+    els.results.innerHTML = current.map(cardTemplate).join('');
+    els.count.textContent = `Wyniki: ${current.length}`;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Akcje: pobieranie
+  // ───────────────────────────────────────────────────────────────────────────
+  async function resolveYtsAndAdd(item){
+    const qualityWanted = (els.quality?.value || '').trim(); // '' | 720p | 1080p | 2160p
+    const j = await api('/search/resolve', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ magnet, download_kind: type, meta })
+      body: JSON.stringify({ url: item.url, provider: 'yts_html', quality: qualityWanted })
     });
-    if (!r.ok){
-      const t = await r.text().catch(()=> '');
-      throw new Error('torrent/add failed: ' + t);
+    const magnet = j?.magnet || '';
+    if (!magnet) throw new Error('Brak magnet linku (resolve).');
+
+    const gotQ = qualityFromMagnet(magnet);
+    if (qualityWanted && gotQ && gotQ !== qualityWanted){
+      toast(`Żądana jakość ${qualityWanted} niedostępna — pobrano ${gotQ}.`, 'warn');
+    }else if(qualityWanted && !gotQ){
+      toast(`Nie udało się wykryć jakości — pobrano automatycznie.`, 'warn');
+    }
+
+    await addToQueue(magnet, item, { quality: qualityWanted || undefined });
+  }
+
+  async function addToQueue(magnet, item, extraMeta={}){
+    const download_kind = state.type || 'movie';
+    const meta = {
+      display_title: item.title || undefined,
+      image_url: item.image || undefined,
+      quality: extraMeta.quality,
+      from: 'search'
+    };
+    const payload = { magnet, download_kind, meta };
+    await api('/torrent/add', { method:'POST', body: JSON.stringify(payload) });
+    toast('Torrent dodany');
+  }
+
+  async function handleDownload(idx){
+    const item = current[idx];
+    if (!item) return;
+
+    try{
+      // YTS: zazwyczaj url → resolve; TPB: bezpośrednio magnet
+      if (state.provider === 'yts_html' || (!item.magnet && item.url)){
+        await resolveYtsAndAdd(item);
+      }else if (item.magnet){
+        await addToQueue(item.magnet, item);
+      }else{
+        // fallback — spróbuj resolve nawet jeśli provider nie YTS
+        if (item.url){
+          const j = await api('/search/resolve', {
+            method:'POST',
+            body: JSON.stringify({ url: item.url, provider: state.provider, quality: '' })
+          });
+          if (!j?.magnet) throw new Error('Brak magnet linku.');
+          await addToQueue(j.magnet, item);
+        }else{
+          throw new Error('Brak URL/magnet w elemencie.');
+        }
+      }
+    }catch(e){
+      console.error(e);
+      toast(`Błąd: ${e.message || e}`, 'err');
     }
   }
 
-  results?.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.sx-btn-get'); if (!btn) return;
-    const card = btn.closest('.qcard'); if (!card) return;
+  // ───────────────────────────────────────────────────────────────────────────
+  // Szukanie
+  // ───────────────────────────────────────────────────────────────────────────
+  async function searchNow(){
+    const q = (els.query.value || '').trim();
+    if (!q){ els.count.textContent = 'Wpisz frazę…'; return; }
 
-    const provider = card.dataset.provider || providerForMode(mode);
-    const type = card.dataset.type || typeForMode(mode);
-    const title = card.querySelector('.qcard__title')?.textContent?.trim() || '';
-    const image = card.querySelector('.qcard__img')?.getAttribute('src') || '';
+    els.results.innerHTML = '';
+    els.count.textContent = 'Szukam…';
+    state.lastQuery = q;
+    state.page = 1;
 
-    const headers = { 'Content-Type': 'application/json' };
-    const tmdb = getTmdbKey();
-    if (tmdb) headers['X-TMDB-Key'] = tmdb;
+    const body = {
+      query: q,                 // ⬅️ wysyłamy RAW — translacja/strip cyfr w backendzie
+      provider: state.provider, // yts_html | tpb_premium | tpb_series
+      type: state.type,         // movie | series
+      page: 1,
+      extra: {}                 // TMDB klucz leci w nagłówku X-TMDB-Key
+    };
 
     try{
-      btn.disabled = true; btn.textContent = 'Dodaję…';
-
-      let magnet = card.dataset.magnet || '';
-
-      if (provider === 'yts_html'){
-        const url = card.dataset.url || '';
-        if (!url) { showToast('Brak URL do YTS.', false); return; }
-
-        const wanted = selQuality.value || '';
-
-        // Resolve z uwzględnieniem jakości
-        const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
-          method:'POST', headers,
-          body: JSON.stringify({ url, provider:'yts_html', quality: wanted || undefined })
-        });
-        const j1 = await r1.json().catch(()=> ({}));
-        magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri || '';
-        const resolvedName = j1?.name || j1?.result?.name || '';
-        let resolvedQuality = j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
-        if (!resolvedQuality) resolvedQuality = inferQuality(magnet || resolvedName);
-
-        if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
-
-        await addMagnet(magnet, type, title, image, wanted || resolvedQuality || undefined);
-
-        if (wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
-          showToast(`Brak ${wanted} — pobrano ${resolvedQuality.toUpperCase()}`, true);
-        } else if (wanted && !resolvedQuality){
-          showToast(`Żądana jakość ${wanted} niedostępna — pobrano najlepszą`, true);
-        } else {
-          showToast('Torrent dodany ✅', true);
-        }
-        return;
-      }
-
-      // TPB (Filmy+ / Seriale) — magnet musi być w wyniku
-      if (!magnet){ showToast('Brak magnet linku w wyniku TPB.', false); return; }
-      await addMagnet(magnet, type, title, image, undefined);
-      showToast('Torrent dodany ✅', true);
-
-    } catch(err){
-      console.error(err);
-      showToast('Błąd podczas dodawania.', false);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Pobierz';
+      const j = await api('/search', { method:'POST', body: JSON.stringify(body) });
+      const items = Array.isArray(j?.results) ? j.results : [];
+      const ranked = rankResults(items, state.provider, q);
+      render(ranked);
+    }catch(e){
+      els.count.innerHTML = `<span class="sx-err">Błąd: ${e.message || e}</span>`;
     }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // UI: zakładki + kontrolki jakości
+  // ───────────────────────────────────────────────────────────────────────────
+  function setActiveTab(btn){
+    // deaktywuj
+    els.tabs.querySelectorAll('.sx-tab').forEach(b => b.classList.remove('is-active'));
+    // aktywuj
+    btn.classList.add('is-active');
+
+    state.provider = (btn.dataset.provider || 'yts_html').trim();
+    state.type     = (btn.dataset.type || (state.provider==='tpb_series'?'series':'movie')).trim();
+
+    // jakość tylko dla YTS
+    const yts = state.provider === 'yts_html';
+    els.quality.disabled = !yts;
+    els.quality.parentElement?.classList.toggle('is-disabled', !yts);
+  }
+
+  // obsługa kliknięcia w zakładki
+  els.tabs?.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.sx-tab');
+    if (!btn) return;
+    setActiveTab(btn);
   });
 
-  // --- Integracja z główną nawigacją (focus po wejściu w sekcję) ---
-  window.showSection = window.showSection || function(){};
-  const prevShow = window.showSection;
-  window.showSection = function(name){
-    try{ if (typeof prevShow === 'function') prevShow(name); }catch(e){}
-    if (name === 'search'){
-      setTimeout(()=> inputQ?.focus({ preventScroll:true }), 80);
-    }
-  };
+  // przycisk SZUKAJ
+  els.search?.addEventListener('click', searchNow);
+  // Enter w polu frazy
+  els.query?.addEventListener('keydown', e => { if (e.key === 'Enter') searchNow(); });
 
-  // Start: dopasuj tryb do aktywnej zakładki w HTML (jeśli już podświetlona)
-  const active = tabs.find(t => t.classList.contains('is-active'));
-  if (active) mode = active.dataset.mode || mode;
+  // klik „Pobierz” (delegacja)
+  els.results?.addEventListener('click', (e)=>{
+    const b = e.target.closest('button[data-action="download"]');
+    if (!b) return;
+    const idx = parseInt(b.dataset.idx || '-1', 10);
+    if (idx >= 0) handleDownload(idx);
+  });
 
+  // ustaw startowe (jeśli HTML ma już zaznaczoną zakładkę „Filmy”)
+  const initialTab = els.tabs?.querySelector('.sx-tab.is-active') || els.tabs?.querySelector('.sx-tab');
+  if (initialTab) setActiveTab(initialTab);
 })();
