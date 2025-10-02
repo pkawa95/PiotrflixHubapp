@@ -262,7 +262,7 @@
       </button>
     </nav>
 
-    
+
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
       <section id="section-torrents" role="tabpanel" aria-hidden="true"></section>
@@ -271,16 +271,16 @@
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
 <!-- ========= TORRENTY ========= -->
 <section id="section-torrents" class="section active" role="tabpanel" aria-hidden="false">
-  <div class="tor-header">
-    <label for="sort" class="tor-label">Sortuj:</label>
-    <select id="sort" class="tor-select">
-      <option value="name">Nazwa</option>
-      <option value="progress">Postęp</option>
-      <option value="state">Stan</option>
+  <!-- Pasek wyboru urządzenia -->
+  <div class="device-bar">
+    <label for="device-select" class="tor-label">Urządzenie:</label>
+    <select id="device-select" class="tor-select">
+      <option value="">— wybierz klienta —</option>
     </select>
+    <button id="device-refresh" class="btn btn--primary device-refresh">Odśwież</button>
 
-    <div class="tor-speed">
-      <label for="global-speed-limit" class="tor-label">🌐 Limit pobierania:</label>
+    <div class="right-group">
+      <label for="global-speed-limit" class="tor-label">🌐 Limit DL:</label>
       <select id="global-speed-limit" class="tor-select">
         <option value="0">Bez limitu</option>
         <option value="1">1 MB/s</option>
@@ -293,18 +293,29 @@
     </div>
   </div>
 
+  <div class="tor-header">
+    <label for="sort" class="tor-label">Sortuj:</label>
+    <select id="sort" class="tor-select">
+      <option value="name">Nazwa</option>
+      <option value="progress">Postęp</option>
+      <option value="state">Stan</option>
+    </select>
+  </div>
+
   <div id="summary" class="tor-summary"></div>
 
+  <!-- Tabs: aktywne torrenty / kolejka zadań -->
   <div class="search-tabs" id="torrent-tabs">
     <button class="search-tab is-active" data-torrent-tab="active">⚡ AKTYWNE</button>
     <button class="search-tab" data-torrent-tab="queue">📥 KOLEJKA</button>
   </div>
 
+  <!-- Lista aktywnych torrentów -->
   <div id="torrents" class="torrents-list" aria-live="polite"></div>
+
+  <!-- Lista KOLEJKI (tylko status=new) -->
+  <div id="queue-list" class="queue-list" aria-live="polite" hidden></div>
 </section>
-
-
-
     </main>
   </div>
 

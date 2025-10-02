@@ -599,3 +599,264 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.body.classList.contains('is-auth')) loadTorrents();
   }, 5000);
 })();
+
+
+/* ===================== TORRENTY: urządzenia + kolejka ===================== */
+(function(){
+  const $ = (s, r=document)=>r.querySelector(s);
+  const apiBase = authScreen?.dataset.apiBase || '';
+
+  // Pamięć aktywnego urządzenia
+  const DEVICE_KEY = 'pf_device';
+  const getActiveDevice = () => localStorage.getItem(DEVICE_KEY) || '';
+  const setActiveDevice = (id) => {
+    if (id) localStorage.setItem(DEVICE_KEY, id);
+    else localStorage.removeItem(DEVICE_KEY);
+    const sel = $('#device-select');
+    if (sel && sel.value !== id) sel.value = id || '';
+  };
+
+  // UI refs
+  const deviceSelect   = $('#device-select');
+  const deviceRefresh  = $('#device-refresh');
+  const tabsRoot       = $('#torrent-tabs');
+  const torrentsBox    = $('#torrents');
+  const queueBox       = $('#queue-list');
+  const summaryBox     = $('#summary');
+
+  // Widok: 'active' (torrenty) | 'queue' (zadania status=new)
+  let torrentView = 'active';
+
+  /* ------ Devices ------ */
+  async function loadDevices(){
+    if (!deviceSelect) return;
+    deviceSelect.innerHTML = `<option value="">(ładowanie...)</option>`;
+    try{
+      // preferowane API
+      let list = [];
+      try{
+        const r = await authFetch(apiBase + '/torrents/devices', { method:'GET' });
+        list = await r.json();
+      }catch(_){
+        // fallback: spróbuj pozyskać device_id z listy statusów
+        const r = await authFetch(apiBase + '/torrents/status/list?limit=1&order=desc', { method:'GET' });
+        const j = await r.json();
+        if (Array.isArray(j) && j[0]?.device_id) {
+          list = [{ device_id: j[0].device_id, torrents: 1, pending_commands: 0, last_status_at: j[0].updated_at }];
+        }
+      }
+      if (!Array.isArray(list)) list = [];
+      deviceSelect.innerHTML = `<option value="">— wybierz klienta —</option>` + list.map(d=>{
+        const label = `${d.device_id}  ·  torr:${d.torrents||0}  ·  pending:${d.pending_commands||0}`;
+        return `<option value="${d.device_id}">${label}</option>`;
+      }).join('');
+
+      // ustaw poprzednie lub pierwsze
+      const prev = getActiveDevice();
+      if (prev && list.some(x=>x.device_id===prev)) deviceSelect.value = prev;
+      else if (!prev && list.length===1) deviceSelect.value = list[0].device_id;
+
+      setActiveDevice(deviceSelect.value);
+      // refresh widoku
+      if (torrentView === 'active') loadTorrentsLite();
+      else loadQueueNewOnly();
+    }catch(e){
+      deviceSelect.innerHTML = `<option value="">(błąd: ${e.message||e})</option>`;
+    }
+  }
+
+  deviceSelect?.addEventListener('change', ()=>{
+    setActiveDevice(deviceSelect.value);
+    if (torrentView === 'active') loadTorrentsLite(); else loadQueueNewOnly();
+  });
+  deviceRefresh?.addEventListener('click', loadDevices);
+
+  /* ------ Helpers ------ */
+  const fmtBytes = (n)=> {
+    n = Number(n||0); const u=['B','KB','MB','GB','TB']; let i=0;
+    while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+    return `${n.toFixed(i?1:0)} ${u[i]}`;
+  };
+  const fmtSpeed = (bps)=> `${fmtBytes(bps)}/s`;
+  const animateProgress = (el, pct)=> requestAnimationFrame(()=>{ el.style.width = Math.max(0,Math.min(100,pct)) + '%'; });
+  const whenText = (ts)=>{
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleString();
+  };
+
+  /* ------ Torrenty (aktywny widok) — wersja „lite” zgodna z poprzednim layoutem ------ */
+  async function loadTorrentsLite(){
+    const dev = getActiveDevice();
+    if (!torrentsBox || !summaryBox) return;
+    torrentsBox.innerHTML = '';
+    summaryBox.textContent = 'Ładowanie…';
+
+    if (!dev){
+      summaryBox.textContent = 'Wybierz urządzenie.';
+      return;
+    }
+
+    try{
+      const qs = new URLSearchParams({ device_id: dev, limit:'500', order:'desc' }).toString();
+      const r = await authFetch(apiBase + '/torrents/status/list?' + qs, { method:'GET' });
+      const list = await r.json();
+
+      const sortKey = $('#sort')?.value || 'name';
+      const items = (Array.isArray(list) ? list : []).slice();
+
+      items.sort((a,b)=>{
+        const A = a[sortKey], B = b[sortKey];
+        if (typeof A === 'string') return (A||'').localeCompare(B||'');
+        return (A||0)-(B||0);
+      });
+
+      let totalSpeed=0, activeCount=0;
+      const frag = document.createDocumentFragment();
+
+      items.forEach(t=>{
+        const pct = Math.round((t.progress||0)*100);
+        const speed = t.dl_speed || t.download_payload_rate || 0;
+        const name = (t.display_title || t.name || '').replace(/</g,'&lt;');
+        totalSpeed += speed;
+        if ((t.state||'').toLowerCase().includes('down')) activeCount++;
+
+        const card = document.createElement('div');
+        card.className = 'torrent';
+        card.innerHTML = `
+          <div class="torrent-name">${name}</div>
+          <div class="torrent-details">🚀 ${fmtSpeed(speed)} • ${t.state||''}</div>
+          <div class="progress-bar"><div class="progress-bar-inner" style="width:0%"></div></div>
+          <div class="torrent-stats"><div></div><div class="pct">${pct}%</div></div>
+        `;
+        animateProgress($('.progress-bar-inner', card), pct);
+        frag.appendChild(card);
+      });
+
+      torrentsBox.appendChild(frag);
+      summaryBox.textContent = `📊 Torrenty: ${items.length} • ⚡ ${fmtSpeed(totalSpeed)} • 🚀 Aktywne: ${activeCount}`;
+    }catch(e){
+      summaryBox.textContent = 'Błąd ładowania: ' + (e.message||e);
+    }
+  }
+
+  $('#sort')?.addEventListener('change', ()=>{ if (torrentView==='active') loadTorrentsLite(); });
+
+  /* ------ KOLEJKA (tylko status=new) ------ */
+  async function loadQueueNewOnly(){
+    if (!queueBox || !summaryBox) return;
+    queueBox.innerHTML = '';
+    summaryBox.textContent = 'Ładowanie…';
+
+    const dev = getActiveDevice();
+    const params = new URLSearchParams({ status:'new', limit:'200' });
+    if (dev) params.set('device_id', dev);
+
+    try{
+      const r = await authFetch(apiBase + '/queue/list?' + params.toString(), { method:'GET' });
+      const arr = await r.json();
+      const items = Array.isArray(arr) ? arr : (arr.items||[]);
+
+      if (!items.length){
+        queueBox.innerHTML = `<div class="tor-help">Brak nowych zadań w kolejce.</div>`;
+        summaryBox.textContent = 'KOLEJKA: 0';
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      items.forEach(row=>{
+        const payload = row.payload || {};
+        const title = (row.display_title || payload.display_title || payload.title || '—').replace(/</g,'&lt;');
+        const img = payload.image_url || payload.poster || payload.poster_url || payload.thumb || '';
+        const added = whenText(row.created_at);
+
+        const el = document.createElement('div');
+        el.className = 'queue-item';
+        el.innerHTML = `
+          <img class="queue-thumb" src="${img||''}" alt="">
+          <div>
+            <div class="queue-title">${title}</div>
+            <div class="queue-meta">dodano: ${added}${row.device_id ? ` • <code>${row.device_id}</code>` : ''}</div>
+          </div>
+          <div class="queue-actions">
+            <button class="btn btn--primary red" data-del="${row.id}">Usuń</button>
+          </div>
+        `;
+        frag.appendChild(el);
+      });
+      queueBox.appendChild(frag);
+      summaryBox.textContent = `KOLEJKA (new): ${items.length}`;
+
+      // Delegacja „Usuń”
+      queueBox.addEventListener('click', async (e)=>{
+        const b = e.target.closest('button[data-del]');
+        if (!b) return;
+        const id = b.getAttribute('data-del');
+        if (!confirm(`Usunąć zadanie #${id}?`)) return;
+        try{
+          const resp = await authFetch(apiBase + '/queue/' + id, { method:'DELETE' });
+          if (!resp.ok) throw new Error('HTTP '+resp.status);
+          await loadQueueNewOnly();
+        }catch(err){
+          alert('Błąd usuwania: ' + (err.message||err));
+        }
+      }, { once:true }); // świeże podpięcie przy każdym renderze
+    }catch(e){
+      summaryBox.textContent = 'Błąd ładowania: ' + (e.message||e);
+    }
+  }
+
+  /* ------ Tabs: przełączanie widoków ------ */
+  const setTab = (v)=>{
+    torrentView = v;
+    // ui
+    tabsRoot?.querySelectorAll('.search-tab').forEach(x=>x.classList.remove('is-active'));
+    const btn = tabsRoot?.querySelector(`[data-torrent-tab="${v}"]`); if (btn) btn.classList.add('is-active');
+    // switch lists
+    if (v==='active'){
+      torrentsBox.hidden = false; queueBox.hidden = true; loadTorrentsLite();
+    }else{
+      torrentsBox.hidden = true; queueBox.hidden = false; loadQueueNewOnly();
+    }
+  };
+  tabsRoot?.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-torrent-tab]');
+    if (!b) return;
+    setTab(b.dataset.torrentTab);
+  });
+
+  /* ------ Globalny limit DL (opcjonalnie /torrents/commands/push) ------ */
+  const limSel  = $('#global-speed-limit');
+  const limInfo = $('#global-speed-feedback');
+  limSel?.addEventListener('change', async ()=>{
+    const val = parseFloat(limSel.value || '0'); // MB/s
+    const dev = getActiveDevice();
+    if (!dev){
+      limInfo.textContent = 'Wybierz urządzenie.';
+      return;
+    }
+    try{
+      const resp = await authFetch(apiBase + '/torrents/commands/push', {
+        method:'POST',
+        body: { device_id: dev, kind:'set_rate_global', args:{ limit_mbs: isNaN(val)?0:val } }
+      });
+      if (!resp.ok) throw new Error('HTTP '+resp.status);
+      limInfo.textContent = val>0 ? `Ustawiono ${val} MB/s` : 'Limit wyłączony';
+    }catch(e){
+      // backend może nie mieć komend — pokaż sam feedback
+      limInfo.textContent = val>0
+        ? `Wybrano ${val} MB/s (wymaga /torrents/commands/push).`
+        : 'Limit wyłączony.';
+    }
+  });
+
+  /* ------ Start ------ */
+  // załaduj listę urządzeń, a potem domyślny widok
+  loadDevices();
+
+  // auto-refresh co 5 s aktywnego widoku
+  setInterval(()=>{ if (torrentView==='active') loadTorrentsLite(); else loadQueueNewOnly(); }, 5000);
+
+  // pierwszy render (poza autostartem loadDevices)
+  setTimeout(()=>{ setTab('active'); }, 0);
+})();

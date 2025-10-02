@@ -612,3 +612,38 @@ html[data-theme="dark"] .torrent{
   background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
   border-color: color-mix(in oklab, var(--border) 90%, transparent);
 }
+
+
+/* ======= Wybór urządzenia (torrent client) ======= */
+.device-bar{
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  padding: 10px 8px 6px; border-bottom:1px dashed var(--border);
+}
+.device-bar .right-group{ margin-left:auto; display:grid; gap:6px; align-items:center; grid-auto-flow:column; }
+.device-refresh{ padding: 10px 12px; }
+
+/* (Masz już niżej .tor-header, .tor-select, .tor-summary, .search-tabs, .torrent*, itd.) */
+
+/* ======= KOLEJKA (tylko NEW) ======= */
+.queue-list{ display:grid; gap:12px; padding: 0 8px 80px; }
+.queue-item{
+  display:grid; grid-template-columns: 72px 1fr auto; gap:12px;
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, transparent), transparent);
+  border-radius: 16px; padding: 10px; box-shadow: var(--shadow);
+}
+.queue-thumb{
+  width:72px; height:72px; border-radius:10px; border:1px solid var(--border);
+  object-fit:cover; background:#0e162e
+}
+.queue-title{ font-weight:800; line-height:1.2; letter-spacing:.2px; }
+.queue-meta{ color: var(--muted); font-size:.92rem; margin-top:4px; }
+.queue-actions{ display:flex; align-items:center; gap:8px; }
+.queue-actions .btn{ padding:8px 10px; }
+
+/* Mobile: wąskie ekrany — akcje pod spodem */
+@media (max-width:520px){
+  .queue-item{ grid-template-columns: 64px 1fr; }
+  .queue-actions{ grid-column: 1 / -1; justify-content: flex-end; }
+  .queue-thumb{ width:64px; height:64px; }
+}
