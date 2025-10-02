@@ -490,63 +490,11 @@ document.addEventListener("DOMContentLoaded", () => {
       { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
     ));
 
-  // --- NEW: solidne pobieranie DL/UL w B/s z różnych możliwych pól ---
-  function pickNum(obj, ...names){
-    for (const k of names){
-      const v = obj?.[k];
-      if (v == null) continue;
-      const n = Number(v);
-      if (Number.isFinite(n)) return n;
-    }
-    return null;
-  }
-  function getDlBps(row){
-    const bps = pickNum(row,
-      'dl_speed','download_rate_bps','download_bps','downloadSpeedBps',
-      'downloadSpeed','bps_down','down_bps','speed_download','down_bps_s',
-      'download_rate','dl_rate','dlrate','download'
-    );
-    if (bps != null && bps > 0) return bps;
-    const kib = pickNum(row,
-      'dl_kib_per_s','download_kib_per_s','download_rate_kib',
-      'download_rate_kib_per_s','kib_down_s','down_kib_s','kbps_down','down_kbps'
-    );
-    if (kib != null && kib > 0) return kib * 1024;
-    const mib = pickNum(row,'dl_mib_per_s','download_mib_per_s','mib_down_s');
-    if (mib != null && mib > 0) return mib * 1024 * 1024;
-    const b_per_ms = pickNum(row,'dl_bytes_per_ms','download_bytes_per_ms');
-    if (b_per_ms != null && b_per_ms > 0) return b_per_ms * 1000;
-    return 0;
-  }
-  function getUlBps(row){
-    const bps = pickNum(row,
-      'ul_speed','upload_rate_bps','upload_bps','uploadSpeedBps',
-      'bps_up','up_bps','speed_upload','upload_rate','ul_rate','ulrate','upload'
-    );
-    if (bps != null && bps > 0) return bps;
-    const kib = pickNum(row,
-      'ul_kib_per_s','upload_kib_per_s','upload_rate_kib',
-      'upload_rate_kib_per_s','kib_up_s','up_kib_s','kbps_up','up_kbps'
-    );
-    if (kib != null && kib > 0) return kib * 1024;
-    const mib = pickNum(row,'ul_mib_per_s','upload_mib_per_s','mib_up_s');
-    if (mib != null && mib > 0) return mib * 1024 * 1024;
-    const b_per_ms = pickNum(row,'ul_bytes_per_ms','upload_bytes_per_ms');
-    if (b_per_ms != null && b_per_ms > 0) return b_per_ms * 1000;
-    return 0;
-  }
-
   // ✅ UI — bezpieczne taby
   function setTab(tab) {
     currentTab = tab;
     elTorrents.hidden = tab !== "torrents";
     elQueue.hidden = tab !== "queue";
-    [elTorrents, elQueue].forEach(p=>{
-  if(!p) return;
-  p.classList.remove('tx-reveal'); // reset
-});
-const vis = (tab === "torrents" ? elTorrents : elQueue);
-vis?.classList.add('tx-reveal');
     toolbars.forEach((tb) => (tb.hidden = tb.dataset.txTools !== tab));
     if (tabBar) {
       tabBar.querySelectorAll(".tx-tab").forEach((b) => {
@@ -682,19 +630,18 @@ vis?.classList.add('tx-reveal');
     const html = items.map((it) => {
       const name = it.name || it.display_title || it.title || "Nieznany";
       const progress = pct(it.progress ?? it.progress_percent ?? it.percent ?? 0);
-
-      const dlBps = getDlBps(it);
-      const ulBps = getUlBps(it);
-      const rate = ulBps > 0
-        ? `${humanSpeed(dlBps)} ↓ / ${humanSpeed(ulBps)} ↑`
-        : humanSpeed(dlBps);
-
+      const rate = humanSpeed(
+        it.download_rate_bps ??
+        it.downloadSpeedBps ??
+        it.download_rate ??
+        it.dl_rate ??
+        it.download ?? 0
+      );
       const state = (it.state || "unknown").toUpperCase();
       const ihash = it.info_hash || it.hash || it.id || name;
       const devId = it.device_id || it.device || "";
 
       return `
-      
       <article class="tcard" data-ih="${esc(ihash)}" data-dev="${esc(devId)}">
         <div class="tcard__left">
           <div class="tcard__title">${esc(name)}</div>
