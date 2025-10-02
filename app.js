@@ -413,9 +413,11 @@ document.addEventListener('DOMContentLoaded', () => {
   ------------------------------------------------ */
 });
 
-
-/* ===================== TORRENTY / KOLEJKA ===================== */
+/* ===================== TORRENTY / KOLEJKA (sekcja) ===================== */
 (function(){
+  const section = document.getElementById('section-torrents');
+  if(!section) return;
+
   const API = document.getElementById('auth-screen')?.dataset.apiBase || '';
   const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/,'')}`;
   const authHeaders = ()=> {
@@ -425,43 +427,45 @@ document.addEventListener('DOMContentLoaded', () => {
     return h;
   };
 
-  const elTorrents = document.getElementById('tx-torrents');
-  const elQueue = document.getElementById('tx-queue');
-  const sortSel = document.getElementById('tx-sort');
-  const speedSel = document.getElementById('tx-speed');
-  const speedFb = document.getElementById('tx-speed-feedback');
-  const qStatusSel = document.getElementById('tx-q-status');
-
-  const tabBar = document.querySelector('#section-torrents .tx-tabs');
-  const toolbars = document.querySelectorAll('#section-torrents .tx-toolbar');
+  const elTorrents = section.querySelector('#tx-torrents');
+  const elQueue    = section.querySelector('#tx-queue');
+  const sortSel    = section.querySelector('#tx-sort');
+  const speedSel   = section.querySelector('#tx-speed');
+  const speedFb    = section.querySelector('#tx-speed-feedback');
+  const qStatusSel = section.querySelector('#tx-q-status');
+  const tabBar     = section.querySelector('.tx-tabs');
+  const toolbars   = section.querySelectorAll('.tx-toolbar');
 
   let currentTab = 'torrents';
   let refreshTimer = null;
 
-  // ========= TABY =========
-  tabBar?.addEventListener('click', (e)=>{
+  // pokaż/ukryj właściwe listy + toolbary
+  function setTab(tab){
+    currentTab = tab;
+    // karty
+    elTorrents.hidden = (tab !== 'torrents');
+    elQueue.hidden    = (tab !== 'queue');
+    // narzędzia
+    toolbars.forEach(tb => tb.hidden = (tb.dataset.txTools !== tab));
+    // aktywna zakładka
+    tabBar.querySelectorAll('.tx-tab').forEach(b=>{
+      const on = (b.dataset.txTab === tab);
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    kickRefresh();
+  }
+
+  tabBar.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-tx-tab]');
     if(!btn) return;
     const tab = btn.dataset.txTab;
-    if(tab === currentTab) return;
-
-    tabBar.querySelectorAll('.tx-tab').forEach(b=>{
-      b.classList.toggle('is-active', b===btn);
-      b.setAttribute('aria-selected', b===btn ? 'true':'false');
-    });
-
-    currentTab = tab;
-    const torr = (currentTab==='torrents');
-    elTorrents.hidden = !torr;
-    elQueue.hidden = torr;
-
-    toolbars.forEach(tb => tb.hidden = (tb.dataset.txTools !== currentTab));
-    kickRefresh();
+    if(tab && tab !== currentTab) setTab(tab);
   });
 
-  // ========= LIMIT PRĘDKOŚCI =========
+  // ====== Limit prędkości (global) ======
   speedSel?.addEventListener('change', async ()=>{
-    const val = Number(speedSel.value || 0);      // MB/s
+    const val = Number(speedSel.value || 0);          // MB/s
     const kib = val > 0 ? Math.round(val * 1024) : 0; // KiB/s
     speedFb.textContent = 'Ustawianie limitu…';
     try{
@@ -480,38 +484,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ========= TORRENTY =========
-  async function loadTorrents(){
-    try{
-      const url = new URL(joinUrl(API, '/torrents/status/list'));
-      url.searchParams.set('page','1');
-      url.searchParams.set('limit','100');
-      const r = await fetch(url.toString(), { headers: authHeaders() });
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const data = await r.json();
-      const dedup = new Map();
-      for(const it of (data?.items || [])){
-        const key = it.info_hash || it.hash || it.id || it.name;
-        if(!key) continue;
-        if(!dedup.has(key)) dedup.set(key, it);
-      }
-      let items = Array.from(dedup.values());
-
-      const sortBy = (sortSel?.value || 'name');
-      if(sortBy === 'progress'){
-        items.sort((a,b)=> (b.progress||0) - (a.progress||0));
-      }else if(sortBy === 'state'){
-        items.sort((a,b)=> String(a.state||'').localeCompare(String(b.state||'')));
-      }else{
-        items.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
-      }
-      renderTorrents(items);
-    }catch(e){
-      console.error('loadTorrents', e);
+  // ====== Helpers ======
+  const pct = p => {
+    const v = Number(p ?? 0);
+    if(isFinite(v)){
+      if(v <= 1.01) return Math.max(0, Math.min(100, v*100));
+      return Math.max(0, Math.min(100, v));
     }
-  }
-
-  function pct(p){ const v = Math.max(0, Math.min(100, Number(p||0))); return isFinite(v)?v:0; }
+    return 0;
+  };
   function humanSpeed(bps){
     const x = Number(bps||0);
     if(x<=0) return '0 B/s';
@@ -519,20 +500,60 @@ document.addEventListener('DOMContentLoaded', () => {
     while(n>=1024 && i<u.length-1){ n/=1024; i++; }
     return `${n.toFixed(n>=10?0:1)} ${u[i]}`;
   }
-  function escapeHtml(s){
-    return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
+
+  // ====== TORRENTY ======
+  async function loadTorrents(){
+    try{
+      const url = new URL(joinUrl(API, '/torrents/status/list'));
+      url.searchParams.set('page','1');
+      url.searchParams.set('limit','200'); // WSZYSTKIE URZĄDZENIA (bez device_id)
+      const r = await fetch(url.toString(), { headers: authHeaders() });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+      const arr = Array.isArray(data?.items) ? data.items : [];
+
+      // dedupe po info_hash/hash/id
+      const map = new Map();
+      for(const it of arr){
+        const key = it.info_hash || it.hash || it.id || it.name;
+        if(!key) continue;
+        if(!map.has(key)) map.set(key, it);
+      }
+      let items = Array.from(map.values());
+
+      // sort
+      const sortBy = (sortSel?.value || 'name');
+      if(sortBy === 'progress'){
+        items.sort((a,b)=> (pct(a.progress || a.progress_percent || a.percent) - pct(b.progress || b.progress_percent || b.percent))).reverse();
+      }else if(sortBy === 'state'){
+        items.sort((a,b)=> String(a.state||'').localeCompare(String(b.state||'')));
+      }else{
+        items.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
+      }
+
+      renderTorrents(items);
+    }catch(e){
+      console.error('loadTorrents', e);
+      if(elTorrents) elTorrents.innerHTML = `<div class="tx-empty">Nie udało się pobrać torrentów.</div>`;
+    }
   }
 
   function renderTorrents(items){
+    if(!elTorrents) return;
+    if(!items.length){
+      elTorrents.innerHTML = `<div class="tx-empty">Brak aktywnych torrentów.</div>`;
+      return;
+    }
     const html = items.map(it=>{
-      const name = it.name || it.display_title || 'Nieznany';
-      const progress = pct((it.progress*100) || it.progress_percent || it.percent || 0);
-      const rate = humanSpeed(it.download_rate || it.download_rate_bps || 0);
+      const name = it.name || it.display_title || it.title || 'Nieznany';
+      const progress = pct(it.progress ?? it.progress_percent ?? it.percent ?? 0);
+      const rate = humanSpeed(it.download_rate_bps ?? it.download_rate ?? it.dl_rate ?? 0);
       const state = (it.state || 'unknown').toUpperCase();
       const ihash = it.info_hash || it.hash || name;
 
       return `
-      <article class="tcard" data-ih="${ihash}">
+      <article class="tcard" data-ih="${escapeHtml(ihash)}">
         <div class="tcard__left">
           <div class="tcard__title">${escapeHtml(name)}</div>
           <div class="tcard__meta">
@@ -547,14 +568,15 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
         <div class="tcard__right">
-          <button class="tbtn tbtn--ghost" data-action="pause" data-ih="${ihash}">Pauza/Wznów</button>
-          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${ihash}" data-rm="0">Usuń</button>
-          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${ihash}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
+          <button class="tbtn tbtn--ghost" data-action="pause" data-ih="${escapeHtml(ihash)}">Pauza/Wznów</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${escapeHtml(ihash)}" data-rm="0">Usuń</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${escapeHtml(ihash)}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
         </div>
       </article>`;
     }).join('');
 
-    if(elTorrents && elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
+    // diff-like replace
+    if(elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
   }
 
   // akcje torrentów
@@ -585,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sortSel?.addEventListener('change', loadTorrents);
 
-  // ========= KOLEJKA =========
+  // ====== KOLEJKA ======
   async function loadQueue(){
     try{
       const url = new URL(joinUrl(API, '/queue/list'));
@@ -598,7 +620,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
 
-      // dedupe po id
       const seen = new Map();
       for(const it of (data?.items || [])){
         if(!seen.has(it.id)) seen.set(it.id, it);
@@ -606,14 +627,20 @@ document.addEventListener('DOMContentLoaded', () => {
       renderQueue(Array.from(seen.values()));
     }catch(e){
       console.error('loadQueue', e);
+      if(elQueue) elQueue.innerHTML = `<div class="tx-empty">Nie udało się pobrać kolejki.</div>`;
     }
   }
 
   function renderQueue(items){
+    if(!elQueue) return;
+    if(!items.length){
+      elQueue.innerHTML = `<div class="tx-empty">Brak elementów w kolejce.</div>`;
+      return;
+    }
     const html = items.map(it=>{
-      const title = it.display_title || it.payload?.display_title || it.payload?.title || it.kind || 'Zadanie';
+      const title  = it.display_title || it.payload?.display_title || it.payload?.title || it.kind || 'Zadanie';
       const poster = it.image_url || it.payload?.image_url || it.payload?.poster || it.payload?.thumb || 'https://via.placeholder.com/300x450?text=Poster';
-      const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
+      const when   = it.created_at ? new Date(it.created_at).toLocaleString() : '';
       return `
       <article class="qcard" data-qid="${it.id}">
         <img class="qcard__img" src="${escapeHtml(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
@@ -631,7 +658,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </article>`;
     }).join('');
-    if(elQueue && elQueue.innerHTML !== html) elQueue.innerHTML = html;
+
+    if(elQueue.innerHTML !== html) elQueue.innerHTML = html;
   }
 
   // usuwanie tasku
@@ -647,7 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   qStatusSel?.addEventListener('change', loadQueue);
 
-  // ========= AUTOREFRESH =========
+  // ====== AUTOREFRESH tylko dla aktywnej karty ======
   function tick(){
     if(currentTab === 'torrents') loadTorrents();
     else loadQueue();
@@ -658,14 +686,6 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshTimer = setInterval(tick, 3000);
   }
 
-  // start, gdy sekcja obecna
-  if(document.getElementById('section-torrents')){
-    // domyślnie pokazujemy kartę „Torrenty”
-    elTorrents.hidden = false;
-    elQueue.hidden = true;
-    document.querySelectorAll('#section-torrents .tx-toolbar').forEach(tb=>{
-      tb.hidden = (tb.dataset.txTools !== 'torrents');
-    });
-    kickRefresh();
-  }
+  // start
+  setTab('torrents'); // domyślnie Torrenty
 })();
