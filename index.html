@@ -549,26 +549,26 @@ const subsInfo = sel('subsInfo');
   deviceSel.addEventListener('change', ()=> setActiveDevice(deviceSel.value));
 
   // ───────────── AVAILABLE (library) ─────────────
-  function _first(obj, keys, dflt=''){
-    for(const k of keys){ if(obj && obj[k]!=null && obj[k]!== '') return obj[k]; }
-    return dflt;
-  }
-  function _num(x, d=0){ const n=Number(x); return isFinite(n)?n:d; }
-  function _bool(x){ return !!(x===true || x==='1' || x===1); }
+function _first(obj, keys, dflt=''){
+  for(const k of keys){ if(obj && obj[k]!=null && obj[k]!== '') return obj[k]; }
+  return dflt;
+}
+function _num(x, d=0){ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; }
+function _bool(x){ return !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true'); }
 
-  function _parseDeleteAt(val){
-    if(val==null || val==='') return null;
-    if(typeof val === 'number'){ const n = Number(val); if(!isFinite(n)) return null; return n < 1e12 ? Math.round(n*1000) : Math.round(n); }
-    const s = String(val).trim();
-    if(!s) return null;
-    const asNum = Number(s);
-    if(isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum*1000) : Math.round(asNum);
-    const t = Date.parse(s);
-    return isNaN(t) ? null : t;
-  }
+function _parseDeleteAt(val){
+  if(val==null || val==='') return null;
+  if(typeof val === 'number'){ const n = Number(val); if(!isFinite(n)) return null; return n < 1e12 ? Math.round(n*1000) : Math.round(n); }
+  const s = String(val).trim();
+  if(!s) return null;
+  const asNum = Number(s.replace(',','.'));
+  if(isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum*1000) : Math.round(asNum);
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
 
 function _canonAvailableItem(r){
-  const title = _first(r, ['display_title','title','name'],'—');
+  const title  = _first(r, ['display_title','title','name'],'—');
   const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
 
   // rodzaj
@@ -578,9 +578,8 @@ function _canonAvailableItem(r){
 
   const year = _first(r,['year','release_year','y'], null);
 
-  // --- czas: obsłuż ms i sekundy ---
+  // --- czas: obsłuż ms i sekundy (najpierw *_ms) ---
   let pos = null, dur = null;
-
   if (r.position_ms != null) pos = _num(r.position_ms)/1000;
   else if (r.watched_ms != null) pos = _num(r.watched_ms)/1000;
   else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
@@ -597,18 +596,13 @@ function _canonAvailableItem(r){
   const rawPerc = _first(r,['percent'], null);
 
   if (rawProg != null && rawProg !== '') {
-    let v = Number(rawProg);
-    if (!isFinite(v)) {
-      // np. "0.37" jako string z przecinkiem
-      v = parseFloat(String(rawProg).replace(',', '.'));
-    }
-    if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;
+    let v = Number(String(rawProg).replace(',','.'));
+    if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;       // 74.5 → 0.745, 0.745 → 0.745
   } else if (rawPerc != null && rawPerc !== '') {
-    let s = String(rawPerc).trim().replace('%','');
-    let v = parseFloat(s.replace(',', '.'));
+    const s = String(rawPerc).trim().replace('%','').replace(',','.');
+    const v = parseFloat(s);
     if (isFinite(v)) prog = v/100;
   }
-
   if (prog == null) {
     if (isFinite(pos) && isFinite(dur) && dur > 0) prog = Math.max(0, Math.min(1, pos/dur));
     else prog = 0;
@@ -616,23 +610,22 @@ function _canonAvailableItem(r){
     prog = Math.max(0, Math.min(1, prog));
   }
 
-  const season = _num(_first(r,['season','s'], null), null);
-  const episode = _num(_first(r,['episode','e'], null), null);
-  const updated_at = _first(r,['updated_at','mtime','added_at','ts', 'last_update'], null);
+  const season     = _num(_first(r,['season','s'], null), null);
+  const episode    = _num(_first(r,['episode','e'], null), null);
+  const updated_at = _first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
 
-  // ID – preferuj plex_id/ratingKey; inaczej stabilne b64 z tytułu/roku/S/E
-  let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key'], null);
-  if(!idCand) idCand = _first(r, ['id','item_id','video_id','hash'], null);
+  // ID – preferuj plex_id/ratingKey; inaczej stabilne b64
+  let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'], null);
   let id;
-  if(idCand && String(idCand).match(/^\d+$/)){ id = String(idCand); }
-  else{
-    id = btoa(unescape(encodeURIComponent((title||'') + '|' + (year||'') + '|' + (season||'') + '|' + (episode||'')))).replace(/=+$/,'');
+  if(idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
+  else {
+    const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'');
+    id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
   }
 
   const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
-  const delRaw = _first(r, ['deleteAt','delete_at'], null);
-  const deleteAt = _parseDeleteAt(delRaw);
-  const favorite = _bool(_first(r, ['favorite'], false));
+  const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
+  const favorite   = _bool(_first(r, ['favorite'], false));
 
   return {
     id, title, poster, kind, year,
@@ -764,27 +757,21 @@ function _canonAvailableItem(r){
     delTimer = setInterval(refreshBadges, 30000);
   }
 
-  async function loadAvailable(){
-    avInfo.textContent = 'Ładuję...';
-    availableGrid.innerHTML = '';
-    const candidates = ['/library/available','/sync/available','/available','/library'];
-    let data = null;
-    for(const p of candidates){
-      try{
-        const j = await api(p, {method:'GET'});
-        if(Array.isArray(j)){ data = j; break; }
-        if(j && (Array.isArray(j.items) || Array.isArray(j.results))){
-          data = j.items || j.results; break;
-        }
-      }catch(e){ /* próbuj dalej */ }
-    }
-    if(!data){
-      avInfo.innerHTML = '<span class="err">Nie znaleziono endpointu z listą dostępnych pozycji (spróbowałem: /library/available, /sync/available, /available, /library).</span>';
-      return;
-    }
+async function loadAvailable(){
+  avInfo.textContent = 'Ładuję...';
+  availableGrid.innerHTML = '';
+  try{
+    // BACKEND: zwraca { films: [...], series: [...] } bez MERGE
+    const j = await api('/me/available', {method:'GET'});
+    const films  = Array.isArray(j?.films)  ? j.films  : [];
+    const series = Array.isArray(j?.series) ? j.series : [];
+    const data   = films.concat(series);        // płaska lista raw z cache
     _availableRaw = data;
-    renderAvailable(_availableRaw);
+    renderAvailable(_availableRaw);             // dalej jak było
+  }catch(e){
+    avInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
   }
+}
 
   avRefreshBtn.onclick = loadAvailable;
   avAutoBtn.onclick = ()=>{
