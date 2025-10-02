@@ -765,54 +765,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const section = document.getElementById('section-search');
   if (!section) return;
 
-  // API base – jak w innych modułach
+  // API base – spójnie z resztą
   const API =
     document.getElementById('auth-screen')?.dataset.apiBase ||
     localStorage.getItem('pf_base') ||
     '';
 
   const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
 
   // Elements
-  const tabsRoot = section.querySelector('.sx-tabs');
-  const tabs = Array.from(section.querySelectorAll('.sx-tab'));
-  const form = section.querySelector('#sx-form');
+  const tabs = Array.from(section.querySelectorAll('.tx-tab'));
+  const results = section.querySelector('#sx-results');
   const inputQ = section.querySelector('#sx-q');
   const selQuality = section.querySelector('#sx-quality');
   const qualityWrap = section.querySelector('#sx-quality-wrap');
-  const results = section.querySelector('#sx-results');
+  const btnSearch = section.querySelector('#sx-btn-search');
   const toast = section.querySelector('#sx-toast');
 
   // State
-  let mode = 'yts_html';         // 'yts_html' | 'tpb_movies' | 'tpb_series'
+  let mode = 'yts_html';   // 'yts_html' | 'tpb_movies' | 'tpb_series'
   let busy = false;
 
-  // Helpers
-  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
   const showToast = (msg, ok=true) => {
+    if (!toast) return;
     toast.textContent = msg || '';
     toast.classList.toggle('is-error', !ok);
     toast.classList.add('is-show');
-    setTimeout(() => toast.classList.remove('is-show'), 1800);
-  };
-  const setBusy = (on) => {
-    busy = !!on;
-    results.setAttribute('aria-busy', on ? 'true' : 'false');
+    setTimeout(() => toast.classList.remove('is-show'), 1900);
   };
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => (
     { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
   ));
+  const pick = (o, ...names) => { for (const k of names){ const v = o?.[k]; if (v!=null) return v; } };
 
-  const pick = (o, ...names) => {
-    for (const k of names) {
-      const v = o?.[k];
-      if (v !== undefined && v !== null) return v;
-    }
-    return undefined;
-  };
+  // Mapy trybów (naprawa: Filmy+ → tpb_movies)
+  const providerForMode = (m) => (
+    m === 'tpb_movies' ? 'tpb_movies' :
+    m === 'tpb_series' ? 'tpb_series' :
+    'yts_html'
+  );
+  const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
 
-  // Switch mode (tabs)
+  // Przełączanie zakładek
   function setMode(newMode){
     if (mode === newMode) return;
     mode = newMode;
@@ -821,147 +817,157 @@ document.addEventListener('DOMContentLoaded', () => {
       t.classList.toggle('is-active', on);
       t.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    const isYts = (mode === 'yts_html');
+    qualityWrap.style.display = isYts ? '' : 'none';
+    qualityWrap.setAttribute('aria-hidden', isYts ? 'false' : 'true');
 
-    // Quality only for YTS
-    const qVisible = mode === 'yts_html';
-    qualityWrap.style.display = qVisible ? '' : 'none';
-    qualityWrap.setAttribute('aria-hidden', qVisible ? 'false' : 'true');
-
-    // auto-search on mode switch if query present
     if (inputQ.value.trim()) doSearch().catch(()=>{});
   }
 
-  tabsRoot?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.sx-tab');
-    if (!btn) return;
+  section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tx-tab'); if (!btn) return;
     setMode(btn.dataset.mode);
   });
 
-  // Search
+  // Wyszukiwanie
+  function setBusy(on){
+    busy = !!on;
+    results?.setAttribute('aria-busy', on ? 'true' : 'false');
+  }
+
   async function doSearch(){
-    if (!tokenOk()) {
-      results.innerHTML = `<div class="sx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
+    if (!tokenOk()){
+      results.innerHTML = `<div class="tx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
       return;
     }
     const q = inputQ.value.trim();
-    if (!q) {
-      results.innerHTML = `<div class="sx-empty">Wpisz tytuł, aby rozpocząć.</div>`;
+    if (!q){
+      results.innerHTML = `<div class="tx-empty">Wpisz tytuł, aby rozpocząć.</div>`;
       return;
     }
 
-    const type = (mode === 'tpb_series') ? 'series' : 'movie';
-    const provider = mode; // zgodnie z Twoją konwencją
+    const provider = providerForMode(mode);   // 🔧 tu naprawa Filmy+
+    const type = typeForMode(mode);
     const extra = {};
+    const isYts = (provider === 'yts_html');
+    const qual = isYts ? (selQuality.value || '') : '';
 
-    // quality tylko dla yts_html
-    const qual = (mode === 'yts_html') ? (selQuality.value || '') : '';
-    if (qual) extra.quality = qual;
+    if (isYts && qual) extra.quality = qual;
 
     setBusy(true);
-    results.innerHTML = ''; // czyścimy
-    results.insertAdjacentHTML('beforeend',
-      `<div class="sx-empty">Szukam „${esc(q)}”…</div>`);
+    results.innerHTML = `<div class="tx-empty">Szukam „${esc(q)}”…</div>`;
 
     try{
-      const body = { query: q, type, provider, page: 1, extra };
       const r = await window.authFetch(joinUrl(API, '/search'), {
-        method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body)
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ query: q, type, provider, page: 1, extra })
       });
-      const data = await r.json().catch(() => ({}));
-
-      // Akceptujemy różne kształty zwrotki
+      const data = await r.json().catch(()=> ({}));
       const arr = Array.isArray(data) ? data
                 : Array.isArray(data.items) ? data.items
                 : Array.isArray(data.results) ? data.results
                 : [];
 
-      renderResults(arr, { type, provider, qual });
+      renderResults(arr, { provider, type, qual });
     } catch (err){
       console.error(err);
-      results.innerHTML = `<div class="sx-empty">Błąd wyszukiwania. Spróbuj ponownie.</div>`;
+      results.innerHTML = `<div class="tx-empty">Błąd wyszukiwania. Spróbuj ponownie.</div>`;
     } finally {
       setBusy(false);
     }
   }
 
   function renderResults(items, ctx){
-    if (!items.length) {
-      results.innerHTML = `<div class="sx-empty">Brak wyników dla podanego zapytania.</div>`;
+    if (!items.length){
+      results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
       return;
     }
-    // Złożenie kart
+
     const html = items.map((it) => {
-      const title = esc(pick(it, 'title','name','display_title') || 'Bez tytułu');
-      const desc = esc(pick(it, 'description','desc','summary','snippet','overview') || 'Brak opisu.');
-      const url  = pick(it, 'url','link','href') || '';
-      const poster = pick(it, 'poster','image','thumb','cover','poster_url') ||
-                     'https://via.placeholder.com/300x450?text=Poster';
+      const title = esc(pick(it,'title','name','display_title') || 'Bez tytułu');
+      const desc  = esc(pick(it,'description','desc','summary','snippet','overview') || 'Brak opisu.');
+      const url   = pick(it,'url','link','href') || '';
+      const poster= pick(it,'poster','image','thumb','cover','poster_url') ||
+                    'https://via.placeholder.com/300x450?text=Poster';
 
       return `
-      <article class="sx-card" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}">
-        <img class="sx-card__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
-        <div class="sx-card__body">
-          <h3 class="sx-card__title">${title}</h3>
-          <p class="sx-card__desc">${desc}</p>
-          <div class="sx-card__actions">
+        <article class="qcard" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}">
+          <img class="qcard__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+          <div>
+            <div class="qcard__title">${title}</div>
+            <p class="qcard__desc">${desc}</p>
+          </div>
+          <div class="qcard__actions">
             <button class="tbtn sx-btn-get">Pobierz</button>
           </div>
-        </div>
-      </article>`;
+        </article>
+      `;
     }).join('');
 
     results.innerHTML = html;
   }
 
-  // Submit (Enter / klik „Szukaj”)
-  form?.addEventListener('submit', (e) => { e.preventDefault(); if (!busy) doSearch(); });
+  // Pobierz → resolve → add + obsługa YTS fallback jakości
+  function guessQualityFromString(s){
+    const m = String(s||'').match(/(2160p|1080p|720p)/i);
+    return m ? m[1].toLowerCase() : '';
+  }
 
-  // Pobieranie – delegacja
   results?.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.sx-btn-get');
-    if (!btn) return;
-    const card = btn.closest('.sx-card');
-    if (!card) return;
+    const btn = e.target.closest('.sx-btn-get'); if (!btn) return;
+    const card = btn.closest('.qcard'); if (!card) return;
 
     const url = card.dataset.url || '';
-    const provider = card.dataset.provider || mode;
-    const type = card.dataset.type || ((mode==='tpb_series') ? 'series':'movie');
-    const qual = (provider === 'yts_html') ? (card.dataset.quality || selQuality.value || '') : '';
+    const provider = card.dataset.provider || providerForMode(mode);
+    const type = card.dataset.type || typeForMode(mode);
+    const wanted = (provider === 'yts_html') ? (card.dataset.quality || selQuality.value || '') : '';
 
-    if (!url) { showToast('Brak URL do rozwiązania', false); return; }
+    if (!url){ showToast('Brak URL do rozwiązania', false); return; }
 
-    try {
+    try{
       btn.disabled = true; btn.textContent = 'Dodaję…';
 
-      // 1) Resolve → magnet
+      // 1) resolve
       const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ url, provider, quality: qual || undefined })
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ url, provider, quality: wanted || undefined })
       });
       const j1 = await r1.json().catch(()=> ({}));
       const magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri;
+      const resolvedName = j1?.name || j1?.result?.name || '';
+      let resolvedQuality =
+        j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
 
-      if (!magnet) {
-        showToast('Nie udało się pobrać linku magnet.', false);
-        return;
-      }
+      if (!resolvedQuality) resolvedQuality = guessQualityFromString(magnet || resolvedName);
 
-      // 2) /torrent/add
-      const meta = { title: card.querySelector('.sx-card__title')?.textContent?.trim() || '', image_url: card.querySelector('.sx-card__img')?.getAttribute('src') || '' };
+      // 2) add
+      if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
+
+      const meta = {
+        title: card.querySelector('.qcard__title')?.textContent?.trim() || '',
+        image_url: card.querySelector('.qcard__img')?.getAttribute('src') || ''
+      };
+
       const r2 = await window.authFetch(joinUrl(API, '/torrent/add'), {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ magnet, download_kind: type, meta })
       });
-
       if (!r2.ok){
-        const eTxt = await r2.text().catch(()=> '');
-        console.warn('torrent/add failed:', eTxt);
+        const t = await r2.text().catch(()=> '');
+        console.warn('torrent/add failed:', t);
         showToast('Błąd dodawania torrenta.', false);
         return;
       }
 
-      showToast('Torrent dodany ✅', true);
-    } catch (err){
+      // Komunikat o jakości YTS (fallback)
+      if (provider === 'yts_html' && wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
+        showToast(`Brak ${wanted} — pobieram ${resolvedQuality.toUpperCase()}`, true);
+      } else {
+        showToast('Torrent dodany ✅', true);
+      }
+    } catch(err){
       console.error(err);
       showToast('Błąd podczas dodawania.', false);
     } finally {
@@ -969,13 +975,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Jeśli sekcja staje się aktywna (klik w nav), ustaw focus
-  window.showSection = window.showSection || function() {};
-  const prevShowSection = window.showSection;
+  // Szukaj (klik/Enter)
+  btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
+  inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
+
+  // Gdy sekcja aktywowana z nawigacji — focus w pole
+  window.showSection = window.showSection || function(){};
+  const prevShow = window.showSection;
   window.showSection = function(name){
-    try { if (typeof prevShowSection === 'function') prevShowSection(name); } catch(e){}
-    if (name === 'search') {
-      setTimeout(() => inputQ?.focus({ preventScroll:true }), 80);
+    try{ if (typeof prevShow === 'function') prevShow(name); }catch(e){}
+    if (name === 'search'){
+      setTimeout(()=> inputQ?.focus({ preventScroll:true }), 80);
     }
   };
 });
