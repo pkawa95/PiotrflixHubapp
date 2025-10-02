@@ -1303,3 +1303,47 @@ html[data-theme="light"] .select{
   .qcard{ grid-template-columns: 70px 1fr; }
   .qcard__right{ grid-column: 1 / -1; justify-content: flex-end; }
 }
+
+/* ——— kontener + sticky ——— */
+.tx-container{max-width:1100px;margin:0 auto;padding:10px 12px 100px;display:flex;flex-direction:column;align-items:center}
+.tx-stickybar{width:100%;max-width:1000px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:8px;z-index:40;padding:10px 12px;background:linear-gradient(180deg,var(--card-strong),var(--card));border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(16px) saturate(130%);-webkit-backdrop-filter:blur(16px) saturate(130%)}
+.tx-brand{flex:1;display:flex;justify-content:center}
+.tx-logo{height:34px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(0,0,0,.35))}
+.tx-tabs{display:inline-flex;gap:6px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid var(--border);border-radius:999px;padding:4px}
+.tx-tab{appearance:none;border:0;cursor:pointer;color:var(--muted);font-weight:800;padding:8px 14px;border-radius:999px;background:transparent}
+.tx-tab.is-active{color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:var(--glow-soft)}
+
+/* ——— toolbary ——— */
+.tx-toolbar{width:100%;max-width:1000px;margin:10px auto;display:flex;align-items:center;gap:12px;justify-content:space-between;background:linear-gradient(180deg,var(--card-strong),var(--card));border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.06);padding:10px 12px}
+.tx-group{display:flex;align-items:center;gap:8px}
+.tx-label{font-weight:700;color:color-mix(in oklab, var(--fg) 86%, #fff 14%)}
+.tx-hint{font-size:.9rem;color:var(--muted)}
+/* select – dark/light */
+.select{appearance:none;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--fg);border:1px solid var(--border);border-radius:12px;padding:10px 14px}
+html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba(0,0,0,.08)}
+
+/* ——— listy ——— */
+.tx-list{width:100%;max-width:1000px;display:grid;gap:12px;justify-content:center}
+.tx-empty{opacity:.8;text-align:center;padding:20px 10px;color:var(--muted)}
+/* twarde ukrywanie gdy [hidden] (by nie „nakładało” się nic) */
+#tx-torrents[hidden],#tx-queue[hidden],.tx-toolbar[hidden]{display:none !important}
+
+/* ——— karta torrentu ——— (bez posterów) */
+.tcard{display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px;background:linear-gradient(180deg,var(--card-strong),var(--card));border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05)}
+.tcard__left{display:flex;flex-direction:column;gap:8px}
+.tcard__title{font-weight:800;font-size:1.05rem}
+.tcard__meta{display:flex;gap:12px;color:var(--muted);font-size:.95rem}
+.tcard__progress{width:100%;height:12px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;position:relative;border:1px solid var(--border)}
+.tcard__bar{position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg,var(--primary-2),var(--primary));box-shadow:var(--glow-soft)}
+.tcard__right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tbtn{appearance:none;border:0;border-radius:12px;padding:8px 12px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff}
+.tbtn--ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+.tbtn--danger{background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff}
+
+/* ——— karta kolejki ——— */
+.qcard{display:grid;grid-template-columns:96px 1fr auto;gap:12px;padding:12px;background:linear-gradient(180deg,var(--card-strong),var(--card));border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05)}
+.qcard__img{width:96px;height:144px;object-fit:cover;border-radius:10px;border:1px solid var(--border);background:#111}
+.qcard__title{font-weight:800;margin-bottom:6px}
+.qcard__meta{color:var(--muted);font-size:.95rem}
+.qcard__right{display:flex;align-items:center;gap:8px}
+@media (max-width:640px){.qcard{grid-template-columns:70px 1fr}.qcard__right{grid-column:1/-1;justify-content:flex-end}}

@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const API = document.getElementById('auth-screen')?.dataset.apiBase || '';
   const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/,'')}`;
-  const authHeaders = ()=> {
+  const authHeaders = ()=>{
     const t = (window.getAuthToken && window.getAuthToken()) || null;
     const h = new Headers();
     if(t) h.set('Authorization', `Bearer ${t}`);
@@ -439,15 +439,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTab = 'torrents';
   let refreshTimer = null;
 
-  // pokaż/ukryj właściwe listy + toolbary
+  // ——— przełączanie kart (pewne ukrywanie) ———
   function setTab(tab){
     currentTab = tab;
-    // karty
     elTorrents.hidden = (tab !== 'torrents');
     elQueue.hidden    = (tab !== 'queue');
-    // narzędzia
     toolbars.forEach(tb => tb.hidden = (tb.dataset.txTools !== tab));
-    // aktywna zakładka
     tabBar.querySelectorAll('.tx-tab').forEach(b=>{
       const on = (b.dataset.txTab === tab);
       b.classList.toggle('is-active', on);
@@ -455,7 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     kickRefresh();
   }
-
   tabBar.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-tx-tab]');
     if(!btn) return;
@@ -463,10 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if(tab && tab !== currentTab) setTab(tab);
   });
 
-  // ====== Limit prędkości (global) ======
+  // ——— limit prędkości (global) ———
   speedSel?.addEventListener('change', async ()=>{
-    const val = Number(speedSel.value || 0);          // MB/s
-    const kib = val > 0 ? Math.round(val * 1024) : 0; // KiB/s
+    const val = Number(speedSel.value || 0);             // MB/s
+    const kib = val > 0 ? Math.round(val * 1024) : 0;    // KiB/s
     speedFb.textContent = 'Ustawianie limitu…';
     try{
       const r = await fetch(joinUrl(API, '/torrent/set-limit'), {
@@ -484,10 +480,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ====== Helpers ======
+  // ——— helpers ———
   const pct = p => {
     const v = Number(p ?? 0);
-    if(isFinite(v)){
+    if(Number.isFinite(v)){
       if(v <= 1.01) return Math.max(0, Math.min(100, v*100));
       return Math.max(0, Math.min(100, v));
     }
@@ -502,31 +498,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
 
-  // ====== TORRENTY ======
+  // ——— TORRENTY ———
   async function loadTorrents(){
     try{
       const url = new URL(joinUrl(API, '/torrents/status/list'));
       url.searchParams.set('page','1');
-      url.searchParams.set('limit','200'); // WSZYSTKIE URZĄDZENIA (bez device_id)
+      url.searchParams.set('limit','200'); // wszystkie urządzenia (bez device_id)
       const r = await fetch(url.toString(), { headers: authHeaders() });
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
-      const arr = Array.isArray(data?.items) ? data.items : [];
+      const raw = Array.isArray(data?.items) ? data.items : [];
 
-      // dedupe po info_hash/hash/id
-      const map = new Map();
-      for(const it of arr){
+      // deduplikacja po hash/id
+      const byKey = new Map();
+      for(const it of raw){
         const key = it.info_hash || it.hash || it.id || it.name;
         if(!key) continue;
-        if(!map.has(key)) map.set(key, it);
+        if(!byKey.has(key)) byKey.set(key, it);
       }
-      let items = Array.from(map.values());
+      let items = Array.from(byKey.values());
 
       // sort
-      const sortBy = (sortSel?.value || 'name');
-      if(sortBy === 'progress'){
-        items.sort((a,b)=> (pct(a.progress || a.progress_percent || a.percent) - pct(b.progress || b.progress_percent || b.percent))).reverse();
-      }else if(sortBy === 'state'){
+      const s = (sortSel?.value || 'name');
+      if(s === 'progress'){
+        items.sort((a,b)=> (pct(a.progress ?? a.progress_percent ?? a.percent) - pct(b.progress ?? b.progress_percent ?? b.percent))).reverse();
+      }else if(s === 'state'){
         items.sort((a,b)=> String(a.state||'').localeCompare(String(b.state||'')));
       }else{
         items.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
@@ -548,9 +544,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const html = items.map(it=>{
       const name = it.name || it.display_title || it.title || 'Nieznany';
       const progress = pct(it.progress ?? it.progress_percent ?? it.percent ?? 0);
-      const rate = humanSpeed(it.download_rate_bps ?? it.download_rate ?? it.dl_rate ?? 0);
+      const rate = humanSpeed(
+        it.download_rate_bps ?? it.downloadSpeedBps ?? it.download_rate ?? it.dl_rate ?? it.download ?? 0
+      );
       const state = (it.state || 'unknown').toUpperCase();
-      const ihash = it.info_hash || it.hash || name;
+      const ihash = it.info_hash || it.hash || it.id || name;
 
       return `
       <article class="tcard" data-ih="${escapeHtml(ihash)}">
@@ -574,8 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </article>`;
     }).join('');
-
-    // diff-like replace
     if(elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
   }
 
@@ -585,7 +581,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!btn) return;
     const ih = btn.dataset.ih;
     const action = btn.dataset.action;
-
     try{
       if(action === 'pause'){
         await fetch(joinUrl(API, '/torrent/toggle'), {
@@ -604,10 +599,9 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(loadTorrents, 300);
     }catch(err){ console.error(err); }
   });
-
   sortSel?.addEventListener('change', loadTorrents);
 
-  // ====== KOLEJKA ======
+  // ——— KOLEJKA ———
   async function loadQueue(){
     try{
       const url = new URL(joinUrl(API, '/queue/list'));
@@ -620,11 +614,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if(!r.ok) throw new Error('HTTP '+r.status);
       const data = await r.json();
 
-      const seen = new Map();
-      for(const it of (data?.items || [])){
-        if(!seen.has(it.id)) seen.set(it.id, it);
-      }
-      renderQueue(Array.from(seen.values()));
+      const items = Array.isArray(data?.items) ? data.items : [];
+      renderQueue(items);
     }catch(e){
       console.error('loadQueue', e);
       if(elQueue) elQueue.innerHTML = `<div class="tx-empty">Nie udało się pobrać kolejki.</div>`;
@@ -658,11 +649,9 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </article>`;
     }).join('');
-
     if(elQueue.innerHTML !== html) elQueue.innerHTML = html;
   }
 
-  // usuwanie tasku
   elQueue?.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button[data-qdel]');
     if(!btn) return;
@@ -675,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   qStatusSel?.addEventListener('change', loadQueue);
 
-  // ====== AUTOREFRESH tylko dla aktywnej karty ======
+  // ——— autoodświeżanie tylko aktywnej zakładki ———
   function tick(){
     if(currentTab === 'torrents') loadTorrents();
     else loadQueue();
@@ -687,5 +676,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // start
-  setTab('torrents'); // domyślnie Torrenty
+  setTab('torrents');
 })();
