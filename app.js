@@ -761,34 +761,36 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-/* ===================== WYSZUKAJ — logika ===================== */
-document.addEventListener('DOMContentLoaded', () => {
+/* ===================== PIOTRFLIX — SEARCH (gotowiec) ===================== */
+(function(){
   const section = document.getElementById('section-search');
   if (!section) return;
 
-  // API base (jak w appce)
+  // --- API base / auth ---
   const API =
     document.getElementById('auth-screen')?.dataset.apiBase ||
-    localStorage.getItem('pf_base') ||
-    '';
-
+    localStorage.getItem('pf_base') || '';
   const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
   const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
 
-  // Elements
+  // --- Elements ---
   const tabs = Array.from(section.querySelectorAll('.tx-tab'));
-  const results = section.querySelector('#sx-results');
   const inputQ = section.querySelector('#sx-q');
   const selQuality = section.querySelector('#sx-quality');
   const qualityWrap = section.querySelector('#sx-quality-wrap');
   const btnSearch = section.querySelector('#sx-btn-search');
+  const results = section.querySelector('#sx-results');
   const toast = section.querySelector('#sx-toast');
 
-  // State
-  let mode = 'yts_html';   // 'yts_html' | 'tpb_premium' | 'tpb_series'
+  // --- State ---
+  let mode = 'yts_html'; // 'yts_html' | 'tpb_premium' | 'tpb_series'
   let busy = false;
 
-  // ---------- helpers ----------
+  // --- Helpers ---
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => (
+    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
+  ));
+  const pick = (o, ...keys) => { for (const k of keys){ if (o && o[k] != null) return o[k]; } };
   const showToast = (msg, ok=true) => {
     if (!toast) return;
     toast.textContent = msg || '';
@@ -797,45 +799,39 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => toast.classList.remove('is-show'), 1900);
   };
 
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => (
-    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
-  ));
-  const pick = (o, ...names) => { for (const k of names){ const v = o?.[k]; if (v!=null) return v; } };
-
-  // 🔧 SUPER-SANITYZACJA: bez cyfr/roczników/rzymskich/„Part/Season/Vol/Chapter/…”
+  // 🔧 Mega-sanityzacja frazy: bez cyfr/roczników/rzymskich i „Part/Season/Vol/…”
   function sanitizeQuery(raw){
-    let s = String(raw || '').trim();
+    if (!raw) return '';
+    let s = String(raw).trim();
 
-    // jednolite separatory, wytnij „:.-_()[]”
-    s = s.replace(/[.:_\-\[\]\u2013\u2014]/g, ' ');
+    // ujednolicenie separatorów
+    s = s.replace(/[.:_\-\[\]\(\)\u2013\u2014]/g, ' ');
 
-    // rok w nawiasach na końcu: "(2021)"
+    // rok w nawiasach na końcu
     s = s.replace(/\s*\(\s*\d{4}\s*\)\s*$/i, ' ');
 
-    // frazy sequelowe + liczby / rzymskie
-    const seq = /(part|część|season|sezon|episode|odcinek|ep|vol(?:ume)?|chapter|rozdział)\s+[IVXLCM\d]+$/i;
-    s = s.replace(new RegExp(seq, 'i'), ' ');
+    // frazy sequelowe (PL/EN) – na końcu lub w środku
+    const seq = /\b(part|część|season|sezon|episode|odcinek|ep|vol(?:ume)?|chapter|rozdział)\s+[IVXLCM\d]+\b/gi;
+    s = s.replace(seq, ' ');
 
-    // standalone rzymskie (na końcu i w środku)
+    // standalone rzymskie oraz cyfry
     s = s.replace(/\b[IVXLCM]+\b/gi, ' ');
-
-    // wszystkie cyfry (też "007")
     s = s.replace(/\d+/g, ' ');
 
     // wielospacje
     s = s.replace(/\s+/g, ' ').trim();
 
-    return s || String(raw || '').trim();
+    // jeżeli wszystko wycięliśmy – wróć do oryginału
+    return s || String(raw).trim();
   }
 
-  // Mapowanie provider/type
   const providerForMode = (m) =>
     m === 'tpb_premium' ? 'tpb_premium' :
     m === 'tpb_series'  ? 'tpb_series'  :
     'yts_html';
+
   const typeForMode = (m) => (m === 'tpb_series' ? 'series' : 'movie');
 
-  // Przełączanie zakładek
   function setMode(newMode){
     if (mode === newMode) return;
     mode = newMode;
@@ -848,20 +844,53 @@ document.addEventListener('DOMContentLoaded', () => {
     qualityWrap.style.display = isYts ? '' : 'none';
     qualityWrap.setAttribute('aria-hidden', isYts ? 'false' : 'true');
 
+    // opcjonalnie odśwież wyniki po przełączeniu
     if (inputQ.value.trim()) doSearch().catch(()=>{});
   }
+
   section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.tx-tab'); if (!btn) return;
     setMode(btn.dataset.mode);
   });
 
-  // Busy flag
   function setBusy(on){
     busy = !!on;
     results?.setAttribute('aria-busy', on ? 'true' : 'false');
   }
 
-  // Szukanie
+  // --------- Render ---------
+  function renderResults(items, ctx){
+    if (!Array.isArray(items) || !items.length){
+      results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
+      return;
+    }
+    const html = items.map((it) => {
+      const title = esc(pick(it,'title','name','display_title') || '—');
+      const desc  = esc(pick(it,'description','overview','summary') || '');
+      const img   = pick(it,'image','poster','thumb','poster_url') || 'https://via.placeholder.com/300x450?text=Poster';
+      const url   = pick(it,'url','link','href') || '';
+      const magnet= pick(it,'magnet','magnet_uri') || '';
+      const rating= it.rating ? `★ ${esc(String(it.rating))}` : '';
+      const provider = esc(it.provider || ctx.provider || '—');
+
+      return `
+        <article class="qcard" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}"
+                 ${url ? `data-url="${esc(url)}"` : ''} ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
+          <img class="qcard__img" src="${esc(img)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+          <div>
+            <div class="qcard__title">${title}</div>
+            <p class="qcard__desc">${desc}</p>
+            ${rating ? `<div class="qcard__meta">${rating} • <span class="tbadge"><span class="tbadge__dot"></span>${provider}</span></div>` : `<div class="qcard__meta"><span class="tbadge"><span class="tbadge__dot"></span>${provider}</span></div>`}
+          </div>
+          <div class="qcard__actions">
+            <button class="tbtn sx-btn-get">Pobierz</button>
+          </div>
+        </article>`;
+    }).join('');
+    results.innerHTML = html;
+  }
+
+  // --------- Search ---------
   async function doSearch(){
     if (!tokenOk()){
       results.innerHTML = `<div class="tx-empty">Musisz być zalogowany, aby wyszukiwać.</div>`;
@@ -876,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const provider = providerForMode(mode);
     const type = typeForMode(mode);
 
-    // 🔑 najważniejsze – do backendu idzie wersja BEZ CYFR
+    // 🔑 WYŚLIJEMY wersję BEZ CYFR / ROMANÓW / SEQUELI
     const qSan = sanitizeQuery(qRaw);
 
     const extra = {};
@@ -892,19 +921,18 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({
-          query: qSan,           // <—— wysyłamy oczyszczone
-          type,
+          query: qSan,
           provider,
+          type,
           page: 1,
-          extra                  // {quality} dla YTS
+          extra
         })
       });
-      const data = await r.json().catch(()=> ({}));
+      const data = await r.json().catch(() => ({}));
       const arr = Array.isArray(data) ? data
-                : Array.isArray(data.items) ? data.items
                 : Array.isArray(data.results) ? data.results
+                : Array.isArray(data.items) ? data.items
                 : [];
-
       renderResults(arr, { provider, type, qual });
     } catch (err){
       console.error(err);
@@ -914,41 +942,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderResults(items, ctx){
-    if (!items.length){
-      results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
-      return;
-    }
+  btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
+  inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
 
-    const html = items.map((it) => {
-      const title = esc(pick(it,'title','name','display_title') || 'Bez tytułu');
-      const desc  = esc(pick(it,'description','desc','summary','snippet','overview') || 'Brak opisu.');
-      const url   = pick(it,'url','link','href') || '';           // dla YTS do resolve
-      const poster= pick(it,'image','poster','thumb','cover','poster_url') ||
-                    'https://via.placeholder.com/300x450?text=Poster';
-      const magnet= pick(it,'magnet','magnet_uri');               // dla TPB mamy od razu
-
-      return `
-        <article class="qcard" data-url="${esc(url)}" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}" data-quality="${esc(ctx.qual || '')}" ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
-          <img class="qcard__img" src="${esc(poster)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
-          <div>
-            <div class="qcard__title">${title}</div>
-            <p class="qcard__desc">${desc}</p>
-          </div>
-          <div class="qcard__actions">
-            <button class="tbtn sx-btn-get">Pobierz</button>
-          </div>
-        </article>
-      `;
-    }).join('');
-
-    results.innerHTML = html;
-  }
-
-  // Pobieranie
-  function guessQualityFromString(s){
+  // --------- Download / Add ---------
+  function inferQualityFromString(s){
     const m = String(s||'').match(/(2160p|1080p|720p)/i);
     return m ? m[1].toLowerCase() : '';
+  }
+
+  async function addMagnet(magnet, type, title, image, wantedQuality){
+    const meta = {
+      display_title: title || undefined,
+      image_url: image || undefined,
+      quality: wantedQuality || undefined
+    };
+    const r = await window.authFetch(joinUrl(API, '/torrent/add'), {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ magnet, download_kind: type, meta })
+    });
+    if (!r.ok){
+      const t = await r.text().catch(()=> '');
+      throw new Error('torrent/add failed: ' + t);
+    }
   }
 
   results?.addEventListener('click', async (e) => {
@@ -957,46 +974,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const provider = card.dataset.provider || providerForMode(mode);
     const type = card.dataset.type || typeForMode(mode);
-    const wanted = (provider === 'yts_html') ? (card.dataset.quality || selQuality.value || '') : '';
+    const title = card.querySelector('.qcard__title')?.textContent?.trim() || '';
+    const image = card.querySelector('.qcard__img')?.getAttribute('src') || '';
+    const wanted = (provider === 'yts_html') ? (selQuality.value || '') : '';
 
     try{
       btn.disabled = true; btn.textContent = 'Dodaję…';
 
       let magnet = card.dataset.magnet || '';
 
-      // YTS → resolve URL do magnet (z uwzględnieniem jakości)
       if (provider === 'yts_html'){
         const url = card.dataset.url || '';
-        if (!url){ showToast('Brak URL do rozwiązania', false); return; }
+        if (!url) { showToast('Brak URL do YTS.', false); return; }
 
+        // Resolve z uwzględnieniem jakości
         const r1 = await window.authFetch(joinUrl(API, '/search/resolve'), {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ url, provider: 'yts_html', quality: wanted || undefined })
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ url, provider:'yts_html', quality: wanted || undefined })
         });
         const j1 = await r1.json().catch(()=> ({}));
         magnet = j1?.magnet || j1?.magnet_uri || j1?.result?.magnet || j1?.result?.magnet_uri || '';
         const resolvedName = j1?.name || j1?.result?.name || '';
         let resolvedQuality = j1?.quality || j1?.resolved_quality || j1?.result?.quality || '';
-        if (!resolvedQuality) resolvedQuality = guessQualityFromString(magnet || resolvedName);
+        if (!resolvedQuality) resolvedQuality = inferQualityFromString(magnet || resolvedName);
 
         if (!magnet){ showToast('Nie udało się pobrać linku magnet.', false); return; }
 
-        await addMagnet(magnet, type, card);
+        await addMagnet(magnet, type, title, image, wanted || resolvedQuality || undefined);
+
         if (wanted && resolvedQuality && wanted.toLowerCase() !== resolvedQuality.toLowerCase()){
-          showToast(`Brak ${wanted} — pobieram ${resolvedQuality.toUpperCase()}`, true);
+          showToast(`Brak ${wanted} — pobrano ${resolvedQuality.toUpperCase()}`, true);
+        } else if (wanted && !resolvedQuality){
+          showToast(`Żądana jakość ${wanted} niedostępna — pobrano najlepszą`, true);
         } else {
           showToast('Torrent dodany ✅', true);
         }
         return;
       }
 
-      // TPB (Filmy+ / Seriale) → magnet od razu
-      if (!magnet){
-        showToast('Brak magnet linku w wyniku TPB.', false);
-        return;
-      }
-      await addMagnet(magnet, type, card);
+      // TPB (Filmy+ / Seriale)
+      if (!magnet){ showToast('Brak magnet linku w wyniku TPB.', false); return; }
+      await addMagnet(magnet, type, title, image, undefined);
       showToast('Torrent dodany ✅', true);
 
     } catch(err){
@@ -1007,29 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  async function addMagnet(magnet, type, card){
-    const meta = {
-      title: card.querySelector('.qcard__title')?.textContent?.trim() || '',
-      image_url: card.querySelector('.qcard__img')?.getAttribute('src') || ''
-    };
-    const r2 = await window.authFetch(joinUrl(API, '/torrent/add'), {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ magnet, download_kind: type, meta })
-    });
-    if (!r2.ok){
-      const t = await r2.text().catch(()=> '');
-      console.warn('torrent/add failed:', t);
-      showToast('Błąd dodawania torrenta.', false);
-      throw new Error('add failed');
-    }
-  }
-
-  // Szukaj (klik/Enter)
-  btnSearch?.addEventListener('click', () => { if (!busy) doSearch(); });
-  inputQ?.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); if (!busy) doSearch(); } });
-
-  // Po wejściu do sekcji focus w pole
+  // --- Integracja z główną nawigacją — focus po wejściu w sekcję ---
   window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
   window.showSection = function(name){
@@ -1038,4 +1035,10 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(()=> inputQ?.focus({ preventScroll:true }), 80);
     }
   };
-});
+
+  // Ustal tryb startowy na podstawie aktywnej zakładki (jeśli HTML go zmienia)
+  const active = tabs.find(t => t.classList.contains('is-active'));
+  if (active) mode = active.dataset.mode || mode;
+})();
+
+
