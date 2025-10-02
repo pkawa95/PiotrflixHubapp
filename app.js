@@ -626,3 +626,308 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDevices().then(()=> Promise.all([loadTorrents(), loadQueue(), loadSummary()]));
   }
 })();
+
+/* ====== TORRENTS + QUEUE (sticky, sort, limit, auto-refresh) ====== */
+(function(){
+  const sec   = document.getElementById('section-torrents');
+  if (!sec) return;
+
+  // elki
+  const devSel   = document.getElementById('t-devices');
+  const sortSel  = document.getElementById('t-sort');
+  const limitSel = document.getElementById('t-limit');
+  const fbLimit  = document.getElementById('t-limit-feedback');
+  const btnRef   = document.getElementById('t-refresh');
+
+  const aggEl    = document.getElementById('t-agg');
+  const tList    = document.getElementById('t-list');
+  const tEmpty   = document.getElementById('t-empty');
+  const qList    = document.getElementById('q-list');
+  const qEmpty   = document.getElementById('q-empty');
+
+  const tabsWrap = sec.querySelector('.tsticky__tabs');
+  const tabBtns  = [...sec.querySelectorAll('.tsticky__tab')];
+  const viewTorr = document.getElementById('t-view');
+  const viewQ    = document.getElementById('q-view');
+
+  // config
+  const apiBase  = (document.getElementById('auth-screen')?.dataset.apiBase || '').replace(/\/+$/,'');
+  const u        = (p) => apiBase + p;
+  const LS_DEV   = 'pf_selected_device';
+  const LS_SORT  = 'pf_tsort';
+  let   refreshTimer = null;
+  const REFRESH_MS = 5000;
+
+  // utils
+  function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));}
+  function fmtBytesPerSec(b){
+    const n = Number(b||0); if(!isFinite(n)||n<=0) return '0 B/s';
+    const k=1024, u=['B/s','KiB/s','MiB/s','GiB/s']; const i=Math.floor(Math.log(n)/Math.log(k));
+    return `${(n/Math.pow(k,i)).toFixed(i?1:0)} ${u[i]}`;
+  }
+  function fmtPct(x){ const n=Math.max(0,Math.min(1,Number(x||0))); return (n*100).toFixed(1)+'%'; }
+  function isoLocal(s){ try{ return new Date(s).toLocaleString(); }catch{ return s||''; } }
+
+  // ===== devices
+  async function loadDevices(){
+    try{
+      const r = await authFetch(u('/torrents/devices'));
+      const data = await r.json();
+      const prev = localStorage.getItem(LS_DEV) || '';
+      devSel.innerHTML = `<option value="">Wszystkie</option>`;
+      (data||[]).forEach(d=>{
+        const opt = document.createElement('option');
+        opt.value = d.device_id;
+        opt.textContent = d.device_id + (d.torrents ? ` (${d.torrents})` : '');
+        devSel.appendChild(opt);
+      });
+      if (prev && [...devSel.options].some(o=>o.value===prev)) devSel.value = prev;
+    }catch(e){ console.warn('devices', e); }
+  }
+
+  // ===== summary
+  async function loadSummary(){
+    try{
+      const q = devSel.value ? `?device_id=${encodeURIComponent(devSel.value)}` : '';
+      const r = await authFetch(u('/torrents/status/summary'+q));
+      const s = await r.json();
+      aggEl.textContent = `Łącznie: ${s.total} • DL: ${fmtBytesPerSec(s.aggregate_dl_speed)} • UL: ${fmtBytesPerSec(s.aggregate_ul_speed)}`;
+    }catch(_){ aggEl.textContent=''; }
+  }
+
+  // ===== search poster (fallback)
+  async function posterFromSearch(title){
+    if (!title) return null;
+    try{
+      const r = await authFetch(u('/search'), {
+        method:'POST',
+        body: { query:title, type:'movie', provider:'default', page:1, extra:{} }
+      });
+      const j = await r.json();
+      const item = (j?.results||[])[0];
+      const img = item?.image || item?.poster || null;
+      return img || null;
+    }catch(e){ return null; }
+  }
+
+  // ===== torrents render
+  function tCard(t){
+    const img = t.image_url || '';
+    const title = t.display_title || t.name || '(bez tytułu)';
+    const pct = Number(t.progress||0); const pctTxt = fmtPct(pct);
+    const rate = `${fmtBytesPerSec(t.dl_speed)} / ${fmtBytesPerSec(t.ul_speed)}`;
+    const eta = (t.eta>0) ? ` • ETA: ${Math.max(0,Math.floor(t.eta/60))} min` : '';
+
+    const el = document.createElement('article');
+    el.className='tcard';
+    el.innerHTML = `
+      <img class="tcard__img" alt="" ${img?`src="${img}"`:`data-missing-poster="1"`} />
+      <div class="tcard__body">
+        <h3 class="tcard__title">${escapeHtml(title)}</h3>
+        <div class="tcard__meta">
+          <span class="tbadge"><span class="tbadge__dot"></span>${escapeHtml(t.state||'unknown')}</span>
+          <span>${rate}${eta}</span>
+          <span>Peers: ${Number(t.peers||0)} / Seeds: ${Number(t.seeds||0)}</span>
+        </div>
+        <div class="progress"><div class="progress__bar" style="width:${(pct*100).toFixed(3)}%"></div></div>
+        <div class="progress__label">${pctTxt} • ${((t.downloaded_bytes||0)/1024/1024).toFixed(1)} / ${((t.size_bytes||0)/1024/1024).toFixed(1)} MiB</div>
+      </div>
+      <div class="tcard__actions">
+        <button class="btn btn--ghost" data-act="pause"  title="Pauzuj">⏸</button>
+        <button class="btn btn--ghost" data-act="resume" title="Wznów">▶️</button>
+        <button class="btn btn--ghost" data-act="recheck" title="Sprawdź">🔁</button>
+        <button class="btn btn--danger" data-act="remove" title="Usuń">🗑</button>
+        <button class="btn btn--danger" data-act="remove_data" title="Usuń z danymi">🗑💾</button>
+      </div>
+    `;
+
+    el.querySelectorAll('[data-act]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const kind = btn.getAttribute('data-act');
+        try{
+          await authFetch(u('/torrents/commands/push'), {
+            method:'POST',
+            body: {
+              device_id: devSel.value || undefined,
+              info_hash: t.info_hash,
+              kind, args:{},
+              // przekaż tytuł/obraz dla ładnych kafelków w kolejce
+              display_title: t.display_title || t.name || '',
+              image_url: t.image_url || ''
+            }
+          });
+          await loadQueue(); // nowy task pojawi się od razu
+        }catch(e){ console.error(e); }
+      });
+    });
+
+    // poster fallback z wyszukiwania
+    if (!img){
+      const imgEl = el.querySelector('[data-missing-poster]');
+      if (imgEl){
+        posterFromSearch(title).then(src=>{
+          if (src){ imgEl.setAttribute('src', src); imgEl.removeAttribute('data-missing-poster'); }
+        });
+      }
+    }
+
+    return el;
+  }
+
+  async function loadTorrents(){
+    const params = new URLSearchParams({ page:'1', limit:'200', order:'desc' });
+    if (devSel.value) params.set('device_id', devSel.value);
+
+    const r = await authFetch(u('/torrents/status/list?'+params.toString()));
+    let data = await r.json();
+
+    // sort
+    const sortBy = sortSel.value;
+    if (sortBy === 'name'){
+      data.sort((a,b)=> (a.display_title||a.name||'').localeCompare(b.display_title||b.name||''));
+    } else if (sortBy === 'progress'){
+      data.sort((a,b)=> Number(b.progress||0)-Number(a.progress||0));
+    } else if (sortBy === 'state'){
+      data.sort((a,b)=> (a.state||'').localeCompare(b.state||''));
+    }
+
+    tList.innerHTML = '';
+    if (!data.length){ tEmpty.hidden = false; return; }
+    tEmpty.hidden = true;
+    data.forEach(t => tList.appendChild(tCard(t)));
+  }
+
+  // ===== queue (status=new tylko)
+  function qCard(q){
+    const img = q.image_url || '';
+    const title = q.display_title || q.kind;
+    const dt = q.created_at ? isoLocal(q.created_at) : '';
+
+    const el = document.createElement('article');
+    el.className='qcard';
+    el.innerHTML = `
+      <img class="qcard__img" alt="" ${img?`src="${img}"`:`data-missing-poster="1"`} />
+      <div>
+        <h3 class="qcard__title">${escapeHtml(title)}</h3>
+        <div class="qcard__meta">Rodzaj: ${escapeHtml(q.kind)} • Dodano: ${escapeHtml(dt)}</div>
+      </div>
+      <div class="qcard__actions">
+        <button class="btn btn--danger" data-del="${q.id}" title="Usuń zadanie">Usuń</button>
+      </div>
+    `;
+    el.querySelector('[data-del]').addEventListener('click', async ()=>{
+      try{
+        await authFetch(u(`/torrents/commands/${q.id}`), { method:'DELETE' });
+        await loadQueue();
+      }catch(e){ console.error(e); }
+    });
+
+    if (!img){
+      const imgEl = el.querySelector('[data-missing-poster]');
+      if (imgEl){
+        posterFromSearch(title).then(src=>{
+          if (src){ imgEl.setAttribute('src', src); imgEl.removeAttribute('data-missing-poster'); }
+        });
+      }
+    }
+    return el;
+  }
+
+  async function loadQueue(){
+    const params = new URLSearchParams({ status:'new', page:'1', limit:'100' });
+    if (devSel.value) params.set('device_id', devSel.value);
+
+    const r = await authFetch(u('/torrents/commands/list?'+params.toString()));
+    const data = await r.json();
+
+    qList.innerHTML = '';
+    if (!data.length){ qEmpty.hidden = false; return; }
+    qEmpty.hidden = true;
+    data.forEach(q => qList.appendChild(qCard(q)));
+  }
+
+  // ===== global limit
+  async function applyGlobalLimit(){
+    const val = parseInt(limitSel.value || '0', 10) || 0; // KiB/s
+    fbLimit.textContent = 'Ustawianie limitu…';
+    try{
+      await authFetch(u('/torrent/set-limit'), {
+        method:'POST',
+        body: { limit_kib_per_s: val, device_id: devSel.value || undefined }
+      });
+      fbLimit.textContent = val>0
+        ? `Limit ustawiony na ${(val/1024).toFixed(0)} MB/s`
+        : 'Limit zdjęty (Unlimited)';
+    }catch(e){
+      fbLimit.textContent = 'Nie udało się ustawić limitu.';
+    }
+    setTimeout(()=>{ fbLimit.textContent=''; }, 3000);
+  }
+
+  // ===== tabs switch
+  function setTab(which){
+    tabBtns.forEach(b=>{
+      const on = b.dataset.txTab === which;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    const showT = which === 'torrents';
+    viewTorr.hidden = !showT;
+    viewQ.hidden    = showT;
+
+    // odśwież i restart auto-refresh
+    runRefreshCycle();
+  }
+
+  tabsWrap.addEventListener('click', (e)=>{
+    const b = e.target.closest('.tsticky__tab');
+    if (!b) return;
+    const which = b.dataset.txTab;
+    setTab(which);
+  });
+
+  // ===== auto refresh
+  async function refreshNow(){
+    await Promise.all([loadDevices(), loadSummary()]);
+    if (!viewTorr.hidden) await loadTorrents();
+    if (!viewQ.hidden)    await loadQueue();
+  }
+  function runRefreshCycle(){
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshNow();
+    refreshTimer = setInterval(refreshNow, REFRESH_MS);
+  }
+
+  // ===== events
+  devSel.addEventListener('change', ()=>{
+    try{ localStorage.setItem(LS_DEV, devSel.value || ''); }catch(_){}
+    refreshNow();
+  });
+  sortSel.addEventListener('change', ()=>{
+    try{ localStorage.setItem(LS_SORT, sortSel.value || 'name'); }catch(_){}
+    loadTorrents();
+  });
+  limitSel.addEventListener('change', applyGlobalLimit);
+  btnRef.addEventListener('click', refreshNow);
+
+  // ===== init on section show
+  const origShow = window.showSection;
+  window.showSection = function(name){
+    if (typeof origShow === 'function') try{ origShow(name); }catch(_){}
+    if (name === 'torrents'){ initOnce(); runRefreshCycle(); }
+    else { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } }
+  };
+
+  let inited = false;
+  function initOnce(){
+    if (inited) return;
+    inited = true;
+    // restore saved
+    const sd = localStorage.getItem(LS_DEV); if (sd) devSel.value = sd;
+    const ss = localStorage.getItem(LS_SORT) || 'name'; sortSel.value = ss;
+    setTab('torrents'); // domyślnie torrenty
+  }
+
+  // jeśli startową sekcją jest #torrents
+  if ((location.hash||'').replace('#','') === 'torrents'){ initOnce(); runRefreshCycle(); }
+})();
