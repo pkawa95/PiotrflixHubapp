@@ -83,17 +83,22 @@
 /* ===================== AUTH & GATING ===================== */
 document.addEventListener('DOMContentLoaded', () => {
   const authScreen = document.getElementById('auth-screen');
-  const appRoot = document.getElementById('app');
-  const navRoot = document.getElementById('nawigacja');
+  const appRoot    = document.getElementById('app');
+  const navRoot    = document.getElementById('nawigacja');
 
   // helpery
   const qs = sel => document.querySelector(sel);
+  const joinUrl = (base, path) => {
+    if (!base) return path || '';
+    if (!path) return base;
+    return `${base.replace(/\/+$/,'')}/${String(path).replace(/^\/+/,'')}`;
+  };
 
   // Klucze storage
-  const TOKEN_KEY = 'pf_token';
+  const TOKEN_KEY    = 'pf_token';
   const REMEMBER_KEY = 'pf_remember';
 
-  // Pamięć procesu (szybki dostęp)
+  // Pamięć procesu
   let inMemoryToken = null;
 
   /* ---------- Token helpers ---------- */
@@ -130,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // udostępnij minimalistyczne API globalnie
-  window.getAuthToken = getToken;
+  window.getAuthToken   = getToken;
   window.clearAuthToken = () => { clearToken(); showAuth(); };
 
   /* ---------- JWT expiry (jeśli API zwraca JWT) ---------- */
@@ -147,14 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const expMs = getJwtExpMs(token);
     if (!expMs) return; // jeśli nie JWT — pomiń
     const delta = expMs - Date.now();
-    if (delta <= 0) {
-      // już nieważny
-      handleUnauthorized();
-      return;
-    }
-    // delikatny limit, by nie ustawiać ekstremalnych timeoutów
+    if (delta <= 0) { handleUnauthorized(); return; }
     setTimeout(() => {
-      // po wygaśnięciu jeszcze raz potwierdź 401 przy odświeżeniu danych, a tu tylko gating:
       handleUnauthorized('Sesja wygasła. Zaloguj się ponownie.');
     }, Math.min(delta, 2_147_000_000)); // ~24 dni max
   }
@@ -162,20 +161,20 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ---------- Gating widoków ---------- */
   function showApp() {
     if (authScreen) authScreen.hidden = true;
-    if (appRoot) appRoot.hidden = false;
-    if (navRoot) navRoot.hidden = false;
+    if (appRoot)    appRoot.hidden    = false;
+    if (navRoot)    navRoot.hidden    = false;
   }
   function showAuth(message) {
     if (authScreen) authScreen.hidden = false;
-    if (appRoot) appRoot.hidden = true;
-    if (navRoot) navRoot.hidden = true;
+    if (appRoot)    appRoot.hidden    = true;
+    if (navRoot)    navRoot.hidden    = true;
     if (message) {
       const el = document.getElementById('login-global-error');
       if (el) el.textContent = message;
     }
   }
   function handleAuthorized(token) {
-    setToken(token, (localStorage.getItem(REMEMBER_KEY) === '1')); // zachowaj preferencję
+    setToken(token, (localStorage.getItem(REMEMBER_KEY) === '1'));
     showApp();
     scheduleAutoLogout(token);
   }
@@ -186,20 +185,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Start — ustaw token i gating
   const existing = getStoredToken();
-  if (existing) {
-    inMemoryToken = existing;
-    showApp();
-    scheduleAutoLogout(existing);
-  } else {
-    showAuth();
-  }
+  if (existing) { inMemoryToken = existing; showApp(); scheduleAutoLogout(existing); }
+  else { showAuth(); }
 
   /* ---------- authFetch: automatyczne Authorization + 401 ---------- */
   async function authFetch(input, init = {}) {
-    const token = getToken();
+    const token   = getToken();
     const headers = new Headers(init.headers || {});
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    // JSON helper (jeśli body jest obiektem)
     if (init.body && typeof init.body === 'object' && !(init.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
       init.body = JSON.stringify(init.body);
@@ -215,25 +208,24 @@ document.addEventListener('DOMContentLoaded', () => {
   window.authFetch = authFetch;
 
   /* ---------- Konfiguracja endpointów z data-* ---------- */
-  const apiBase = authScreen?.dataset.apiBase || '';
-  const loginEndpoint = authScreen?.dataset.loginEndpoint || '/auth/login';
-  const registerEndpoint = authScreen?.dataset.registerEndpoint || '/auth/register';
+  const apiBase         = authScreen?.dataset.apiBase         || '';
+  const loginEndpoint   = authScreen?.dataset.loginEndpoint   || '/auth/login';
+  const registerEndpoint= authScreen?.dataset.registerEndpoint|| '/auth/register';
 
-  const LOGIN_URL = apiBase + loginEndpoint;
-  const REGISTER_URL = apiBase + registerEndpoint;
+  const LOGIN_URL    = joinUrl(apiBase, loginEndpoint);
+  const REGISTER_URL = joinUrl(apiBase, registerEndpoint);
 
   /* ---------- Zakładki & Slider (Zaloguj | Zarejestruj) ---------- */
-  const tabLogin = document.getElementById('tab-login');
-  const tabRegister = document.getElementById('tab-register');
-  const panelLogin = document.getElementById('panel-login');
-  const panelRegister = document.getElementById('panel-register');
-  const panels = qs('.auth__panels');
-  const card = qs('.auth__card');
+  const tabLogin     = document.getElementById('tab-login');
+  const tabRegister  = document.getElementById('tab-register');
+  const panelLogin   = document.getElementById('panel-login');
+  const panelRegister= document.getElementById('panel-register');
+  const panels       = qs('.auth__panels');
+  const card         = qs('.auth__card');
 
   function setActiveTab(view) {
     const isLogin = view === 'login';
 
-    // zakładki
     tabLogin?.classList.toggle('is-active', isLogin);
     tabLogin?.setAttribute('aria-selected', String(isLogin));
     tabLogin?.setAttribute('tabindex', isLogin ? '0' : '-1');
@@ -242,16 +234,14 @@ document.addEventListener('DOMContentLoaded', () => {
     tabRegister?.setAttribute('aria-selected', String(!isLogin));
     tabRegister?.setAttribute('tabindex', !isLogin ? '0' : '-1');
 
-    // panele
-    panelLogin?.setAttribute('aria-hidden', String(!isLogin));
-    panelRegister?.setAttribute('aria-hidden', String(isLogin));
+    panelLogin?.setAttribute('aria-hidden',  String(!isLogin));
+    panelRegister?.setAttribute('aria-hidden',String( isLogin));
 
-    // slider
     if (panels) panels.style.transform = `translateX(${isLogin ? '0%' : '-100%'})`;
   }
 
-  tabLogin?.addEventListener('click', () => setActiveTab('login'));
-  tabRegister?.addEventListener('click', () => setActiveTab('register'));
+  tabLogin?.addEventListener('click',   () => setActiveTab('login'));
+  tabRegister?.addEventListener('click',() => setActiveTab('register'));
 
   // Gesty przesunięcia (swipe)
   if (card && panels) {
@@ -259,10 +249,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let active = 'login';
 
     const onStart = (x) => { isDragging = true; startX = currentX = x; panels.style.transition = 'none'; };
-    const onMove  = (x) => { if (!isDragging) return; currentX = x; const dx = currentX - startX; const base = active === 'login' ? 0 : -window.innerWidth; panels.style.transform = `translateX(${base + dx}px)`; };
-    const onEnd   = () => {
+    const onMove  = (x) => {
       if (!isDragging) return;
-      const dx = currentX - startX; panels.style.transition = '';
+      currentX = x;
+      const dx = currentX - startX;
+      const base = active === 'login' ? 0 : -window.innerWidth;
+      panels.style.transform = `translateX(${base + dx}px)`;
+    };
+    const onEnd = () => {
+      if (!isDragging) return;
+      const dx = currentX - startX;
+      panels.style.transition = '';
       const threshold = Math.min(160, window.innerWidth * 0.25);
       if (active === 'login' && dx < -threshold) { active = 'register'; setActiveTab('register'); }
       else if (active === 'register' && dx > threshold) { active = 'login'; setActiveTab('login'); }
@@ -274,21 +271,22 @@ document.addEventListener('DOMContentLoaded', () => {
     card.addEventListener('touchstart', e => onStart(e.touches[0].clientX), {passive: true});
     card.addEventListener('touchmove',  e => onMove(e.touches[0].clientX), {passive: true});
     card.addEventListener('touchend',   onEnd);
-    // mouse
+
+    // mouse (opcjonalnie)
     card.addEventListener('mousedown', e => onStart(e.clientX));
     window.addEventListener('mousemove', e => onMove(e.clientX));
     window.addEventListener('mouseup', onEnd);
 
-    tabLogin?.addEventListener('click', () => { active = 'login'; });
-    tabRegister?.addEventListener('click', () => { active = 'register'; });
+    tabLogin?.addEventListener('click',   () => { active = 'login'; });
+    tabRegister?.addEventListener('click',() => { active = 'register'; });
   }
 
   /* ---------- Walidacja i helpery błędów ---------- */
   function setFieldError(inputId, message) {
     const input = document.getElementById(inputId);
-    const err = document.getElementById(`${inputId}-error`);
+    const err   = document.getElementById(`${inputId}-error`);
     if (input) input.classList.toggle('form__input--invalid', !!message);
-    if (err) err.textContent = message || '';
+    if (err)   err.textContent = message || '';
   }
   function clearFormErrors(form) {
     form.querySelectorAll('.form__input').forEach(el => el.classList.remove('form__input--invalid'));
@@ -300,47 +298,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('form-login');
   loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = (loginForm.querySelector('#login-email') || {}).value?.trim();
+    const email    = (loginForm.querySelector('#login-email') || {}).value?.trim();
     const password = (loginForm.querySelector('#login-password') || {}).value;
     const remember = (loginForm.querySelector('#login-remember') || {}).checked;
-    const globalErr = document.getElementById('login-global-error');
+    const globalErr= document.getElementById('login-global-error');
 
     clearFormErrors(loginForm);
     let hasErr = false;
 
-    if (!email) { setFieldError('login-email', 'Podaj adres e-mail.'); hasErr = true; }
+    if (!email)        { setFieldError('login-email', 'Podaj adres e-mail.'); hasErr = true; }
     else if (!isEmail(email)) { setFieldError('login-email', 'Nieprawidłowy adres e-mail.'); hasErr = true; }
-    if (!password) { setFieldError('login-password', 'Podaj hasło.'); hasErr = true; }
+    if (!password)     { setFieldError('login-password', 'Podaj hasło.'); hasErr = true; }
     if (hasErr) return;
 
-    // Zablokuj UI
     const btn = loginForm.querySelector('[data-action="login-submit"]');
     btn?.setAttribute('disabled', 'true');
 
     try {
-      const res = await fetch(apiBase + loginEndpoint, {
+      // zapamiętaj preferencję
+      try { remember ? localStorage.setItem(REMEMBER_KEY,'1') : localStorage.removeItem(REMEMBER_KEY); } catch(_){}
+
+      const res = await fetch(LOGIN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json().catch(() => ({}));
+
+      // obsłuż JSON lub tekst
+      let data = {};
+      const txt = await res.text();
+      try { data = txt ? JSON.parse(txt) : {}; } catch { data = { message: txt }; }
 
       if (!res.ok) {
-        const msg = data?.message || data?.error || 'Logowanie nie powiodło się.';
+        const msg = data?.message || data?.error || `Błąd ${res.status}`;
         if (globalErr) globalErr.textContent = msg;
         return;
       }
 
-      // oczekujemy { token: '...' }
       const token = data?.token;
       if (!token) { if (globalErr) globalErr.textContent = 'Brak tokenu w odpowiedzi serwera.'; return; }
 
-      // zapisz preferencję remember zanim setToken
-      try { remember ? localStorage.setItem(REMEMBER_KEY,'1') : localStorage.removeItem(REMEMBER_KEY); } catch(_){}
-      setToken(token, remember);
       handleAuthorized(token);
     } catch (err) {
-      if (globalErr) globalErr.textContent = 'Błąd sieci. Spróbuj ponownie.';
+      if (globalErr) globalErr.textContent = 'Błąd sieci / CORS. Uruchom przez http(s).';
       console.error(err);
     } finally {
       btn?.removeAttribute('disabled');
@@ -352,9 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
   registerForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const firstname = (registerForm.querySelector('#reg-firstname') || {}).value?.trim();
-    const lastname  = (registerForm.querySelector('#reg-lastname') || {}).value?.trim();
-    const email     = (registerForm.querySelector('#reg-email') || {}).value?.trim();
-    const password  = (registerForm.querySelector('#reg-password') || {}).value;
+    const lastname  = (registerForm.querySelector('#reg-lastname')  || {}).value?.trim();
+    const email     = (registerForm.querySelector('#reg-email')     || {}).value?.trim();
+    const password  = (registerForm.querySelector('#reg-password')  || {}).value;
     const password2 = (registerForm.querySelector('#reg-password2') || {}).value;
     const globalErr = document.getElementById('register-global-error');
 
@@ -362,10 +362,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let hasErr = false;
     if (!firstname) { setFieldError('reg-firstname', 'Podaj imię.'); hasErr = true; }
-    if (!lastname)  { setFieldError('reg-lastname', 'Podaj nazwisko.'); hasErr = true; }
-    if (!email)     { setFieldError('reg-email', 'Podaj adres e-mail.'); hasErr = true; }
+    if (!lastname)  { setFieldError('reg-lastname',  'Podaj nazwisko.'); hasErr = true; }
+    if (!email)     { setFieldError('reg-email',     'Podaj adres e-mail.'); hasErr = true; }
     else if (!isEmail(email)) { setFieldError('reg-email', 'Nieprawidłowy adres e-mail.'); hasErr = true; }
-    if (!password)  { setFieldError('reg-password', 'Ustaw hasło.'); hasErr = true; }
+    if (!password)  { setFieldError('reg-password',  'Ustaw hasło.'); hasErr = true; }
     if (!password2) { setFieldError('reg-password2', 'Powtórz hasło.'); hasErr = true; }
     if (password && password2 && password !== password2) {
       setFieldError('reg-password2', 'Hasła muszą być identyczne.');
@@ -373,17 +373,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (hasErr) return;
 
-    // Zablokuj UI
     const btn = registerForm.querySelector('[data-action="register-submit"]');
     btn?.setAttribute('disabled', 'true');
 
     try {
-      const res = await fetch(apiBase + registerEndpoint, {
+      const res = await fetch(REGISTER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ firstname, lastname, email, password })
       });
-      const data = await res.json().catch(() => ({}));
+
+      let data = {};
+      const txt = await res.text();
+      try { data = txt ? JSON.parse(txt) : {}; } catch { data = { message: txt }; }
 
       if (!res.ok) {
         if (data?.errors && typeof data.errors === 'object') {
@@ -393,44 +395,43 @@ document.addEventListener('DOMContentLoaded', () => {
             if (inputId) setFieldError(inputId, String(msg));
           }
         }
-        const msg = data?.message || data?.error || 'Rejestracja nie powiodła się.';
+        const msg = data?.message || data?.error || `Błąd ${res.status}`;
         if (globalErr) globalErr.textContent = msg;
         return;
       }
 
-      // Jeśli API zwraca token po rejestracji → zaloguj od razu
+      // jeśli API od razu zwraca token → zaloguj
       if (data?.token) {
-        try { localStorage.setItem(REMEMBER_KEY,'1'); } catch(_){}
-        setToken(data.token, true);
+        try { localStorage.setItem(REMEMBER_KEY, '1'); } catch(_){}
         handleAuthorized(data.token);
         return;
       }
 
-      // W innym wypadku przełącz na logowanie
+      // inaczej przełącz na logowanie
       const loginGlobal = document.getElementById('login-global-error');
       if (loginGlobal) loginGlobal.textContent = 'Konto utworzone. Możesz się zalogować.';
       setActiveTab('login');
     } catch (err) {
-      if (globalErr) globalErr.textContent = 'Błąd sieci. Spróbuj ponownie.';
+      if (globalErr) globalErr.textContent = 'Błąd sieci / CORS. Spróbuj ponownie.';
       console.error(err);
     } finally {
       btn?.removeAttribute('disabled');
     }
   });
 
-  /* ---------- Cross-tab sync (wylogowanie w innych kartach) ---------- */
+  /* ---------- Cross-tab sync (zmiany tokenu w innych kartach) ---------- */
   window.addEventListener('storage', (e) => {
     if (e.key === TOKEN_KEY || e.key === REMEMBER_KEY) {
-      // gdy token zniknie w innej karcie → wyloguj i schowaj app
-      if (!getStoredToken()) handleUnauthorized();
-      else handleAuthorized(getStoredToken());
+      const t = getStoredToken();
+      if (!t) handleUnauthorized();
+      else handleAuthorized(t);
     }
   });
 
-  /* ---------- Przykład: użycie tokenu w dalszych zapytaniach ----------
-     authFetch(apiBase + '/protected/endpoint')
+  /* ---------- Przykład: użycie tokenu dalej ----------
+     authFetch(joinUrl(apiBase, '/protected/endpoint'))
        .then(r => r.json())
        .then(console.log)
        .catch(console.error);
-  --------------------------------------------------------------------- */
+  ----------------------------------------------------- */
 });
