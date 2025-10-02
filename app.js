@@ -1,267 +1,422 @@
-// ====== Config ======
-const API_BASE = "https://api.pkportfolio.pl";
-const STORAGE_KEY = "pkp_auth_token";
+/* PiotrFlix – SPA logic */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-// ====== Helpers ======
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+/* ---------- Config & storage ---------- */
+const BASE_KEY = "pf_base";
+const TOKEN_KEY = "pf_token";
+const baseInput = $("#baseUrl");
+const getBase = () => localStorage.getItem(BASE_KEY) || baseInput?.value || "https://api.pkportfolio.pl";
+const setBase = (v) => localStorage.setItem(BASE_KEY, v);
+const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
+const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
 
-const setTheme = (mode) => {
-  const html = document.documentElement;
-  html.setAttribute("data-theme", mode);
-  localStorage.setItem("pkp_theme", mode);
-  const optDark = $("#opt-dark");
-  if (optDark) optDark.checked = mode === "dark";
-};
+/* ---------- Simple API helper ---------- */
+async function api(path, opts = {}) {
+  const url = path.startsWith("http") ? path : `${getBase()}${path}`;
+  const headers = opts.headers || {};
+  headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  const t = getToken();
+  if (t) headers["Authorization"] = "Bearer " + t;
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 401) throw new Error("401 Unauthorized");
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : res.text();
+}
 
-const toggleTheme = () => setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+/* ---------- Auth screen switch (tabs + swipe) ---------- */
+const auth = $("#auth");
+const loginForm = $("#loginForm");
+const registerForm = $("#registerForm");
+const tabLogin = $("#tab-login");
+const tabRegister = $("#tab-register");
+let authTab = "login";
 
-const showView = (idToShow) => {
-  $$(".view").forEach(v => v.classList.add("is-hidden"));
-  $(idToShow)?.classList.remove("is-hidden");
-};
+function showAuthTab(tab) {
+  authTab = tab;
+  tabLogin.classList.toggle("active", tab === "login");
+  tabRegister.classList.toggle("active", tab === "register");
+  loginForm.classList.toggle("hidden", tab !== "login");
+  registerForm.classList.toggle("hidden", tab !== "register");
+}
+tabLogin.onclick = () => showAuthTab("login");
+tabRegister.onclick = () => showAuthTab("register");
 
-const showTab = (name) => {
-  $$(".tab").forEach(t => t.classList.remove("is-active"));
-  $(`#tab-${name}`)?.classList.add("is-active");
-  $$(".nav-item").forEach(b => b.classList.remove("is-active"));
-  $(`.nav-item[data-tab='${name}']`)?.classList.add("is-active");
-};
-
-const saveToken = (token) => localStorage.setItem(STORAGE_KEY, token);
-const getToken = () => localStorage.getItem(STORAGE_KEY);
-const clearToken = () => localStorage.removeItem(STORAGE_KEY);
-
-const authFetch = async (url, options = {}) => {
-  const token = getToken();
-  const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) throw new Error(await res.text().catch(() => "") || res.statusText);
-  return res.json().catch(() => ({}));
-};
-
-// ====== Auth Screen Logic ======
-const authCard = () => document.getElementById("auth-card");
-const authTabsSel = () => $$(".auth-tab", authCard());
-const panesSel = () => $$(".form-pane", authCard());
-let currentPane = "login";
-
-const activatePane = (name) => {
-  currentPane = name;
-  panesSel().forEach(p => p.classList.toggle("is-hidden", p.dataset.pane !== name));
-  authTabsSel().forEach(t => {
-    const on = t.dataset.tabTarget === name;
-    t.classList.toggle("is-active", on);
-    t.setAttribute("aria-selected", on ? "true" : "false");
-  });
-};
-
-const bindAuthUI = () => {
-  const card = document.getElementById("auth-card");
-  if (!card) return;
-
-  // Delegacja clicków na zakładki
-  card.addEventListener("click", (e) => {
-    const tabBtn = e.target.closest(".auth-tab");
-    if (!tabBtn || !card.contains(tabBtn)) return;
-    const name = tabBtn.dataset.tabTarget;
-    if (!name || name === currentPane) return;
-    activatePane(name);
-  });
-
-  // Swipe (zostawiamy jak było)
-  let startX = 0; let startY = 0; let dx = 0; let dy = 0; const threshold = 40;
-  card.addEventListener("touchstart", (e) => {
-    const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; dx = dy = 0;
-  }, { passive: true });
-  card.addEventListener("touchmove", (e) => {
-    const t = e.changedTouches[0]; dx = t.clientX - startX; dy = t.clientY - startY;
-  }, { passive: true });
-  card.addEventListener("touchend", () => {
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-      const names = ["login", "register"];
-      const i = names.indexOf(currentPane);
-      const next = dx < 0 ? Math.min(i + 1, names.length - 1) : Math.max(i - 1, 0);
-      activatePane(names[next]);
-    }
-  });
-
-  // Ustaw stan początkowy zgodnie z DOM
-  const initiallyVisible = card.querySelector(".form-pane:not(.is-hidden)")?.dataset.pane || "login";
-  activatePane(initiallyVisible);
-};
-
-// Validate helpers
-const setError = (id, msg) => {
-  const el = document.querySelector(`[data-error-for='${id}']`);
-  if (el) el.textContent = msg || "";
-  const input = document.getElementById(id);
-  const group = input ? input.closest('.input-group') : null;
-  if (group) group.classList.toggle('has-error', !!msg);
-};
-const required = (val) => !!(val && String(val).trim().length);
-
-// Login
-const bindAuthForms = () => {
-  $("#login-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = $("#login-email").value.trim();
-    const password = $("#login-password").value;
-    setError("login-email"); setError("login-password");
-    let ok = true;
-    if (!required(email)) { setError("login-email", "Podaj email"); ok = false; }
-    if (!required(password)) { setError("login-password", "Podaj hasło"); ok = false; }
-    if (!ok) return;
-
-    const note = $("#login-status"); note.textContent = "Logowanie…";
-    try {
-      const data = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      }).then(async r => { if (!r.ok) throw new Error(await r.text().catch(()=>"") || r.statusText); return r.json(); });
-      const token = data.token || data.accessToken || data.jwt || null;
-      if (!token) throw new Error("Brak tokenu w odpowiedzi API");
-      saveToken(token);
-      note.textContent = "Zalogowano ✔";
-      bootApp();
-    } catch (err) {
-      note.textContent = `Błąd: ${err.message || err}`;
-    }
-  });
-
-  // Register
-  $("#register-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const firstName = $("#reg-firstname").value.trim();
-    const lastName = $("#reg-lastname").value.trim();
-    const email = $("#reg-email").value.trim();
-    const password = $("#reg-password").value;
-    const password2 = $("#reg-password2").value;
-
-    ["reg-firstname","reg-lastname","reg-email","reg-password","reg-password2"].forEach(id => setError(id));
-    let ok = true;
-    if (!required(firstName)) { setError("reg-firstname", "Wymagane"); ok = false; }
-    if (!required(lastName)) { setError("reg-lastname", "Wymagane"); ok = false; }
-    if (!required(email)) { setError("reg-email", "Podaj email"); ok = false; }
-    if (!required(password)) { setError("reg-password", "Podaj hasło"); ok = false; }
-    if (password !== password2) { setError("reg-password2", "Hasła nie są identyczne"); ok = false; }
-    if (!ok) return;
-
-    const note = $("#register-status"); note.textContent = "Rejestracja…";
-    try {
-      await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, password })
-      }).then(async r => { if (!r.ok) throw new Error(await r.text().catch(()=>"") || r.statusText); return r.json(); });
-      note.textContent = "Konto utworzone! Możesz się zalogować.";
-      activatePane("login");
-    } catch (err) {
-      note.textContent = `Błąd: ${err.message || err}`;
-    }
-  });
-};
-
-// ====== App Logic ======
-const bootApp = () => {
-  if (getToken()) {
-    showView("#app-view");
-    // Initialize once the app view is visible
-    setTheme(localStorage.getItem("pkp_theme") || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-    wireApp();
-  } else {
-    showView("#auth-view");
+// swipe gesture
+let sx = null, sy = null;
+auth.addEventListener("touchstart", (e) => {
+  const t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY;
+}, {passive:true});
+auth.addEventListener("touchend", (e) => {
+  if (sx==null) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - sx, dy = t.clientY - sy;
+  if (Math.abs(dx) > 40 && Math.abs(dy) < 30) {
+    showAuthTab(dx < 0 ? "register" : "login");
   }
-};
+  sx = sy = null;
+});
 
-const wireApp = () => {
-  // Elements (with guards so we don't throw if something's missing)
-  const content = $(".content");
-  if (!content) return;
+/* ---------- Login ---------- */
+const loginMsg = $("#loginMsg");
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#loginEmailErr").textContent = "";
+  $("#loginPasswordErr").textContent = "";
+  loginMsg.textContent = "";
 
-  // Tabs click
-  $$(".nav-item").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  const email = $("#loginEmail").value.trim();
+  const password = $("#loginPassword").value;
 
-  // Swipe between tabs in content
-  let startX = 0; let startY = 0; let dx = 0; let dy = 0; const threshold = 60;
-  const order = ["torrenty","wyszukaj","dostepne","opcje"];
-  const currentIndex = () => order.findIndex(n => $(`#tab-${n}`)?.classList.contains("is-active"));
+  if (!email) { $("#loginEmailErr").textContent = "Wprowadź email"; return; }
+  if (!password) { $("#loginPasswordErr").textContent = "Wprowadź hasło"; return; }
 
-  content.addEventListener("touchstart", (e) => { const t = e.changedTouches[0]; startX = t.clientX; startY = t.clientY; dx = dy = 0; }, { passive: true });
-  content.addEventListener("touchmove", (e) => { const t = e.changedTouches[0]; dx = t.clientX - startX; dy = t.clientY - startY; }, { passive: true });
-  content.addEventListener("touchend", () => {
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-      const i = currentIndex();
-      const next = dx < 0 ? Math.min(i + 1, order.length - 1) : Math.max(i - 1, 0);
-      if (next !== i) showTab(order[next]);
-    }
-  });
-
-  // Theme toggle
-  $("#theme-toggle")?.addEventListener("click", toggleTheme);
-  const optDark = $("#opt-dark");
-  if (optDark) optDark.checked = document.documentElement.getAttribute("data-theme") === "dark";
-  optDark?.addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
-
-  // Logout
-  $("#logout-btn")?.addEventListener("click", () => { clearToken(); showView("#auth-view"); });
-
-  // Refresh token (placeholder: adjust to your API)
-  $("#btn-refresh-token")?.addEventListener("click", async () => {
-    try {
-      const data = await authFetch(`${API_BASE}/auth/refresh`, { method: "POST" });
-      const token = data.token || data.accessToken || data.jwt;
-      if (token) { saveToken(token); alert("Token odświeżony"); }
-      else { alert("API nie zwróciło nowego tokenu"); }
-    } catch (e) { alert(`Nie udało się odświeżyć: ${e.message}`); }
-  });
-
-  // Search (replace with real endpoint)
-  $("#search-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const q = $("#search-input").value.trim();
-    const box = $("#search-results");
-    box.innerHTML = "Szukam…";
-    try {
-      const data = await authFetch(`${API_BASE}/search?q=${encodeURIComponent(q)}`);
-      const items = Array.isArray(data) ? data : (data.items || []);
-      box.innerHTML = items.length ? items.map(it => `<div class='card' style='padding:12px'>${it.title || JSON.stringify(it)}</div>`).join("") : "Brak wyników";
-    } catch (e) {
-      box.innerHTML = `<span style='color:var(--error)'>Błąd wyszukiwania: ${e.message}</span>`;
-    }
-  });
-};
-
-// Example loader for "Dostępne" (adjust to your API shape)
-async function loadAvailable() {
   try {
-    const data = await authFetch(`${API_BASE}/available`);
-    const items = Array.isArray(data) ? data : (data.items || []);
-    const grid = $("#available-grid");
-    if (!grid) return;
-    grid.innerHTML = items.map(it => `
-      <article class="card" style="padding:10px">
-        <h3 style="margin:6px 6px 4px">${it.title || it.name || "Pozycja"}</h3>
-        <p class="form-note" style="margin:0 6px 8px">${it.description || ""}</p>
-      </article>`).join("");
-  } catch (e) {
-    const grid = $("#available-grid");
-    if (grid) grid.innerHTML = `<div class='empty'><p>Nie udało się pobrać: ${e.message}</p></div>`;
+    const j = await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    if (!j?.access_token) throw new Error("Brak tokenu w odpowiedzi");
+    setToken(j.access_token);
+    loginMsg.textContent = "Zalogowano.";
+    await afterLogin();
+  } catch (err) {
+    loginMsg.textContent = "Błąd logowania: " + (err.message || err);
+  }
+});
+
+/* ---------- Register ---------- */
+const regMsg = $("#regMsg");
+function setErr(id, msg){ $(id).textContent = msg || ""; }
+function emailOk(e){ return /^\S+@\S+\.\S+$/.test(String(e||"").trim()); }
+
+registerForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  // clear errors
+  ["#regFirstErr","#regLastErr","#regEmailErr","#regPass1Err","#regPass2Err"].forEach(id=>setErr(id,""));
+  regMsg.textContent = "";
+
+  const first = $("#regFirst").value.trim();
+  const last = $("#regLast").value.trim();
+  const email = $("#regEmail").value.trim().toLowerCase();
+  const p1 = $("#regPass1").value;
+  const p2 = $("#regPass2").value;
+
+  if(!first) setErr("#regFirstErr","Uzupełnij imię");
+  if(!last) setErr("#regLastErr","Uzupełnij nazwisko");
+  if(!emailOk(email)) setErr("#regEmailErr","Nieprawidłowy email");
+  if(p1.length < 6) setErr("#regPass1Err","Min. 6 znaków");
+  if(p1 !== p2) setErr("#regPass2Err","Hasła się różnią");
+
+  if(!first || !last || !emailOk(email) || p1.length<6 || p1!==p2) return;
+
+  try{
+    // backend może przyjmować tylko email/hasło – imię i nazwisko zachowujemy tu na przyszłość
+    await api("/auth/register", { method:"POST", body: JSON.stringify({ email, password:p1, first_name:first, last_name:last }) });
+    // auto login
+    const j = await api("/auth/login", { method:"POST", body: JSON.stringify({ email, password:p1 }) });
+    setToken(j.access_token);
+    regMsg.textContent = "Konto utworzone. Logowanie...";
+    await afterLogin();
+  }catch(err){
+    regMsg.textContent = "Błąd rejestracji: " + (err.message || err);
+  }
+});
+
+/* ---------- App shell/nav ---------- */
+const appHeader = $("#appHeader");
+const appMain = $("#appMain");
+const bottomNav = $("#bottomNav");
+const who = $("#who");
+const logoutBtn = $("#logoutBtn");
+
+async function refreshUser(){
+  try{
+    const j = await api("/auth/whoami", { method:"GET" });
+    who.textContent = `zalogowany: ${j.email}`;
+  }catch{
+    who.textContent = "—";
   }
 }
 
-// Start
-window.addEventListener("DOMContentLoaded", () => {
-  // Theme from storage / system
-  setTheme(localStorage.getItem("pkp_theme") || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+async function afterLogin(){
+  // pokaż app, schowaj auth
+  auth.classList.add("hidden");
+  appHeader.classList.remove("hidden");
+  appMain.classList.remove("hidden");
+  bottomNav.classList.remove("hidden");
 
-  // Bind auth UI regardless (safe)
-  bindAuthUI();
-  bindAuthForms();
+  await refreshUser();
+  await loadAvailable();
+  await loadQueue();
+  await loadActive();
+}
 
-  // Auth gate
-  if (getToken()) { showView("#app-view"); wireApp(); }
-  else { showView("#auth-view"); }
+logoutBtn.onclick = () => {
+  setToken("");
+  location.reload();
+};
+
+/* ---------- Theme ---------- */
+const bodyEl = document.documentElement;
+const themeToggle = $("#themeToggle");
+const themeBtn = $("#toggleTheme");
+const THEME_KEY = "pf_theme";
+function setTheme(mode){
+  bodyEl.setAttribute("data-theme", mode);
+  localStorage.setItem(THEME_KEY, mode);
+}
+setTheme(localStorage.getItem(THEME_KEY) || "dark");
+(themeToggle||{}).onclick = () => setTheme(bodyEl.getAttribute("data-theme")==="dark" ? "light":"dark");
+(themeBtn||{}).onclick = () => setTheme(bodyEl.getAttribute("data-theme")==="dark" ? "light":"dark");
+
+/* ---------- Bottom nav routing ---------- */
+function showPage(name){
+  $$(".page").forEach(p => p.classList.toggle("hidden", p.dataset.page !== name));
+  $$("#bottomNav button").forEach(b => b.classList.toggle("active", b.dataset.target===name));
+}
+$$("#bottomNav button").forEach(b => b.addEventListener("click", () => showPage(b.dataset.target)));
+showPage("torrents");
+
+/* ---------- Settings ---------- */
+$("#saveBase").onclick = () => { setBase($("#baseUrl").value.trim()); alert("Zapisano."); };
+
+/* ---------- Available ---------- */
+const aGrid = $("#aGrid");
+const aInfo = $("#aInfo");
+
+function cardAvailable(it){
+  const pct = Math.round((it.progress||0)*100);
+  return `
+  <div class="av">
+    <img src="${it.image_url||it.poster||''}" alt="">
+    <div class="in">
+      <div class="title">${(it.display_title||it.title||'—')}</div>
+      <div class="meta">${(it.kind||it.type||'').toString()} • ${it.year||''}</div>
+      <div class="progress" style="margin-top:6px"><span style="width:${pct}%"></span></div>
+      <div class="meta" style="margin-top:4px">${pct}% obejrzane</div>
+    </div>
+  </div>`;
+}
+
+async function loadAvailable(){
+  aInfo.textContent = "Ładuję...";
+  aGrid.innerHTML = "";
+  try{
+    const j = await api("/me/available", { method:"GET" });
+    const films = Array.isArray(j?.films) ? j.films : [];
+    const series = Array.isArray(j?.series) ? j.series : [];
+    let items = [...films, ...series];
+
+    const filter = $("#aFilter").value?.toLowerCase() || "";
+    const kind = $("#aKind").value || "all";
+    const sort = $("#aSort").value || "recent";
+
+    if (kind!=="all") items = items.filter(x => (x.kind||x.type)===kind);
+    if (filter) items = items.filter(x => (x.display_title||x.title||"").toLowerCase().includes(filter));
+
+    if (sort==="title") items.sort((a,b)=> (a.display_title||a.title||"").localeCompare(b.display_title||b.title||""));
+    else if (sort==="progress") items.sort((a,b)=>(b.progress||0)-(a.progress||0));
+    else items.sort((a,b)=> String(b.updated_at||"").localeCompare(String(a.updated_at||"")));
+
+    aGrid.innerHTML = items.map(cardAvailable).join("");
+    aInfo.textContent = `Pozycji: ${items.length}`;
+  }catch(err){
+    aInfo.textContent = "Błąd: " + (err.message||err);
+  }
+}
+$("#aRefresh").onclick = loadAvailable;
+$("#aFilter").addEventListener("input", loadAvailable);
+$("#aKind").addEventListener("change", loadAvailable);
+$("#aSort").addEventListener("change", loadAvailable);
+
+/* ---------- Search ---------- */
+let provider = "yts_html";
+$("#providerSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-provider]");
+  if(!b) return;
+  provider = b.dataset.provider;
+  $$("#providerSeg button").forEach(x=>x.classList.toggle("active", x===b));
 });
+
+$("#sBtn").onclick = doSearch;
+$("#sQuery").addEventListener("keydown", e => { if(e.key==="Enter") doSearch(); });
+
+async function doSearch(){
+  const query = $("#sQuery").value.trim();
+  if(!query) return;
+  const quality = $("#sQuality").value;
+  const body = { query, provider, type: "movie", page: 1, extra: {} };
+
+  $("#sResults").innerHTML = "";
+  try{
+    const j = await api("/search", { method:"POST", body: JSON.stringify(body) });
+    const items = j.results || [];
+    $("#sResults").innerHTML = items.map(cardSearch).join("");
+  }catch(err){
+    $("#sResults").innerHTML = `<p class="muted">Błąd: ${(err.message||err)}</p>`;
+  }
+}
+
+function cardSearch(item){
+  const id = btoa((item.url || item.magnet || item.title).slice(0,200)).replace(/=+/g,'');
+  const hasMagnet = !!item.magnet;
+  const qSel = `
+    <select id="q_${id}">
+      <option value="">auto</option>
+      <option value="2160p">2160p</option>
+      <option value="1080p" selected>1080p</option>
+      <option value="720p">720p</option>
+    </select>`;
+  const resolveBtn = (!hasMagnet && item.url)
+    ? `<button class="btn" onclick="resolveAndQueue('${encodeURIComponent(item.url)}','${item.provider}','${id}')">Resolve & dodaj</button>`
+    : "";
+  const addBtn = hasMagnet
+    ? `<button class="btn success" onclick="addToQueue('${encodeURIComponent(item.magnet)}','${id}')">Dodaj do kolejki</button>`
+    : "";
+  return `
+  <article class="card">
+    <img src="${item.image||''}" class="poster" alt="">
+    <div class="body">
+      <h3>${item.title||'—'}</h3>
+      <div class="muted"><span class="badge">${item.provider||'—'}</span></div>
+      <p class="desc">${item.description||''}</p>
+      <div class="row">
+        ${resolveBtn}${addBtn}
+        <span class="muted">Jakość: ${qSel}</span>
+      </div>
+    </div>
+  </article>`;
+}
+
+window.resolveAndQueue = async (encodedUrl, provider, id) => {
+  const url = decodeURIComponent(encodedUrl);
+  const quality = ($("#q_"+id)?.value) || $("#sQuality").value || "";
+  try{
+    const j = await api("/search/resolve", { method:"POST", body: JSON.stringify({ url, provider, quality }) });
+    if(!j.magnet) { alert("Nie udało się wyciągnąć magnet linku"); return; }
+    await addToQueue(encodeURIComponent(j.magnet), id);
+    await loadQueue();
+    showPage("torrents");
+  }catch(err){ alert("Resolve error: " + (err.message||err)); }
+};
+
+window.addToQueue = async (encMagnet, id) => {
+  const magnet = decodeURIComponent(encMagnet);
+  const quality = ($("#q_"+id)?.value) || $("#sQuality").value || "";
+  try{
+    await api("/torrent/add", {
+      method:"POST",
+      body: JSON.stringify({ magnet, download_kind:"movie", meta:{ quality } })
+    });
+    alert("Dodano do kolejki.");
+  }catch(err){ alert("Add error: " + (err.message||err)); }
+};
+
+/* ---------- Torrents ---------- */
+/* Kolejka (API /queue/list) i aktywne (API /torrents/status/list) */
+const tInfo = $("#tInfo");
+const qWrap = $("#tQueue");
+const aWrap = $("#tActive");
+
+$('[data-t-tab="queue"]').onclick = () => { qWrap.classList.remove("hidden"); aWrap.classList.add("hidden"); setTTab("queue"); };
+$('[data-t-tab="active"]').onclick = () => { aWrap.classList.remove("hidden"); qWrap.classList.add("hidden"); setTTab("active"); };
+function setTTab(name){
+  $$('.tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tTab===name));
+}
+
+async function loadQueue(){
+  try{
+    const j = await api("/queue/list?status=all&limit=200", { method:"GET" });
+    const items = Array.isArray(j) ? j : (j.items || []);
+    qWrap.innerHTML = items.map(row => {
+      const canDelete = !row.status || ["new","picked","error"].includes(row.status);
+      const meta = row.payload?.meta || {};
+      const title = row.display_title || meta.display_title || row.payload?.title || "—";
+      const img = meta.image_url || row.image_url || "";
+      return `
+        <div class="t-row">
+          <div class="t-name">${title}</div>
+          <div class="stat">NO: ${row.task_no ?? "—"} · ${row.kind||''}</div>
+          <div class="stat">${row.status||'new'}</div>
+          <div class="t-ops">
+            <button class="btn danger" ${canDelete? "":"disabled"} onclick="deleteTask(${row.id})">Usuń</button>
+          </div>
+        </div>`;
+    }).join("");
+  }catch(err){
+    qWrap.innerHTML = `<p class="muted">Błąd: ${(err.message||err)}</p>`;
+  }
+}
+window.deleteTask = async (id) => {
+  if(!confirm("Usunąć z kolejki?")) return;
+  try{ await api(`/queue/${id}`, { method:"DELETE" }); await loadQueue(); }catch(err){ alert(err.message||err); }
+};
+
+async function loadActive(){
+  try{
+    const j = await api("/torrents/status/list?limit=400&order=desc", { method:"GET" });
+    const rows = Array.isArray(j) ? j : [];
+    const sort = $("#tSort").value || "name";
+    rows.sort((a,b) => {
+      if (sort==="progress") return (b.progress||0)-(a.progress||0);
+      if (sort==="state") return String(a.state||"").localeCompare(String(b.state||""));
+      return String(a.display_title||a.name||"").localeCompare(b.display_title||b.name||"");
+    });
+
+    aWrap.innerHTML = rows.map(r => {
+      const p = Math.round((r.progress||0)*100);
+      const speeds = `<span class="stat">DL ${fmtBytes(r.dl_speed)}/s</span> <span class="stat">UL ${fmtBytes(r.ul_speed)}/s</span>`;
+      return `
+        <div class="t-row">
+          <div class="t-name">${(r.display_title||r.name||"—")}</div>
+          <div>
+            <div class="progress"><span style="width:${p}%"></span></div>
+            <div class="stat">${p}% (${fmtBytes(r.downloaded_bytes)}/${fmtBytes(r.size_bytes)})</div>
+          </div>
+          <div class="stat">${(r.state||"").toUpperCase()} · ${speeds}</div>
+          <div class="t-ops">
+            <button class="btn" onclick="tPause('${r.info_hash}')">Pauza</button>
+            <button class="btn success" onclick="tResume('${r.info_hash}')">Wznów</button>
+            <button class="btn danger" onclick="tRemove('${r.info_hash}', false)">Usuń</button>
+            <button class="btn danger" onclick="tRemove('${r.info_hash}', true)">Usuń + dane</button>
+          </div>
+        </div>`;
+    }).join("");
+    tInfo.textContent = `Aktywnych: ${rows.length}`;
+  }catch(err){
+    aWrap.innerHTML = `<p class="muted">Błąd: ${(err.message||err)}</p>`;
+  }
+}
+function fmtBytes(n){
+  n = Number(n||0); const u=['B','KiB','MiB','GiB','TiB']; let i=0;
+  while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+  return `${n.toFixed(n<10?2:1)} ${u[i]}`;
+}
+async function pushCmd(kind, info_hash=null, args={}){
+  await api("/torrents/commands/push", { method:"POST", body: JSON.stringify({ device_id:"default", info_hash, kind, args }) });
+}
+window.tPause = async (ih)=>{ await pushCmd("pause", ih); setTimeout(loadActive, 400); };
+window.tResume = async (ih)=>{ await pushCmd("resume", ih); setTimeout(loadActive, 400); };
+window.tRemove = async (ih, withData)=>{ if(!confirm(withData?"Usunąć torrent + dane?":"Usunąć torrent?")) return;
+  await pushCmd(withData?"remove_data":"remove", ih); setTimeout(loadActive, 600); };
+
+$("#tApplyRate").onclick = async ()=>{
+  const v = Number($("#tRate").value||"0"); // MiB/s
+  await pushCmd("set_rate_global", null, { limit_mbs: v });
+  alert("Ustawiono globalny limit: " + (v ? v + " MiB/s" : "unlimited"));
+};
+
+$("#tSort").addEventListener("change", loadActive);
+
+/* ---------- Startup ---------- */
+(function boot(){
+  // zapisz ustawiony base url
+  if (!localStorage.getItem(BASE_KEY)) setBase(getBase());
+  if (baseInput) baseInput.value = getBase();
+
+  if (getToken()) {
+    // użytkownik zalogowany — pokaż app
+    afterLogin();
+  } else {
+    // zostajemy na ekranie auth
+    auth.classList.remove("hidden");
+  }
+})();

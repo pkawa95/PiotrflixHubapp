@@ -1,85 +1,244 @@
-<!DOCTYPE html>
-<html lang="pl" data-theme="light">
+<!doctype html>
+<html lang="pl" data-theme="dark">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>PKPortfolio</title>
-<link rel="preload" href="static/logo.png" as="image" />
-<link rel="preload" href="static/icon.png" as="image" />
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PiotrFlix</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<!-- Auth Gate -->
-<main id="auth-view" class="view">
-<header class="auth-header">
-<img src="/static/logo.png" alt="PKPortfolio logo" class="logo" />
-</header>
 
+  <!-- ========== AUTH ========== -->
+  <section id="auth" class="auth-screen">
+    <img src="/static/logo.png" alt="PiotrFlix" class="auth-logo" />
 
-<section class="card auth-card" id="auth-card" data-tab="login">
-<nav class="auth-tabs" role="tablist" aria-label="Przełączanie paneli">
-<button class="auth-tab is-active" data-tab-target="login" role="tab" aria-selected="true">Zaloguj</button>
-<button class="auth-tab" data-tab-target="register" role="tab" aria-selected="false">Zarejestruj</button>
-</nav>
+    <div class="auth-tabs" role="tablist" aria-label="Przełącz logowanie i rejestrację">
+      <button class="tab active" id="tab-login" data-tab="login" aria-selected="true">Zaloguj</button>
+      <button class="tab" id="tab-register" data-tab="register" aria-selected="false">Zarejestruj</button>
+    </div>
 
+    <!-- Logowanie -->
+    <form id="loginForm" class="auth-form" autocomplete="on" novalidate>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="np. jan@domena.pl" required>
+        <p class="error" id="loginEmailErr"></p>
+      </div>
+      <div class="field">
+        <label>Hasło</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" required>
+        <p class="error" id="loginPasswordErr"></p>
+      </div>
+      <button class="btn primary" type="submit">Zaloguj</button>
+      <p class="form-msg" id="loginMsg"></p>
+    </form>
 
-<!-- Login form -->
-<form id="login-form" class="form-pane" data-pane="login" novalidate>
-<div class="input-group">
-<label for="login-email">Adres email</label>
-<input id="login-email" name="email" type="email" autocomplete="email" required />
-<p class="error" data-error-for="login-email"></p>
-</div>
-<div class="input-group">
-<label for="login-password">Hasło</label>
-<input id="login-password" name="password" type="password" autocomplete="current-password" required />
-<p class="error" data-error-for="login-password"></p>
-</div>
-<button type="submit" class="btn primary full">Zaloguj się</button>
-<p class="form-note" id="login-status" role="status" aria-live="polite"></p>
-</form>
+    <!-- Rejestracja -->
+    <form id="registerForm" class="auth-form hidden" autocomplete="on" novalidate>
+      <div class="grid2">
+        <div class="field">
+          <label>Imię</label>
+          <input type="text" id="regFirst" placeholder="Jan" required>
+          <p class="error" id="regFirstErr"></p>
+        </div>
+        <div class="field">
+          <label>Nazwisko</label>
+          <input type="text" id="regLast" placeholder="Kowalski" required>
+          <p class="error" id="regLastErr"></p>
+        </div>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="regEmail" placeholder="np. jan@domena.pl" required>
+        <p class="error" id="regEmailErr"></p>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Hasło</label>
+          <input type="password" id="regPass1" placeholder="min. 6 znaków" required>
+          <p class="error" id="regPass1Err"></p>
+        </div>
+        <div class="field">
+          <label>Powtórz hasło</label>
+          <input type="password" id="regPass2" placeholder="••••••••" required>
+          <p class="error" id="regPass2Err"></p>
+        </div>
+      </div>
+      <button class="btn success" type="submit">Utwórz konto</button>
+      <p class="form-msg" id="regMsg"></p>
+    </form>
 
+    <footer class="auth-footer">
+      <img src="/static/icon.png" alt="" class="auth-icon">
+      <span>© PiotrFlix 2025</span>
+    </footer>
+  </section>
 
-<!-- Register form -->
-<form id="register-form" class="form-pane is-hidden" data-pane="register" novalidate>
-<div class="grid two">
-<div class="input-group">
-<label for="reg-firstname">Imię</label>
-<input id="reg-firstname" name="firstName" type="text" autocomplete="given-name" required />
-<p class="error" data-error-for="reg-firstname"></p>
-</div>
-<div class="input-group">
-<label for="reg-lastname">Nazwisko</label>
-<input id="reg-lastname" name="lastName" type="text" autocomplete="family-name" required />
-<p class="error" data-error-for="reg-lastname"></p>
-</div>
-</div>
-<div class="input-group">
-<label for="reg-email">Adres email</label>
-<input id="reg-email" name="email" type="email" autocomplete="email" required />
-<p class="error" data-error-for="reg-email"></p>
-</div>
-<div class="grid two">
-<div class="input-group">
-<label for="reg-password">Hasło</label>
-<input id="reg-password" name="password" type="password" autocomplete="new-password" required />
-<p class="error" data-error-for="reg-password"></p>
-</div>
-<div class="input-group">
-<label for="reg-password2">Powtórz hasło</label>
-<input id="reg-password2" name="password2" type="password" autocomplete="new-password" required />
-<p class="error" data-error-for="reg-password2"></p>
-</div>
-</div>
-<button type="submit" class="btn primary full">Utwórz konto</button>
-<p class="form-note" id="register-status" role="status" aria-live="polite"></p>
-</form>
+  <!-- ========== APP ========== -->
+  <header class="app-header hidden" id="appHeader">
+    <div class="who" id="who">—</div>
+    <div class="header-actions">
+      <button class="btn ghost" id="themeToggle" title="Przełącz motyw">🌓</button>
+      <button class="btn ghost" id="logoutBtn">Wyloguj</button>
+    </div>
+  </header>
 
+  <main class="app-main hidden" id="appMain">
+    <!-- TORRENTS -->
+    <section class="page" data-page="torrents">
+      <div class="page-head">
+        <img src="/static/logo.png" class="page-logo" alt="">
+        <h2>Torrenty</h2>
+      </div>
 
-<p class="swipe-hint">Przeciągnij w lewo/prawo aby przełączyć Zaloguj ↔ Zarejestruj</p>
-</section>
+      <div class="panel">
+        <div class="row">
+          <label class="lab">Sortuj:</label>
+          <select id="tSort">
+            <option value="name">nazwa</option>
+            <option value="progress">postęp</option>
+            <option value="state">stan</option>
+          </select>
 
+          <label class="lab">Limit:</label>
+          <select id="tRate">
+            <option value="0">unlimited</option>
+            <option value="1">1 MiB/s</option>
+            <option value="2">2 MiB/s</option>
+            <option value="5">5 MiB/s</option>
+            <option value="10">10 MiB/s</option>
+          </select>
 
-<footer class="site-footer">
-<img src="/static/icon.png" alt="ikona" class="footer-icon" />
+          <button class="btn" id="tApplyRate">Ustaw</button>
+          <span class="muted" id="tInfo">—</span>
+        </div>
+
+        <div class="tabs small" role="tablist">
+          <button class="tab active" data-t-tab="queue">Kolejka</button>
+          <button class="tab" data-t-tab="active">Aktywne</button>
+        </div>
+
+        <!-- Kolejka -->
+        <div id="tQueue" class="t-list">
+          <!-- wypełnia JS -->
+        </div>
+
+        <!-- Aktywne -->
+        <div id="tActive" class="t-list hidden">
+          <!-- wypełnia JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="page hidden" data-page="search">
+      <div class="page-head">
+        <h2>Wyszukaj</h2>
+      </div>
+
+      <div class="panel">
+        <div class="segmented" id="providerSeg">
+          <button data-provider="yts_html" class="active">
+            <img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""> Filmy – YTS HTML
+          </button>
+          <button data-provider="tpb_premium">
+            <img src="/static/svg/secure-download-svgrepo-com.svg" alt=""> Filmy+ – TPB MOVIES
+          </button>
+          <button data-provider="tpb_series">
+            <img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""> Seriale – TPB SERIES
+          </button>
+        </div>
+
+        <div class="row">
+          <div class="field grow">
+            <label>Szukaj tytułu</label>
+            <div class="with-icon">
+              <img src="/static/svg/search-alt-2-svgrepo-com.svg" class="in-icon" alt="">
+              <input id="sQuery" placeholder="np. Harry Potter">
+            </div>
+          </div>
+          <div class="field">
+            <label>Jakość (YTS)</label>
+            <select id="sQuality">
+              <option value="">auto</option>
+              <option value="2160p">2160p</option>
+              <option value="1080p" selected>1080p</option>
+              <option value="720p">720p</option>
+            </select>
+          </div>
+          <button class="btn primary" id="sBtn">Szukaj</button>
+        </div>
+      </div>
+
+      <div id="sResults" class="cards"></div>
+    </section>
+
+    <!-- AVAILABLE -->
+    <section class="page hidden" data-page="available">
+      <div class="page-head">
+        <h2>Dostępne</h2>
+        <img src="/static/svg/film-gallery-svgrepo-com.svg" class="page-icon" alt="">
+      </div>
+
+      <div class="panel row wrap">
+        <div class="field grow">
+          <label>Filtr</label>
+          <input id="aFilter" placeholder="Szukaj w dostępnych...">
+        </div>
+        <div class="field">
+          <label>Typ</label>
+          <select id="aKind">
+            <option value="all">wszystko</option>
+            <option value="movie">filmy</option>
+            <option value="series">seriale</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sortuj</label>
+          <select id="aSort">
+            <option value="recent">ostatnio aktualizowane</option>
+            <option value="title">tytuł A→Z</option>
+            <option value="progress">postęp</option>
+          </select>
+        </div>
+        <button class="btn" id="aRefresh">Odśwież</button>
+        <span class="muted" id="aInfo">—</span>
+      </div>
+
+      <div id="aGrid" class="grid"></div>
+    </section>
+
+    <!-- SETTINGS / OPCJE -->
+    <section class="page hidden" data-page="settings">
+      <div class="page-head">
+        <h2>Opcje</h2>
+        <img src="/static/svg/settings-svgrepo-com.svg" class="page-icon" alt="">
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <div class="field grow">
+            <label>API Base URL</label>
+            <input id="baseUrl" value="https://api.pkportfolio.pl">
+            <p class="muted">Wymagany CORS. Zmiany zapisywane lokalnie.</p>
+          </div>
+          <button class="btn" id="saveBase">Zapisz</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="toggleTheme">Przełącz jasny/ciemny</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav hidden" id="bottomNav">
+    <button data-target="torrents" class="active"><img src="/static/svg/secure-download-svgrepo-com.svg" alt=""><span>Torrenty</span></button>
+    <button data-target="search"><img src="/static/svg/search-alt-2-svgrepo-com.svg" alt=""><span>Wyszukaj</span></button>
+    <button data-target="available"><img src="/static/svg/film-gallery-svgrepo-com.svg" alt=""><span>Dostępne</span></button>
+    <button data-target="settings"><img src="/static/svg/settings-svgrepo-com.svg" alt=""><span>Opcje</span></button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
 </html>
