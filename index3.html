@@ -264,80 +264,82 @@
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
-      <section id="section-torrents" role="tabpanel" aria-hidden="true">
-  <!-- PRZYPINANY PASEK: logo + przełączniki -->
+ <section id="section-torrents" role="tabpanel" aria-hidden="true">
+  <!-- TYLKO PRZEŁĄCZNIK SEKCJI -->
   <div class="tsticky">
-    <div class="tsticky__row">
-      <img src="static/logo.png" alt="PiotrFlix" class="tsticky__logo" />
-      <div class="tsticky__tabs" role="tablist" aria-label="Torrenty / Kolejka">
-        <button class="tsticky__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">⚡ Torrenty</button>
-        <button class="tsticky__tab" data-tx-tab="queue" role="tab" aria-selected="false">📦 Kolejka</button>
-      </div>
+    <div class="tsticky__tabs" role="tablist" aria-label="Torrenty / Kolejka">
+      <button class="tsticky__tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">⚡ Torrenty</button>
+      <button class="tsticky__tab" data-tx-tab="queue" role="tab" aria-selected="false">📦 Kolejka</button>
     </div>
-
-    <!-- sterowanie: urządzenie + sort + limit prędkości + podsumowanie -->
-    <div class="tbar">
-      <div class="tbar__left">
-        <label class="tbar__field">
-          <span class="tbar__label">Urządzenie</span>
-          <select id="t-devices" class="tbar__select" aria-label="Wybierz urządzenie">
-            <option value="">Wszystkie</option>
-          </select>
-        </label>
-
-        <label class="tbar__field">
-          <span class="tbar__label">Sortuj</span>
-          <select id="t-sort" class="tbar__select">
-            <option value="name">Nazwa</option>
-            <option value="progress">Postęp</option>
-            <option value="state">Stan</option>
-          </select>
-        </label>
-
-        <label class="tbar__field">
-          <span class="tbar__label">🌐 Limit pobierania</span>
-          <select id="t-limit" class="tbar__select" aria-describedby="t-limit-feedback">
-            <option value="0">Unlimited</option>
-            <option value="1024">1 MB/s</option>
-            <option value="2048">2 MB/s</option>
-            <option value="5120">5 MB/s</option>
-            <option value="10240">10 MB/s</option>
-            <option value="15360">15 MB/s</option>
-          </select>
-        </label>
-
-        <button id="t-refresh" class="btn btn--primary tbar__btn" type="button" title="Odśwież">
-          Odśwież
-        </button>
-      </div>
-
-      <div class="tbar__right">
-        <span id="t-agg" class="tbar__agg" aria-live="polite"></span>
-      </div>
-    </div>
-
-    <div id="t-limit-feedback" class="tlimit__feedback" aria-live="polite"></div>
   </div>
 
-  <!-- KONTENT: dwie zakładki -->
+  <!-- ZAWARTOŚĆ -->
   <div class="tgrid tgrid--one">
+
     <!-- TORRENTS -->
     <section id="t-view" class="tview" data-view="torrents" aria-live="polite">
+      <div class="tbar">
+        <div class="tbar__left">
+          <label class="tbar__field">
+            <span class="tbar__label">Urządzenie</span>
+            <select id="t-devices" class="tbar__select" aria-label="Wybierz urządzenie">
+              <option value="">Wszystkie</option>
+            </select>
+          </label>
+
+          <label class="tbar__field">
+            <span class="tbar__label">Sortuj</span>
+            <select id="t-sort" class="tbar__select">
+              <option value="name">Nazwa</option>
+              <option value="progress">Postęp</option>
+              <option value="state">Stan</option>
+            </select>
+          </label>
+
+          <label class="tbar__field">
+            <span class="tbar__label">🌐 Limit pobierania</span>
+            <select id="t-limit" class="tbar__select" aria-describedby="t-limit-feedback">
+              <option value="0">Unlimited</option>
+              <option value="1024">1 MB/s</option>
+              <option value="2048">2 MB/s</option>
+              <option value="5120">5 MB/s</option>
+              <option value="10240">10 MB/s</option>
+              <option value="15360">15 MB/s</option>
+            </select>
+          </label>
+
+          <button id="t-refresh" class="btn btn--primary tbar__btn" type="button" title="Odśwież">Odśwież</button>
+        </div>
+        <div class="tbar__right">
+          <span id="t-agg" class="tbar__agg" aria-live="polite"></span>
+        </div>
+      </div>
+      <div id="t-limit-feedback" class="tlimit__feedback" aria-live="polite"></div>
+
       <div id="t-list" class="tlist"></div>
       <div id="t-empty" class="empty" hidden>Brak torrentów do wyświetlenia.</div>
     </section>
 
-    <!-- QUEUE (status=new tylko) -->
+    <!-- QUEUE: tylko NEW -->
     <section id="q-view" class="tview" data-view="queue" hidden aria-live="polite">
+      <div class="tbar">
+        <div class="tbar__left">
+          <label class="tbar__field">
+            <span class="tbar__label">Urządzenie</span>
+            <select id="q-devices" class="tbar__select" aria-label="Wybierz urządzenie">
+              <option value="">Wszystkie</option>
+            </select>
+          </label>
+          <button id="q-refresh" class="btn btn--primary tbar__btn" type="button">Odśwież</button>
+        </div>
+      </div>
+
       <div id="q-list" class="qlist"></div>
       <div id="q-empty" class="empty" hidden>Brak nowych zadań w kolejce.</div>
     </section>
+
   </div>
 </section>
-
-
-        
-      </section>
       <section id="section-search" role="tabpanel" aria-hidden="true"></section>
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
