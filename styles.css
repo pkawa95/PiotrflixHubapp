@@ -1759,20 +1759,20 @@ html[data-theme="light"] .select{background:#fff;color:#0f172a;border-color:rgba
 
 /* Mapowanie ikon → pliki */
 .ico--torrents{
-  -webkit-mask-image:url("/static/svg/secure-download-svgrepo-com.svg");
-          mask-image:url("/static/svg/secure-download-svgrepo-com.svg");
+  -webkit-mask-image:url("static/svg/secure-download-svgrepo-com.svg");
+          mask-image:url("static/svg/secure-download-svgrepo-com.svg");
 }
 .ico--search{
-  -webkit-mask-image:url("/static/svg/search-alt-2-svgrepo-com.svg");
-          mask-image:url("/static/svg/search-alt-2-svgrepo-com.svg");
+  -webkit-mask-image:url("static/svg/search-alt-2-svgrepo-com.svg");
+          mask-image:url("static/svg/search-alt-2-svgrepo-com.svg");
 }
 .ico--available{
-  -webkit-mask-image:url("/static/svg/film-gallery-svgrepo-com.svg");
-          mask-image:url("/static/svg/film-gallery-svgrepo-com.svg");
+  -webkit-mask-image:url("static/svg/film-gallery-svgrepo-com.svg");
+          mask-image:url("static/svg/film-gallery-svgrepo-com.svg");
 }
 .ico--options{
-  -webkit-mask-image:url("/static/svg/settings-svgrepo-com.svg");
-          mask-image:url("/static/svg/settings-svgrepo-com.svg");
+  -webkit-mask-image:url("static/svg/settings-svgrepo-com.svg");
+          mask-image:url("static/svg/settings-svgrepo-com.svg");
 }
 
 /* (opcjonalnie) delikatny glow ikony na hover – pasuje do Twoich efektów */
