@@ -441,30 +441,26 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ==================== TORRENTS — agregacja po WSZYSTKICH device_id ====================
-  // tabs (bez wywalania się, gdy .tx-tabs nie istnieje)
-  function setTab(tab) {
-    currentTab = tab;
-    elTorrents.hidden = tab !== "torrents";
-    elQueue.hidden = tab !== "queue";
-    toolbars.forEach((tb) => (tb.hidden = tb.dataset.txTools !== tab));
-    if (tabBar) {
-      tabBar.querySelectorAll(".tx-tab").forEach((b) => {
-        const on = b.dataset.txTab === tab;
-        b.classList.toggle("is-active", on);
-        b.setAttribute("aria-selected", on ? "true" : "false");
-      });
-    }
-    kickRefresh();
-  }
-  if (tabBar) {
-    tabBar.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-tx-tab]");
-      if (!btn) return;
-      const tab = btn.dataset.txTab;
-      if (tab && tab !== currentTab) setTab(tab);
-    });
-  }
+/* ===================== TORRENTY / KOLEJKA (sekcja) — v3) ===================== */
+document.addEventListener("DOMContentLoaded", () => {
+  const section = document.getElementById("section-torrents");
+  if (!section) return;
+
+  const API = document.getElementById("auth-screen")?.dataset.apiBase || "";
+  const joinUrl = (b, p) =>
+    `${(b || "").replace(/\/+$/, "")}/${String(p || "").replace(/^\/+/, "")}`;
+
+  const elTorrents = section.querySelector("#tx-torrents");
+  const elQueue = section.querySelector("#tx-queue");
+  const sortSel = section.querySelector("#tx-sort");
+  const speedSel = section.querySelector("#tx-speed");
+  const speedFb = section.querySelector("#tx-speed-feedback");
+  const qStatusSel = section.querySelector("#tx-q-status");
+  const tabBar = section.querySelector(".tx-tabs");
+  const toolbars = section.querySelectorAll(".tx-toolbar");
+
+  let currentTab = "torrents";
+  let refreshTimer = null;
 
   // helpers
   const pct = (p) => {
@@ -479,100 +475,112 @@ document.addEventListener("DOMContentLoaded", () => {
     const x = Number(bps || 0);
     if (x <= 0) return "0 B/s";
     const u = ["B/s", "KB/s", "MB/s", "GB/s"];
-    let i = 0, n = x;
-    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    let i = 0,
+      n = x;
+    while (n >= 1024 && i < u.length - 1) {
+      n /= 1024;
+      i++;
+    }
     return `${n.toFixed(n >= 10 ? 0 : 1)} ${u[i]}`;
   };
   const esc = (s) =>
     String(s ?? "").replace(/[&<>"']/g, (m) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
     })[m]);
 
-  // pobierz listę urządzeń, fallback na /devices/online
-  async function fetchDeviceIds() {
-    try {
-      const r = await window.authFetch(joinUrl(API, "/torrents/devices"));
-      const data = await r.json().catch(() => ([]));
-      if (Array.isArray(data) && data.length) {
-        return data
-          .map(d => d?.device_id)
-          .filter(Boolean)
-          .map(String);
-      }
-    } catch (_) {}
-    try {
-      const r2 = await window.authFetch(joinUrl(API, "/devices/online"));
-      const data2 = await r2.json().catch(() => ([]));
-      if (Array.isArray(data2) && data2.length) {
-        return data2
-          .map(d => d?.device_id || d?.id)
-          .filter(Boolean)
-          .map(String);
-      }
-    } catch (_) {}
-    return [];
+  // tabs
+  function setTab(tab) {
+    currentTab = tab;
+    elTorrents.hidden = tab !== "torrents";
+    elQueue.hidden = tab !== "queue";
+    toolbars.forEach((tb) => (tb.hidden = tb.dataset.txTools !== tab));
+    tabBar.querySelectorAll(".tx-tab").forEach((b) => {
+      const on = b.dataset.txTab === tab;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    kickRefresh();
   }
+  tabBar.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-tx-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.txTab;
+    if (tab && tab !== currentTab) setTab(tab);
+  });
 
-  // pobierz torrenty dla jednego device_id
-  async function fetchTorrentsForDevice(devId) {
+  // globalny limit DL
+  speedSel?.addEventListener("change", async () => {
+    const val = Number(speedSel.value || 0); // MB/s
+    const kib = val > 0 ? Math.round(val * 1024) : 0; // KiB/s
+    speedFb.textContent = "Ustawianie limitu…";
     try {
-      const url = new URL(joinUrl(API, "/torrents/status/list"));
-      url.searchParams.set("device_id", devId);
-      url.searchParams.set("page", "1");
-      url.searchParams.set("limit", "200");
-      url.searchParams.set("order", "desc");
-      const r = await window.authFetch(url.toString());
-      const j = await r.json().catch(() => ({}));
-      const arr = Array.isArray(j) ? j : (Array.isArray(j.items) ? j.items : []);
-      // dopisz device_id do każdej pozycji (pewność do akcji)
-      arr.forEach(it => { if (!it.device_id) it.device_id = devId; });
-      return arr;
+      const r = await window.authFetch(joinUrl(API, "/torrent/set-limit"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit_kib_per_s: kib }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      speedFb.textContent = kib > 0 ? `Limit: ${val} MB/s` : "Limit zdjęty";
     } catch {
-      return [];
+      speedFb.textContent = "Błąd ustawiania limitu";
+    } finally {
+      setTimeout(() => (speedFb.textContent = ""), 1600);
     }
-  }
+  });
 
-  // główny loader — agreguje po wszystkich device_id; fallback: bez device_id (serwer może zwrócić całość)
+  // torrenty — WSZYSTKIE urządzenia (bez device_id)
   async function loadTorrents() {
     if (!window.getAuthToken || !window.getAuthToken()) return;
     try {
-      let items = [];
-      const devices = await fetchDeviceIds();
+      const url = new URL(joinUrl(API, "/torrents/status/list"));
+      url.searchParams.set("page", "1");
+      url.searchParams.set("limit", "200");
+      const r = await window.authFetch(url.toString());
+      const data = await r.json().catch(() => ({}));
+      const raw = Array.isArray(data?.items) ? data.items : [];
 
-      if (devices.length) {
-        const jobs = devices.map(dev => fetchTorrentsForDevice(dev));
-        const res = await Promise.allSettled(jobs);
-        items = res.flatMap(x => x.status === "fulfilled" ? x.value : []);
-      } else {
-        // fallback – może backend zwraca wszystko „globalnie”
-        const url = new URL(joinUrl(API, "/torrents/status/list"));
-        url.searchParams.set("page", "1");
-        url.searchParams.set("limit", "200");
-        const r = await window.authFetch(url.toString());
-        const j = await r.json().catch(() => ({}));
-        items = Array.isArray(j) ? j : (Array.isArray(j.items) ? j.items : []);
+      // deduplikacja po info_hash/hash/id
+      const byKey = new Map();
+      for (const it of raw) {
+        const key = it.info_hash || it.hash || it.id || it.name;
+        if (key && !byKey.has(key)) byKey.set(key, it);
       }
+      let items = Array.from(byKey.values());
 
       // pomiń usunięte
-      items = items.filter(it => String(it.state || "").toLowerCase() !== "removed");
+      items = items.filter(
+        (it) => String(it.state || "").toLowerCase() !== "removed"
+      );
 
       // sort
       const s = sortSel?.value || "name";
       if (s === "progress") {
-        items.sort((a, b) =>
-          pct(a.progress ?? a.progress_percent ?? a.percent) -
-          pct(b.progress ?? b.progress_percent ?? b.percent)
-        ).reverse();
+        items
+          .sort(
+            (a, b) =>
+              pct(a.progress ?? a.progress_percent ?? a.percent) -
+              pct(b.progress ?? b.progress_percent ?? b.percent)
+          )
+          .reverse();
       } else if (s === "state") {
-        items.sort((a, b) => String(a.state || "").localeCompare(String(b.state || "")));
+        items.sort((a, b) =>
+          String(a.state || "").localeCompare(String(b.state || ""))
+        );
       } else {
-        items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+        items.sort((a, b) =>
+          String(a.name || "").localeCompare(String(b.name || ""))
+        );
       }
 
       renderTorrents(items);
     } catch (e) {
       console.error("loadTorrents:", e);
-      elTorrents.innerHTML = `<div class="tx-empty">Nie udało się pobrać torrentów.</div>`;
+      elTorrents.innerHTML =
+        `<div class="tx-empty">Nie udało się pobrać torrentów.</div>`;
     }
   }
 
@@ -581,64 +589,69 @@ document.addEventListener("DOMContentLoaded", () => {
       elTorrents.innerHTML = `<div class="tx-empty">Brak aktywnych torrentów.</div>`;
       return;
     }
-    const html = items.map((it) => {
-      const name = it.name || it.display_title || it.title || "Nieznany";
-      const progress = pct(it.progress ?? it.progress_percent ?? it.percent ?? 0);
-      const rate = humanSpeed(
-        it.download_rate_bps ??
-        it.downloadSpeedBps ??
-        it.download_rate ??
-        it.dl_rate ??
-        it.download ?? 0
-      );
-      const state = (it.state || "unknown").toUpperCase();
-      const ihash = it.info_hash || it.hash || it.id || name;
-      const devId = it.device_id || it.device || "";
+    const html = items
+      .map((it) => {
+        const name = it.name || it.display_title || it.title || "Nieznany";
+        const progress = pct(
+          it.progress ?? it.progress_percent ?? it.percent ?? 0
+        );
+        const rate = humanSpeed(
+          it.download_rate_bps ??
+            it.downloadSpeedBps ??
+            it.download_rate ??
+            it.dl_rate ??
+            it.download ??
+            0
+        );
+        const state = (it.state || "unknown").toUpperCase();
+        const ihash = it.info_hash || it.hash || it.id || name;
 
-      return `
-        <article class="tcard" data-ih="${esc(ihash)}" data-dev="${esc(devId)}">
-          <div class="tcard__left">
-            <div class="tcard__title">${esc(name)}</div>
-            <div class="tcard__meta">
-              <span>${progress.toFixed(0)}%</span><span>•</span>
-              <span>${esc(state)}</span><span>•</span>
-              <span>${esc(rate)}</span>
-              ${devId ? `<span>•</span><span class="tbadge"><span class="tbadge__dot"></span>${esc(devId)}</span>` : ""}
-            </div>
-            <div class="tcard__progress"><div class="tcard__bar" style="width:${progress}%;"></div></div>
-          </div>
-          <div class="tcard__right">
-            <button class="tbtn tbtn--ghost"  data-action="pause">Pauza/Wznów</button>
-            <button class="tbtn tbtn--danger" data-action="remove" data-rm="0">Usuń</button>
-            <button class="tbtn tbtn--danger" data-action="remove" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
-          </div>
-        </article>`;
-    }).join("");
+        return `
+      <article class="tcard" data-ih="${esc(ihash)}">
+        <div class="tcard__left">
+          <div class="tcard__title">${esc(name)}</div>
+          <div class="tcard__meta"><span>${progress.toFixed(
+            0
+          )}%</span><span>•</span><span>${esc(
+          state
+        )}</span><span>•</span><span>${esc(rate)}</span></div>
+          <div class="tcard__progress"><div class="tcard__bar" style="width:${progress}%;"></div></div>
+        </div>
+        <div class="tcard__right">
+          <button class="tbtn tbtn--ghost"  data-action="pause"  data-ih="${esc(
+            ihash
+          )}">Pauza/Wznów</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${esc(
+            ihash
+          )}" data-rm="0">Usuń</button>
+          <button class="tbtn tbtn--danger" data-action="remove" data-ih="${esc(
+            ihash
+          )}" data-rm="1" title="Usuń z danymi">Usuń + dane</button>
+        </div>
+      </article>`;
+      })
+      .join("");
     if (elTorrents.innerHTML !== html) elTorrents.innerHTML = html;
   }
 
-  // akcje: przekaż device_id do endpointów toggle/remove (żeby trafiło w konkretny klient)
   elTorrents?.addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
-    const card = btn.closest(".tcard");
-    const ih = card?.dataset.ih || "";
-    const dev = card?.dataset.dev || "";
+    const ih = btn.dataset.ih;
     const action = btn.dataset.action;
-
     try {
       if (action === "pause") {
         await window.authFetch(joinUrl(API, "/torrent/toggle"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ torrent_id: ih, device_id: dev || undefined }),
+          body: JSON.stringify({ torrent_id: ih }),
         });
       } else if (action === "remove") {
         const rm = btn.dataset.rm === "1";
         await window.authFetch(joinUrl(API, "/torrent/remove"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ torrent_id: ih, remove_data: rm, device_id: dev || undefined }),
+          body: JSON.stringify({ torrent_id: ih, remove_data: rm }),
         });
       }
       setTimeout(loadTorrents, 300);
@@ -646,5 +659,93 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error(err);
     }
   });
-
   sortSel?.addEventListener("change", loadTorrents);
+
+  // kolejka
+  async function loadQueue() {
+    if (!window.getAuthToken || !window.getAuthToken()) return;
+    try {
+      const url = new URL(joinUrl(API, "/queue/list"));
+      url.searchParams.set("status", qStatusSel?.value || "all");
+      url.searchParams.set("page", "1");
+      url.searchParams.set("limit", "50");
+      const r = await window.authFetch(url.toString());
+      const data = await r.json().catch(() => ({}));
+      renderQueue(Array.isArray(data?.items) ? data.items : []);
+    } catch (e) {
+      console.error("loadQueue:", e);
+      elQueue.innerHTML =
+        `<div class="tx-empty">Nie udało się pobrać kolejki.</div>`;
+    }
+  }
+
+  function renderQueue(items) {
+    if (!items.length) {
+      elQueue.innerHTML = `<div class="tx-empty">Brak elementów w kolejce.</div>`;
+      return;
+    }
+    const html = items
+      .map((it) => {
+        const title =
+          it.display_title ||
+          it.payload?.display_title ||
+          it.payload?.title ||
+          it.kind ||
+          "Zadanie";
+        const poster =
+          it.image_url ||
+          it.payload?.image_url ||
+          it.payload?.poster ||
+          it.payload?.thumb ||
+          "https://via.placeholder.com/300x450?text=Poster";
+        const when = it.created_at ? new Date(it.created_at).toLocaleString() : "";
+        return `
+      <article class="qcard" data-qid="${it.id}">
+        <img class="qcard__img" src="${esc(
+          poster
+        )}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+        <div>
+          <div class="qcard__title">${esc(title)}</div>
+          <div class="qcard__meta"><span>ID: ${it.id}</span><span>•</span><span>Dodano: ${esc(
+            when
+          )}</span>${it.kind ? `<span>•</span><span>${esc(it.kind)}</span>` : ""}</div>
+        </div>
+        <div class="qcard__right"><button class="tbtn tbtn--danger" data-qdel="${it.id}">Usuń</button></div>
+      </article>`;
+      })
+      .join("");
+    if (elQueue.innerHTML !== html) elQueue.innerHTML = html;
+  }
+
+  elQueue?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-qdel]");
+    if (!btn) return;
+    try {
+      await window.authFetch(joinUrl(API, `/queue/${btn.dataset.qdel}`), {
+        method: "DELETE",
+      });
+      setTimeout(loadQueue, 200);
+    } catch (err) {
+      console.error(err);
+    }
+  });
+  qStatusSel?.addEventListener("change", loadQueue);
+
+  // auto-refresh tylko gdy zalogowany + tylko aktywna zakładka
+  function tick() {
+    currentTab === "torrents" ? loadTorrents() : loadQueue();
+  }
+  function kickRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (!window.getAuthToken || !window.getAuthToken()) return;
+    tick();
+    refreshTimer = setInterval(tick, 3000);
+  }
+  window.addEventListener("pf:authorized", kickRefresh);
+  window.addEventListener("pf:unauthorized", () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+  });
+
+  // start na Torrenty
+  setTab("torrents");
+});
