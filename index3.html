@@ -326,6 +326,51 @@
 </section>
 
       <section id="section-search" role="tabpanel" aria-hidden="true"></section>
+  <div class="sx-container">
+    <!-- Sticky pasek: logo + przełączniki -->
+    <div class="sx-stickybar">
+      <div class="sx-brand">
+        <img src="/static/logo.svg" alt="PiotrFlix" class="sx-logo" onerror="this.style.display='none'">
+        <span class="sx-brand-fallback">PiotrFlix</span>
+      </div>
+
+      <div class="sx-tabs" role="tablist" aria-label="Tryb wyszukiwania">
+        <button class="sx-tab is-active" data-mode="yts_html" role="tab" aria-selected="true">Filmy</button>
+        <button class="sx-tab" data-mode="tpb_movies" role="tab" aria-selected="false">Filmy+</button>
+        <button class="sx-tab" data-mode="tpb_series" role="tab" aria-selected="false">Seriale</button>
+      </div>
+    </div>
+
+    <!-- Formularz: wspólne pole + jakość (tylko YTS) -->
+    <form class="sx-form" id="sx-form" autocomplete="off">
+      <div class="sx-field">
+        <label for="sx-q" class="sx-label">Wyszukaj tytuł</label>
+        <input id="sx-q" class="sx-input" type="search" placeholder="np. Interstellar / The Office..." inputmode="search">
+      </div>
+
+      <div class="sx-group">
+        <div class="sx-field sx-quality" id="sx-quality-wrap" aria-hidden="false">
+          <label for="sx-quality" class="sx-label">Jakość (YTS)</label>
+          <select id="sx-quality" class="sx-select">
+            <option value="">Dowolna</option>
+            <option value="720p">720p</option>
+            <option value="1080p" selected>1080p</option>
+            <option value="2160p">2160p</option>
+          </select>
+        </div>
+
+        <button type="submit" class="tbtn sx-btn-search" aria-label="Szukaj">Szukaj</button>
+      </div>
+    </form>
+
+    <!-- Wyniki -->
+    <div id="sx-results" class="sx-list" aria-live="polite" aria-busy="false"></div>
+  </div>
+
+  <!-- Toast (auto-znikający) -->
+  <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
+</section>
+
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
     </main>
