@@ -1077,12 +1077,39 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   const esc = s => String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
 
+  const parseDeleteAt = (val)=>{
+    if(val==null || val==='') return null;
+    if(typeof val === 'number'){ const n=Number(val); if(!isFinite(n)) return null; return n < 1e12 ? Math.round(n*1000) : Math.round(n); }
+    const s = String(val).trim(); if(!s) return null;
+    const asNum = Number(s.replace(',','.')); if(isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum*1000) : Math.round(asNum);
+    const t = Date.parse(s); return isNaN(t) ? null : t;
+  };
+  const fmtDateShort = (ms)=>{ if(!ms) return ''; try{ return new Date(ms).toLocaleString(); }catch{ return ''; } };
+  const fmtTTL = (diffMs)=>{
+    if(diffMs<=0) return 'do usunięcia';
+    const s = Math.floor(diffMs/1000);
+    const d = Math.floor(s/86400);
+    const h = Math.floor((s%86400)/3600);
+    const m = Math.floor((s%3600)/60);
+    if(d>=2) return `za ${d} dni`;
+    if(d===1) return `za 1 dzień`;
+    if(h>=1) return `za ${h} h`;
+    return `za ${m} min`;
+  };
+  const delClass = (diffMs)=>{
+    if(diffMs<=0) return 'danger';
+    const d = diffMs/86400000;
+    if(d<=1) return 'warn';
+    return 'ok';
+  };
+
   // state
   let RAW = { films:[], series:[] };
   let activeKind = 'movies';
   let selected = null;
   let currentClientId = localStorage.getItem('pf_cast_client') || '';
   let statusTimer = null;
+  let badgeTimer = null;
 
   // canon
   function canon(r){
@@ -1095,10 +1122,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
     prog = clamp01(prog>1.01 ? prog/100 : prog);
     const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
+
+    // DELETE: przyjmujemy deleteAt/delete_at z backendu
+    const delAt = parseDeleteAt(r.deleteAt ?? r.delete_at ?? null);
+    const favorite = !!(r.favorite);
+
     return { id, title, poster, kind, pos, dur, prog,
-      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null };
+      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null,
+      deleteAt: delAt, favorite: favorite === true };
   }
-  const ep = it => it.kind==='series' ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
+  const ep = it => it.kind==='series'
+    ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
 
   // render
   function render(){
@@ -1114,20 +1148,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     setText(infoEl, `Pozycji: ${arr.length}`);
 
+    // odświeżanie kapsułek
+    if (badgeTimer){ clearInterval(badgeTimer); badgeTimer=null; }
+
     const html = arr.map(it=>{
       const pct = Math.round((it.prog||0)*100);
       const year = it.year? ` (${it.year})` : '';
-      const sub = it.kind + (it.kind==='series' && it.season!=null && it.episode!=null ? ` · ${ep(it)}`:'');
+      // bez "movie/series" — tylko ewentualnie SxxExx
+      const sub = (it.kind==='series' && it.season!=null && it.episode!=null) ? ep(it) : '';
+
+      // kapsułka i data
+      const showDel = !!(it.deleteAt && !it.favorite);
+      const diff = showDel ? (it.deleteAt - Date.now()) : 0;
+      const delBadge = showDel ? `<div class="del-badge ${delClass(diff)}" data-delete-at="${it.deleteAt}">${fmtTTL(diff)}</div>` : '';
+      const delDate  = showDel ? ` · usunie: ${fmtDateShort(it.deleteAt)}` : '';
+
       return `
       <article class="av-card">
         <div class="poster">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
-          <div class="vprog"><span style="width:${pct}%;"></span></div>
+          ${delBadge}
+          <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
         </div>
         <div class="body">
           <div class="title">${esc(it.title)}${year}</div>
-          <div class="meta">${sub}</div>
-          <div class="tiny">Postęp: ${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
+          ${sub?`<div class="meta">${sub}</div>`:''}
+          <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+            <span class="av-bar" style="width:${pct}%;"></span>
+          </div>
+          <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}${delDate}</div>
           <div class="actions">
             <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
@@ -1135,6 +1184,19 @@ document.addEventListener("DOMContentLoaded", () => {
       </article>`;
     }).join('');
     setHTML(listEl, html);
+
+    // auto-refresh "za X dni" co 30 s
+    const refreshBadges = ()=>{
+      listEl.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
+        const ts = Number(el.getAttribute('data-delete-at')||'');
+        if(!isFinite(ts)) return;
+        const diff = ts - Date.now();
+        el.textContent = fmtTTL(diff);
+        el.classList.remove('ok','warn','danger');
+        el.classList.add(delClass(diff));
+      });
+    };
+    badgeTimer = setInterval(refreshBadges, 30000);
 
     // podłącz Cast do wygenerowanych kart
     listEl.querySelectorAll('.btn--cast').forEach(b=>{
@@ -1212,15 +1274,15 @@ document.addEventListener("DOMContentLoaded", () => {
   castStart?.addEventListener('click', async (e)=>{
     e.preventDefault();
     const cid = castSel?.value || '';
-    if (!cid){ return; }
-    if (!selected || !/^\d+$/.test(String(selected.id||''))){ return; }
+    if (!cid) return;
+    if (!selected || !/^\d+$/.test(String(selected.id||''))) return;
     try{
       await apiJson('/cast/start', {method:'POST', body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||'' }});
-      // pokaż player
-      playerBox.hidden = false;
+      // pokaż player DOPIERO po starcie
+      if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || '';
       startStatusLoop();
-    }catch(_){}
+    }catch(_){/* opcjonalnie toast */}
     finally { dlg?.close?.(); }
   });
 
@@ -1261,10 +1323,14 @@ document.addEventListener("DOMContentLoaded", () => {
   btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
     try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
     stopStatusLoop();
+    // ukryj player po stop
+    if (playerBox) playerBox.hidden = true;
   });
 
   // boot
   function boot(){
+    // player DOMYŚLNIE UKRYTY
+    if (playerBox) playerBox.hidden = true;
     setTab('movies');
     loadAvailable();
   }
