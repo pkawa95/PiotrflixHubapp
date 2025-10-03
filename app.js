@@ -1018,15 +1018,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ==== DOSTĘPNE + CAST (robust) ========================================= */
+/* ==== DOSTĘPNE v2 (sync/available-first) =================================== */
 (function(){
   const ready = (fn)=> (document.readyState==='loading'
     ? document.addEventListener('DOMContentLoaded', fn, {once:true})
     : fn());
 
-  const PH = 'https://placehold.co/300x450?text=No+Poster';
-
-  // small helpers
+  // ── helpers ────────────────────────────────────────────────────────────────
   async function tryJson(path, method='GET'){
     try{
       const res = await api(path, {method});
@@ -1039,35 +1037,49 @@ document.addEventListener("DOMContentLoaded", () => {
   const _bool=x=>!!(x===true||x==='1'||x===1||String(x).toLowerCase()==='true');
   function _parseDeleteAt(v){ if(v==null||v==='')return null; const n=Number(String(v).replace(',','.')); if(isFinite(n))return n<1e12?Math.round(n*1000):Math.round(n); const t=Date.parse(String(v)); return isNaN(t)?null:t; }
 
+  // ── DOM refs z istniejącej strony ─────────────────────────────────────────
+  const $ = id=>document.getElementById(id);
+  const DOM = {
+    grid: $('availableGrid'),
+    info: $('avInfo'),
+    q: $('avQuery'),
+    kind: $('avKind'),
+    sort: $('avSort'),
+    btn: $('avRefresh'),
+    auto: $('avAuto')
+  };
+
+  // ── state ─────────────────────────────────────────────────────────────────
+  let _raw=[], _index={}, _posterByPlexId={}, _badgeTimer=null;
+
+  // ── endpoint detection: prefer /sync/available ────────────────────────────
   async function detectAvailableEndpoint(){
-    const cached = localStorage.getItem('pf_available_ep');
+    const cached = localStorage.getItem('pf_available_ep_v2');
     if(cached){ try{ return JSON.parse(cached);}catch{} }
 
-    const candidates = [
-      {u:'/me/available',        mode:'split'},
-      {u:'/available',           mode:'flat'},
-      {u:'/library/available',   mode:'flat'},
-      {u:'/media/available',     mode:'flat'},
-      {u:'/available/list',      mode:'flat'},
-      {u:'/content/available',   mode:'flat'},
-    ];
-
-    for(const c of candidates){
-      const j = await tryJson(c.u,'GET') || await tryJson(c.u,'POST');
-      if(!j) continue;
-      const looks =
-        Array.isArray(j) || Array.isArray(j?.items) ||
-        Array.isArray(j?.films) || Array.isArray(j?.movies) ||
-        Array.isArray(j?.series) || Array.isArray(j?.shows);
-      if(looks){
-        const mode = Array.isArray(j) ? 'flat' : (j.items?'items':'split');
-        const ep = {u:c.u, mode};
-        localStorage.setItem('pf_available_ep', JSON.stringify(ep));
+    // 1) “merged” payloady (results + progress)
+    const merged = ['/sync/available','/available','/library/available','/library'];
+    for(const u of merged){
+      const j = await tryJson(u,'GET');
+      if(j && Array.isArray(j.results)){
+        const ep = {u, mode:'merged'};
+        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
         return ep;
       }
     }
 
-    // pair ( osobne movies/series )
+    // 2) stare /me/available (films/series)
+    const splitCand = ['/me/available'];
+    for(const u of splitCand){
+      const j = await tryJson(u,'GET');
+      if(j && (Array.isArray(j.films) || Array.isArray(j.series))){
+        const ep = {u, mode:'split'};
+        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
+        return ep;
+      }
+    }
+
+    // 3) para endpoints (movies|series)
     const pairs = [
       ['/me/movies','/me/series'],
       ['/available/movies','/available/series'],
@@ -1075,102 +1087,91 @@ document.addEventListener("DOMContentLoaded", () => {
       ['/library/movies','/library/shows'],
     ];
     for(const [m,s] of pairs){
-      const jm = await tryJson(m,'GET') || await tryJson(m,'POST');
-      const js = await tryJson(s,'GET') || await tryJson(s,'POST');
+      const jm = await tryJson(m,'GET');
+      const js = await tryJson(s,'GET');
       if((Array.isArray(jm)&&jm.length) || (Array.isArray(js)&&js.length)){
         const ep = {u:`${m}|${s}`, mode:'pair'};
-        localStorage.setItem('pf_available_ep', JSON.stringify(ep));
+        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
         return ep;
       }
     }
-    return {u:'/me/available', mode:'split'};
+
+    // default
+    return {u:'/sync/available', mode:'merged'};
   }
 
-  function normalize(payload, mode){
-    if(mode==='split'){
-      const films  = payload?.films  ?? payload?.movies ?? [];
-      const series = payload?.series ?? payload?.shows  ?? [];
-      return {films:Array.isArray(films)?films:[], series:Array.isArray(series)?series:[]};
-    }
-    if(mode==='items'){
-      const arr = Array.isArray(payload?.items) ? payload.items : [];
-      return {films:arr, series:[]};
-    }
-    if(mode==='flat'){
-      const arr = Array.isArray(payload) ? payload : (Array.isArray(payload?.items)?payload.items:[]);
-      return {films:arr, series:[]};
-    }
-    return {films:[], series:[]};
-  }
-
+  // ── kanonizacja jednego itemu (obsługuje merged/split) ────────────────────
   function canon(r){
-    const title  = _first(r,['display_title','title','name'],'—');
-    const poster = _first(r,['image_url','poster','poster_url','thumb','cover','cover_url'],PH);
+    const title  = _first(r, ['display_title','title','name'],'—');
+    const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
     const kindRaw = (_first(r,['kind','type','mtype','media_type'],'')||'').toLowerCase();
     const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
-    const kind = isSeries ? 'series':'movie';
-    const year = _first(r,['year','release_year','y'],null);
+    const kind = isSeries ? 'series' : 'movie';
+    const year = _first(r,['year','release_year','y'], null);
 
-    let pos=null,dur=null;
-    if(r.position_ms!=null) pos=_num(r.position_ms)/1000;
-    else if(r.view_offset_ms!=null) pos=_num(r.view_offset_ms)/1000;
-    else pos=_num(_first(r,['watched_seconds','position','pos'],0));
-    if(r.duration_ms!=null) dur=_num(r.duration_ms)/1000;
-    else                    dur=_num(_first(r,['duration','runtime','total_seconds'],0));
+    // position/duration (ms lub s)
+    let pos = null, dur = null;
+    if (r.position_ms != null) pos = _num(r.position_ms)/1000;
+    else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
+    else if (r.watched_seconds != null) pos = _num(r.watched_seconds);
+    else pos = _num(_first(r,['position','watched_seconds','pos'],0));
 
-    let prog=null;
-    const rawProg=_first(r,['progress','ratio'],null);
-    const rawPerc=_first(r,['percent'],null);
-    if(rawProg!=null&&rawProg!==''){let v=Number(String(rawProg).replace(',','.')); if(isFinite(v)) prog=v>1.01?v/100:v;}
-    else if(rawPerc!=null&&rawPerc!==''){const v=parseFloat(String(rawPerc).replace('%','').replace(',','.')); if(isFinite(v)) prog=v/100;}
-    if(prog==null) prog=(isFinite(pos)&&isFinite(dur)&&dur>0)?Math.max(0,Math.min(1,pos/dur)):0;
+    if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
+    else if (r.total_ms != null) dur = _num(r.total_ms)/1000;
+    else if (r.runtime_ms != null) dur = _num(r.runtime_ms)/1000;
+    else dur = _num(_first(r,['duration','runtime','total_seconds'],0));
 
-    const season=_num(_first(r,['season','s'],null),null);
-    const episode=_num(_first(r,['episode','e'],null),null);
-    const updated_at=_first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'],null);
-
-    let idCand=_first(r,['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'],null);
-    let id;
-    if(idCand && /^\d+$/.test(String(idCand))) id=String(idCand);
-    else{
-      const basis=(title||'')+'|'+(year||'')+'|'+(season??'')+'|'+(episode??'');
-      id=btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
+    // progress
+    let prog = null;
+    const rawProg = _first(r,['progress','ratio'], null);
+    const rawPerc = _first(r,['percent'], null);
+    if (rawProg != null && rawProg !== '') {
+      let v = Number(String(rawProg).replace(',','.'));
+      if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;
+    } else if (rawPerc != null && rawPerc !== '') {
+      const s = String(rawPerc).trim().replace('%','').replace(',','.');
+      const v = parseFloat(s);
+      if (isFinite(v)) prog = v/100;
+    }
+    if (prog == null) {
+      if (isFinite(pos) && isFinite(dur) && dur > 0) prog = Math.max(0, Math.min(1, pos/dur));
+      else prog = 0;
+    } else {
+      prog = Math.max(0, Math.min(1, prog));
     }
 
-    const size_bytes=_num(_first(r,['size_bytes','filesize','size'],0));
-    const deleteAt=_parseDeleteAt(_first(r,['deleteAt','delete_at'],null));
-    const favorite=_bool(_first(r,['favorite'],false));
+    const season     = _num(_first(r,['season','s'], null), null);
+    const episode    = _num(_first(r,['episode','e'], null), null);
+    const updated_at = _first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
 
-    return { id,title,poster,kind,year,
-      duration:isFinite(dur)?dur:0, position:isFinite(pos)?pos:0, progress:prog,
-      season,episode,updated_at,size_bytes,deleteAt,favorite
+    // ID – preferuj plex ratingKey; inaczej stabilne b64
+    let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash','path'], null);
+    let id;
+    if(idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
+    else {
+      const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'') + '|' + (idCand||'');
+      id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
+    }
+
+    const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
+    const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
+    const favorite   = _bool(_first(r, ['favorite'], false));
+
+    return {
+      id, title, poster, kind, year,
+      duration: isFinite(dur) ? dur : 0,
+      position: isFinite(pos) ? pos : 0,
+      progress: prog,
+      season, episode, updated_at, size_bytes,
+      deleteAt, favorite
     };
   }
 
+  // ── UI bits ────────────────────────────────────────────────────────────────
   const epLabel = it => (it.kind!=='series')?'':`S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
-  const bytes = (n)=>{n=Number(n||0);const u=['B','KiB','MiB','GiB','TiB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(n<10?2:1)} ${u[i]}`;}
+  const bytes = n=>{n=Number(n||0);const u=['B','KiB','MiB','GiB','TiB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(n<10?2:1)} ${u[i]}`;}
   const ttl  = ms=>{if(ms<=0)return'do usunięcia';const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);if(d>=2)return`za ${d} dni`;if(d===1)return'za 1 dzień';if(h>=1)return`za ${h} h`;return`za ${m} min`;};
   const cls  = ms=> (ms<=0?'danger':((ms/86400000)<=1?'warn':'ok'));
-
-  // state
-  let DOM={}, _raw=[], _index={}, _posterByPlexId={}, _badgeTimer=null;
-
-  function wire(){
-    const $ = id=>document.getElementById(id);
-    DOM = {
-      grid: $('availableGrid'), info: $('avInfo'),
-      q: $('avQuery'), kind:$('avKind'), sort:$('avSort'),
-      btn:$('avRefresh'), auto:$('avAuto')
-    };
-    DOM.btn && (DOM.btn.onclick = load);
-    DOM.auto && (DOM.auto.onclick = function(){
-      if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; }
-      else { this._t=setInterval(load,10000); this.textContent='Auto: ON'; load(); }
-    });
-    DOM.q && DOM.q.addEventListener('input', ()=>render(_raw));
-    DOM.kind && DOM.kind.addEventListener('change', ()=>render(_raw));
-    DOM.sort && DOM.sort.addEventListener('change', ()=>render(_raw));
-  }
 
   function render(list){
     if(_badgeTimer){ clearInterval(_badgeTimer); _badgeTimer=null; }
@@ -1188,6 +1189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(k!=='all') items=items.filter(x=>x.kind===k);
     if(q) items=items.filter(x=>(x.title||'').toLowerCase().includes(q));
 
+    // mapy plakatów po ratingKey (dla sesji CAST)
     _posterByPlexId={};
     for(const raw of list){
       const pid=[raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key].find(v=>v!=null&&/^\d+$/.test(String(v)));
@@ -1208,7 +1210,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const tip=/^\d+$/.test(String(it.id))?`Cast ratingKey=${it.id}`:`Wpisz ratingKey przy starcie`;
       return `<div class="av-card">
         <div class="poster">
-          <img src="${it.poster||PH}" alt="">
+          <img src="${it.poster||''}" alt="">
           ${badge}
           <div class="vprog"><span style="width:${pct}%;"></span></div>
         </div>
@@ -1234,50 +1236,68 @@ document.addEventListener("DOMContentLoaded", () => {
     },30000);
   }
 
+  // ── loader ────────────────────────────────────────────────────────────────
   async function load(){
-    DOM.info && (DOM.info.textContent='Ładuję…');
-    DOM.grid && (DOM.grid.innerHTML='');
+    if(DOM.info) DOM.info.textContent = 'Ładuję…';
+    if(DOM.grid) DOM.grid.innerHTML = '';
     const ep = await detectAvailableEndpoint();
     console.info('[Dostępne] endpoint:', ep);
 
     try{
-      if(ep.mode==='pair'){
+      if(ep.mode==='merged'){
+        const j = await tryJson(ep.u,'GET');            // {results, updated_at, error_hint?}
+        _raw = Array.isArray(j?.results) ? j.results : [];
+        if (j?.error_hint && DOM.info) DOM.info.textContent = `Pozycji: ${_raw.length} · hint: ${j.error_hint}`;
+        else if (DOM.info) DOM.info.textContent = `Pozycji: ${_raw.length}`;
+      }else if(ep.mode==='pair'){
         const [m,s]=ep.u.split('|');
-        const jm = await tryJson(m,'GET') || await tryJson(m,'POST') || [];
-        const js = await tryJson(s,'GET') || await tryJson(s,'POST') || [];
+        const jm = await tryJson(m,'GET') || [];
+        const js = await tryJson(s,'GET') || [];
         _raw = [].concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
-      }else{
-        const j = await tryJson(ep.u,'GET') || await tryJson(ep.u,'POST') || {};
-        const ns = normalize(j, ep.mode);
-        _raw = (ns.films||[]).concat(ns.series||[]);
+      }else{ // split
+        const j = await tryJson(ep.u,'GET') || {};
+        const films  = Array.isArray(j?.films)  ? j.films  : [];
+        const series = Array.isArray(j?.series) ? j.series : [];
+        _raw = films.concat(series);
       }
+
       console.log('[Dostępne] items:', _raw.length, _raw);
       render(_raw);
-      return _raw; // ważne: pozwala await/then
+      return _raw; // pozwala await/then w DevTools
     }catch(e){
-      DOM.info && (DOM.info.innerHTML=`<span class="err">${e.message||e}</span>`);
+      if(DOM.info) DOM.info.innerHTML = `<span class="err">${e.message||e}</span>`;
       console.error('[Dostępne] error:', e);
       _raw=[]; render(_raw);
       return _raw;
     }
   }
 
-  // export do konsoli
-  window.piotrflixAvailable = {
-    endpoint: detectAvailableEndpoint,
-    reload:   load,
-    get last(){ return _raw; }
-  };
-
-  // CAST z karty
+  // ── CAST: metoda wywoływana z kart ────────────────────────────────────────
   window.castFromAvailable = async (canonId)=>{
     const raw = _index[canonId] || {};
-    let itemId = [raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
+    let itemId = [raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key,raw?.id]
+      .find(v=>v!=null && /^\d+$/.test(String(v)));
     if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
     if(!itemId) itemId = prompt('Podaj Plex ratingKey (item_id):','');
     if(!itemId || !/^\d+$/.test(String(itemId))) { alert('Nieprawidłowy item_id.'); return; }
     if (typeof window.castStart === 'function') await window.castStart(itemId);
   };
 
-  ready(()=>{ wire(); load(); });
+  // ── export + podpięcie guzików ────────────────────────────────────────────
+  window.piotrflixAvailable = {
+    endpoint: detectAvailableEndpoint,
+    reload:   load,
+    get last(){ return _raw; }
+  };
+
+  if (DOM.btn)  DOM.btn.onclick = load;
+  if (DOM.auto) DOM.auto.onclick = function(){
+    if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; }
+    else { this._t=setInterval(load,10000); this.textContent='Auto: ON'; load(); }
+  };
+  DOM.q    && DOM.q.addEventListener('input', ()=>render(_raw));
+  DOM.kind && DOM.kind.addEventListener('change', ()=>render(_raw));
+  DOM.sort && DOM.sort.addEventListener('change', ()=>render(_raw));
+
+  ready(load);
 })();
