@@ -1018,3 +1018,282 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
+(() => {
+  // ===== Helpers =====
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // API helper (JSON)
+  async function api(path, opts={}) {
+    const o = Object.assign({headers:{'Content-Type':'application/json'}}, opts);
+    const r = await fetch(path, o);
+    if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    const j = await r.json().catch(()=>({}));
+    return j;
+  }
+
+  // Endpoints resilience (aliasy)
+  const AVAILABLE_ENDPOINTS = ["/available", "/library/available", "/sync/available", "/library"];
+  async function fetchAvailable() {
+    for (const ep of AVAILABLE_ENDPOINTS) {
+      try { return await api(ep, {method:"GET"}); }
+      catch(_) { /* try next */ }
+    }
+    throw new Error("Brak odpowiedzi z /available");
+  }
+
+  // Normalizacja pól z różnych backendów
+  function normItem(x){
+    const id = x.item_id || x.id || x.ratingKey || x.key || String(Math.random());
+    const title = x.title || x.name || x.display_title || "—";
+    const image = x.image || x.poster || x.image_url || x.thumb || "";
+    const dur = x.duration_ms ?? (x.duration ? (x.duration*1000) : (x.meta?.duration_ms)) ?? 0;
+    const prog = x.progress_ms ?? (x.progress ? (x.progress*1000) : (x.meta?.progress_ms)) ?? 0;
+    const pct = dur > 0 ? Math.min(100, Math.round((prog/dur)*100)) : 0;
+    return { id, title, image, duration_ms: dur, progress_ms: prog, pct, raw:x };
+  }
+
+  // Ustalenie tablicy filmów/seriali ze zwrotki /available (różne kształty)
+  function pickItemsByType(json, type){
+    // typowe: {films:[], series:[]} lub {movies:[], series:[]} albo płaska []
+    if (Array.isArray(json)) return json;
+    if (!json || typeof json !== 'object') return [];
+    const m = json.films || json.movies || json.movie || json.film || [];
+    const s = json.series || json.shows || json.tv || [];
+    return (type === "series") ? s : m;
+  }
+
+  // Time format mm:ss / hh:mm:ss
+  function fmt(ms){
+    const s = Math.max(0, Math.floor(ms/1000));
+    const h = Math.floor(s/3600);
+    const m = Math.floor((s%3600)/60);
+    const ss = s%60;
+    return (h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
+                : `${m}:${String(ss).padStart(2,'0')}`);
+  }
+
+  // ====== UI refs ======
+  const root = $("#section-available");
+  const listEl = $("#avail-list");
+  const emptyEl = $("#avail-empty");
+
+  const tabs = $$(".a-tab", root);
+  let currentType = "movie";
+
+  // Cast modal
+  const modal = $("#cast-modal");
+  const devSel = $("#cast-device");
+  const castStartBtn = $("#cast-start");
+  const castCancelBtn = $("#cast-cancel");
+  let modalItem = null;
+
+  // Mini player
+  const player = $("#mini-player");
+  const mPoster = $("#mposter");
+  const mTitle  = $("#mtitle");
+  const mSeek   = $("#mseek");
+  const mCur    = $("#mcur");
+  const mTot    = $("#mtot");
+  const mPlay   = $("#mplay");
+  const mStop   = $("#mstop");
+  let mp = { client_id:null, item:null, isPlaying:false, duration:0, cur:0, poll:null, seeking:false };
+
+  // ====== Render list ======
+  function cardTemplate(it){
+    const id = CSS.escape(String(it.id));
+    return `
+      <article class="a-card" id="a_${id}">
+        <img class="a-card__img" src="${it.image||''}" alt="">
+        <div class="a-card__body">
+          <h3 class="a-card__title">${it.title}</h3>
+          <div class="a-progress">
+            <div class="a-bar"><div class="a-bar__in" style="width:${it.pct}%"></div></div>
+            <div class="a-pct">${it.pct}%</div>
+          </div>
+        </div>
+        <div class="a-actions">
+          <button class="a-cast" data-id="${it.id}">Cast</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function render(items){
+    if(!items.length){
+      listEl.innerHTML = "";
+      emptyEl.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+    listEl.innerHTML = items.map(cardTemplate).join("");
+    // hook cast buttons
+    $$(".a-cast", listEl).forEach(btn=>{
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        const it = items.find(x=>String(x.id)===String(id));
+        if(it) openCastModal(it);
+      });
+    });
+  }
+
+  // ====== Load available ======
+  async function loadAvailable(){
+    listEl.innerHTML = "";
+    emptyEl.hidden = true;
+
+    try{
+      const json = await fetchAvailable();
+      const arr = pickItemsByType(json, currentType).map(normItem);
+      render(arr);
+    }catch(e){
+      emptyEl.textContent = "Błąd pobierania dostępnych pozycji.";
+      emptyEl.hidden = false;
+      console.warn(e);
+    }
+  }
+
+  // tabs
+  tabs.forEach(t=>{
+    t.addEventListener("click", ()=>{
+      tabs.forEach(x=>x.classList.remove("is-active"));
+      t.classList.add("is-active");
+      currentType = t.getAttribute("data-type") || "movie";
+      loadAvailable();
+    });
+  });
+
+  // ====== Cast modal ======
+  async function openCastModal(item){
+    modalItem = item;
+    // Załaduj listę urządzeń
+    devSel.innerHTML = `<option value="" disabled selected>Ładowanie...</option>`;
+    showModal(true);
+    try{
+      const j = await api("/cast/players", {method:"GET"});
+      const list = j.players || j || [];
+      if(!Array.isArray(list) || !list.length){
+        devSel.innerHTML = `<option value="">Brak urządzeń</option>`;
+        return;
+      }
+      devSel.innerHTML = list.map(p=>{
+        const id = p.client_id || p.id || p.identifier || p.name;
+        const name = p.title || p.name || p.product || id;
+        return `<option value="${id}">${name}</option>`;
+      }).join("");
+    }catch(e){
+      devSel.innerHTML = `<option value="">Błąd pobierania urządzeń</option>`;
+    }
+  }
+  function showModal(v){ modal.hidden = !v; modal.setAttribute("aria-hidden", String(!v)); }
+
+  castCancelBtn.addEventListener("click", ()=> showModal(false));
+
+  castStartBtn.addEventListener("click", async ()=>{
+    const client_id = devSel.value;
+    if(!client_id || !modalItem) return;
+    try{
+      const body = { item_id: modalItem.id, client_id, client_name: "PIOTRFLIX Web" };
+      await api("/cast/start?debug=0", {method:"POST", body: JSON.stringify(body)});
+      showModal(false);
+      startMiniPlayer(client_id, modalItem);
+    }catch(e){
+      alert("Nie udało się uruchomić castu.");
+      console.warn(e);
+    }
+  });
+
+  // ====== Mini player logic ======
+  function startMiniPlayer(client_id, item){
+    mp.client_id = client_id;
+    mp.item = item;
+    mp.cur = item.progress_ms||0;
+    mp.duration = Math.max(item.duration_ms||0, 1);
+
+    mPoster.src = item.image || "";
+    mTitle.textContent = item.title || "—";
+    mTot.textContent = fmt(mp.duration);
+    mCur.textContent = fmt(mp.cur);
+    mSeek.value = String(Math.floor((mp.cur/mp.duration)*1000));
+
+    player.hidden = false;
+
+    // Poll co 1s
+    clearInterval(mp.poll);
+    mp.poll = setInterval(pollStatus, 1000);
+  }
+
+  async function pollStatus(){
+    if(!mp.client_id) return;
+    try{
+      const j = await api(`/cast/status?client_id=${encodeURIComponent(mp.client_id)}&debug=0`, {method:"GET"});
+      const s = j.status || j || {};
+      const isPlaying = !!(s.is_playing ?? (s.state==="playing"));
+
+      const dur = s.duration_ms ?? s.duration ?? mp.duration;
+      const cur = s.progress_ms ?? s.position_ms ?? s.viewOffset ?? mp.cur;
+
+      mp.isPlaying = isPlaying;
+      mp.duration = Math.max(dur||mp.duration,1);
+      mp.cur = Math.min(Math.max(0, cur||0), mp.duration);
+
+      mTot.textContent = fmt(mp.duration);
+      if(!mp.seeking){
+        mCur.textContent = fmt(mp.cur);
+        mSeek.value = String(Math.floor((mp.cur/mp.duration)*1000));
+      }
+    }catch(e){
+      // jeśli urządzenie zniknęło — schowaj UI
+      console.warn("cast status error", e);
+    }
+  }
+
+  // Seek (mouseup/touchend = commit)
+  let seekDown = false;
+  const commitSeek = async () => {
+    if(!seekDown) return;
+    seekDown = false; mp.seeking = false;
+    const ratio = Number(mSeek.value)/1000;
+    const seek_ms = Math.floor(ratio * mp.duration);
+    try{
+      await api("/cast/cmd", {method:"POST", body: JSON.stringify({client_id: mp.client_id, cmd:"seek", seek_ms})});
+      mp.cur = seek_ms;
+      mCur.textContent = fmt(mp.cur);
+    }catch(e){ console.warn(e); }
+  };
+  mSeek.addEventListener("input", ()=>{
+    mp.seeking = true;
+    const ratio = Number(mSeek.value)/1000;
+    mCur.textContent = fmt(Math.floor(ratio*mp.duration));
+  });
+  mSeek.addEventListener("pointerdown", ()=>{ seekDown = true; });
+  mSeek.addEventListener("pointerup", commitSeek);
+  mSeek.addEventListener("touchend", commitSeek);
+  mSeek.addEventListener("mouseup", commitSeek);
+  mSeek.addEventListener("keyup", e=>{ if(e.key==="Enter") commitSeek(); });
+
+  // Play/Pause toggle
+  mPlay.addEventListener("click", async ()=>{
+    if(!mp.client_id) return;
+    const cmd = mp.isPlaying ? "pause" : "play";
+    try{
+      await api("/cast/cmd", {method:"POST", body: JSON.stringify({client_id: mp.client_id, cmd})});
+      // optyczna szybka aktualizacja
+      mp.isPlaying = !mp.isPlaying;
+    }catch(e){ console.warn(e); }
+  });
+
+  // Stop
+  mStop.addEventListener("click", async ()=>{
+    if(!mp.client_id) return;
+    try{
+      await api("/cast/cmd", {method:"POST", body: JSON.stringify({client_id: mp.client_id, cmd:"stop"})});
+    }catch(e){ console.warn(e); }
+    clearInterval(mp.poll);
+    mp = { client_id:null, item:null, isPlaying:false, duration:0, cur:0, poll:null, seeking:false };
+    player.hidden = true;
+  });
+
+  // ===== Init =====
+  loadAvailable();

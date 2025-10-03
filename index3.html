@@ -375,7 +375,68 @@
 
 
       
-      <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
+<!-- =======================
+     DOSTĘPNE (Filmy/Seriale)
+     ======================= -->
+<section id="section-browse" class="avail" aria-label="Dostępne (Filmy/Seriale)">
+
+  <!-- Sticky topbar: logo + taby -->
+  <div class="a-topbar">
+    <div class="a-brand">
+      <img class="a-logo" src="/static/logo.png" alt="PIOTRFLIX">
+    </div>
+
+    <div class="a-tabs" role="tablist" aria-label="Typ biblioteki">
+      <button class="a-tab is-active" data-type="movie" role="tab" aria-selected="true">
+        🎬 Filmy
+      </button>
+      <button class="a-tab" data-type="series" role="tab" aria-selected="false">
+        📺 Seriale
+      </button>
+    </div>
+  </div>
+
+  <!-- Lista wyników -->
+  <div id="avail-list" class="a-list" aria-live="polite"></div>
+
+  <!-- Pusty stan -->
+  <div id="avail-empty" class="a-empty" hidden>Brak pozycji do wyświetlenia.</div>
+
+  <!-- ===== Modal CAST ===== -->
+  <div id="cast-modal" class="a-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cast-title">
+    <div class="a-modal__card">
+      <h3 id="cast-title" class="a-modal__title">Wybierz urządzenie</h3>
+
+      <div class="a-modal__row">
+        <label class="a-modal__label" for="cast-device">Urządzenie</label>
+        <select id="cast-device" class="a-select"></select>
+      </div>
+
+      <div class="a-modal__actions">
+        <button id="cast-cancel" class="btn btn--ghost">Anuluj</button>
+        <button id="cast-start" class="btn btn--primary">Rozpocznij</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Mini player (sticky bottom) ===== -->
+  <div id="mini-player" class="a-player" hidden>
+    <div class="a-player__left">
+      <img id="mposter" class="a-player__img" src="" alt="">
+      <div class="a-player__meta">
+        <div id="mtitle" class="a-player__title">—</div>
+        <input id="mseek" class="a-player__seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Przewijanie">
+        <div class="a-player__time"><span id="mcur">0:00</span> / <span id="mtot">0:00</span></div>
+      </div>
+    </div>
+    <div class="a-player__right">
+      <button id="mplay" class="a-iconbtn" title="Pauza/Wznów">⏯️</button>
+      <button id="mstop" class="a-iconbtn" title="Stop">⏹️</button>
+    </div>
+  </div>
+
+</section>
+
       <section id="section-available" role="tabpanel" aria-hidden="true"></section>
     </main>
   </div>
