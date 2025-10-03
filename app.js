@@ -1160,12 +1160,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff = showDel ? (it.deleteAt - Date.now()) : 0;
-      const delBadge = showDel ? `<div class="del-badge ${delClass(diff)}" data-delete-at="${it.deleteAt}">${fmtTTL(diff)}</div>` : '';
-      const delDateHtml  = showDel ? `<span class="av-del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>` : '';
+
+      // pudełko: kapsuła + data pod nią (prawy górny róg karty)
+      const delBox = showDel ? `
+        <div class="del-box ${delClass(diff)}" data-delete-at="${it.deleteAt}">
+          <div class="del-badge">${fmtTTL(diff)}</div>
+          <div class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</div>
+        </div>` : '';
 
       return `
       <article class="av-card">
-        ${delBadge}
+        ${delBox}
         <div class="poster" style="position:relative">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
           <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
@@ -1177,7 +1182,6 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
               <span class="av-bar" style="width:${pct}%;"></span>
             </div>
-            ${delDateHtml}
           </div>
           <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
           <div class="actions">
@@ -1188,15 +1192,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join('');
     setHTML(listEl, html);
 
-    // auto-refresh badge co 20 s (bardziej granularnie dla h/min)
+    // auto-refresh kapsułek co 20 s (aktualizuje tekst i klasę koloru)
     const refreshBadges = ()=>{
-      listEl.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
-        const ts = Number(el.getAttribute('data-delete-at')||'');
+      listEl.querySelectorAll('.del-box[data-delete-at]').forEach(box=>{
+        const ts = Number(box.getAttribute('data-delete-at')||'');
         if(!isFinite(ts)) return;
         const diff = ts - Date.now();
-        el.textContent = fmtTTL(diff);
-        el.classList.remove('ok','warn','danger');
-        el.classList.add(delClass(diff));
+        // klasa koloru
+        box.classList.remove('ok','warn','danger');
+        box.classList.add(delClass(diff));
+        // tekst kapsuły
+        const badge = box.querySelector('.del-badge');
+        if (badge) badge.textContent = fmtTTL(diff);
+        // data nie zmienia się (zostaje ta sama)
       });
     };
     badgeTimer = setInterval(refreshBadges, 20000);
