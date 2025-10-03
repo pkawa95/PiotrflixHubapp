@@ -2213,3 +2213,57 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
   #section-available .av-poster{ width:72px; height:108px; }
   #section-available .av-actions{ grid-column: 1 / -1; justify-content: end; }
 }
+
+/* ===== Paski postępu (Dostępne v2) ===== */
+#section-available .av-card { display:grid; grid-template-columns: 96px 1fr; gap:12px; align-items:center;
+  padding:12px; border:1px solid var(--border); border-radius:16px;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+}
+#section-available .poster { position: relative; }
+#section-available .av-poster{
+  width:96px; height:144px; object-fit:cover; border-radius:12px;
+  border:1px solid var(--border); background:#0b1220;
+}
+/* cienki pasek na posterze */
+#section-available .vprog{
+  position:absolute; left:0; right:0; bottom:0; height:6px;
+  border-radius:0 0 12px 12px; overflow:hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+  border-top: 1px solid var(--border);
+}
+#section-available .vprog > span{
+  display:block; height:100%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-primary);
+  width:0%;
+  transition: width .25s ease;
+}
+
+#section-available .body{ display:grid; gap:6px; align-content:center; }
+#section-available .title{ font-weight:800; font-size:1.02rem; line-height:1.25; }
+#section-available .meta{ color:var(--muted); font-size:.92rem; }
+#section-available .tiny{ color:var(--muted); font-size:.9rem; }
+
+#section-available .av-progress{
+  height:10px; border-radius:999px; overflow:hidden;
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+}
+#section-available .av-progress .av-bar{
+  display:block; height:100%; width:0%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-primary);
+  transition: width .25s ease;
+}
+
+#section-available .actions{ display:flex; gap:8px; }
+
+/* player domyślnie ukryty – na wypadek braku atrybutu hidden w HTML */
+#section-available #av2-player[hidden] { display: none !important; }
+
+@media (max-width:560px){
+  #section-available .av-card{ grid-template-columns: 72px 1fr; }
+  #section-available .av-poster{ width:72px; height:108px; }
+  #section-available .actions{ justify-content:flex-end; }
+}

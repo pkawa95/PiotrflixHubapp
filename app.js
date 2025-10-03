@@ -1023,7 +1023,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const section = document.getElementById('section-available');
   if (!section) return;
 
-  // API przez authFetch (masz to już z auth)
+  // API przez authFetch
   const API = document.getElementById("auth-screen")?.dataset.apiBase || localStorage.getItem("pf_base") || "";
   const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
   const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
@@ -1046,8 +1046,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  // UI refs — wszystko po sekcji (żeby nie kolidować)
-  const tabsHost = section.querySelector('#av2-tabs');
+  // UI refs
+  const tabsHost = section.querySelector('#av2-tabs') || section;
   const tabMovies = section.querySelector('#av2-tab-movies');
   const tabSeries = section.querySelector('#av2-tab-series');
   const infoEl    = section.querySelector('#av2-info');
@@ -1089,16 +1089,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const title  = r.display_title || r.title || r.name || '—';
     const poster = r.image_url || r.poster || r.poster_url || r.thumb || '';
     const isSeries = (r.kind||r.type||'').toLowerCase()==='series' || !!r.season || !!r.episode;
-    const kind   = isSeries ? 'series' : 'movie';
     const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0))/1000;
     const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0))/1000;
     let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
     prog = clamp01(prog>1.01 ? prog/100 : prog);
     const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
-    return { id, title, poster, kind, pos, dur, prog,
-      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null };
+    return {
+      id, title, poster, pos, dur, prog,
+      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null,
+      isSeries
+    };
   }
-  const ep = it => it.kind==='series' ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
+  const ep = it => it.isSeries ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
 
   // render
   function render(){
@@ -1117,17 +1119,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const html = arr.map(it=>{
       const pct = Math.round((it.prog||0)*100);
       const year = it.year? ` (${it.year})` : '';
-      const sub = it.kind + (it.kind==='series' && it.season!=null && it.episode!=null ? ` · ${ep(it)}`:'');
+      // UWAGA: bez „movie/series” – tylko ewentualnie SxxExx
+      const sub = it.isSeries && it.season!=null && it.episode!=null ? ep(it) : '';
       return `
       <article class="av-card">
         <div class="poster">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
-          <div class="vprog"><span style="width:${pct}%;"></span></div>
+          <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
         </div>
         <div class="body">
           <div class="title">${esc(it.title)}${year}</div>
-          <div class="meta">${sub}</div>
-          <div class="tiny">Postęp: ${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
+          ${sub?`<div class="meta">${sub}</div>`:''}
+          <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+            <span class="av-bar" style="width:${pct}%;"></span>
+          </div>
+          <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
           <div class="actions">
             <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
@@ -1181,21 +1187,21 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
   tabsHost?.addEventListener('click', (e)=>{
-    const t = e.target.closest('[data-av2-tab]');
+    const t = e.target.closest('[data-av2-tab],[data-av-tab]');
     if (!t) return;
-    const k = t.getAttribute('data-av2-tab');
+    const k = t.getAttribute('data-av2-tab') || t.getAttribute('data-av-tab');
     if (k==='movies' || k==='series'){ e.preventDefault(); setTab(k); }
   });
 
   // CAST
   function openCastModal(){
-    // wczytaj listę klientów
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson('/cast/players',{method:'GET'}).then(j=>{
       const list = Array.isArray(j?.devices) ? j.devices : [];
       if (!list.length){ castSel.innerHTML = `<option value="">(brak klientów)</option>`; }
       else {
-        castSel.innerHTML = `<option value="">— wybierz —</option>` + list.map(d=>`<option value="${d.id}">${esc(d.name||d.product||'Plex')} — ${esc(d.platform||'')}</option>`).join('');
+        castSel.innerHTML = `<option value="">— wybierz —</option>` + list
+          .map(d=>`<option value="${d.id}">${esc(d.name||d.product||'Plex')} — ${esc(d.platform||'')}</option>`).join('');
         const prev = localStorage.getItem('pf_cast_client') || '';
         if (prev && list.some(x=>String(x.id)===String(prev))) castSel.value = prev;
       }
@@ -1204,7 +1210,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typeof dlg?.showModal === 'function') dlg.showModal(); else dlg?.setAttribute('open','');
   }
 
-  castSel?.addEventListener('change', ()=> {
+  castSel?.addEventListener('change', ()=>{
     currentClientId = castSel.value || '';
     if (currentClientId) localStorage.setItem('pf_cast_client', currentClientId);
   });
@@ -1212,15 +1218,18 @@ document.addEventListener("DOMContentLoaded", () => {
   castStart?.addEventListener('click', async (e)=>{
     e.preventDefault();
     const cid = castSel?.value || '';
-    if (!cid){ return; }
-    if (!selected || !/^\d+$/.test(String(selected.id||''))){ return; }
+    if (!cid) return;
+    if (!selected || !/^\d+$/.test(String(selected.id||''))) return;
     try{
-      await apiJson('/cast/start', {method:'POST', body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||'' }});
-      // pokaż player
-      playerBox.hidden = false;
+      await apiJson('/cast/start', {method:'POST', body:{
+        item_id:String(selected.id), client_id:cid,
+        client_name: castSel.options[castSel.selectedIndex]?.text||''
+      }});
+      // pokaż player dopiero po starcie
+      if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || '';
       startStatusLoop();
-    }catch(_){}
+    }catch(_){ /* można dodać toast */ }
     finally { dlg?.close?.(); }
   });
 
@@ -1261,17 +1270,21 @@ document.addEventListener("DOMContentLoaded", () => {
   btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
     try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
     stopStatusLoop();
+    // chowamy player po stop
+    if (playerBox) playerBox.hidden = true;
   });
 
   // boot
   function boot(){
+    // player domyślnie UKRYTY
+    if (playerBox) playerBox.hidden = true;
     setTab('movies');
     loadAvailable();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  // opcjonalnie: integracja z dolną nawigacją
+  // integracja z dolną nawigacją (opcjonalnie)
   window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
   window.showSection = function(name){
@@ -1279,3 +1292,4 @@ document.addEventListener("DOMContentLoaded", () => {
     if (name === 'available') { loadAvailable(); }
   };
 })();
+
