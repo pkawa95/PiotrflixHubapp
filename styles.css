@@ -2080,3 +2080,136 @@ html[data-theme="light"] #section-search #sx-quality {
   .av2-poster{width:72px; height:108px}
   .av2-actions{grid-column:1 / -1; justify-content:end}
 }
+
+/* ======================================================================
+ * DOSTĘPNE v2 — Premium Neon Glossy (kompatybilne z Twoimi zmiennymi)
+ * ====================================================================== */
+
+#section-available { padding: 8px 8px 96px; }
+#section-available[hidden] { display:none !important; }
+
+/* —— Sticky: logo + zakładki —— */
+#section-available .av2-sticky{
+  position: sticky; top: 8px; z-index: 30;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(16px) saturate(130%); -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+#section-available .av2-brand{ display:flex; justify-content:center; }
+#section-available .av2-logo{ height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,.35)); }
+
+/* zakładki */
+#section-available .av2-tabs{
+  display: inline-flex; gap: 6px; padding: 4px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+#section-available .av2-tabs button{
+  appearance: none; border: 0; cursor: pointer;
+  padding: 8px 14px; border-radius: 999px;
+  background: transparent;
+  color: var(--muted); font-weight: 800;
+  transition: filter .2s ease, transform .06s ease;
+}
+#section-available .av2-tabs button.is-active{
+  color:#fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: var(--glow-soft);
+}
+@media (hover:hover){
+  #section-available .av2-tabs button:hover{ filter: brightness(1.05); }
+}
+
+/* —— Info + Lista —— */
+#section-available .av2-info{ margin: 16px 8px 8px; color: var(--muted); }
+#section-available .av2-list{ display: grid; gap: 12px; }
+
+/* —— Karta pozycji —— */
+#section-available .av-card{
+  display: grid; grid-template-columns: 96px 1fr auto; gap: 12px; align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+}
+#section-available .av-poster{
+  width: 96px; height: 144px; object-fit: cover;
+  border-radius: 12px; border: 1px solid var(--border); background: #0b1220;
+}
+#section-available .av-body{ display: grid; gap: 6px; }
+#section-available .av-title{ margin: 0; font-weight: 800; font-size: 1.02rem; line-height: 1.25; }
+#section-available .av-meta{ display:flex; gap:10px; color:var(--muted); font-size:.92rem; }
+
+#section-available .av-progress{
+  height: 10px; border: 1px solid var(--border); border-radius: 999px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+}
+#section-available .av-progress .av-bar{
+  display:block; height:100%; width:0%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-primary);
+  transition: width .25s ease;
+}
+
+#section-available .av-actions{ display: flex; gap: 8px; align-items: center; }
+#section-available .btn--cast{
+  appearance:none; border:0; cursor:pointer; border-radius:12px; padding:9px 12px; font-weight:800;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff;
+  box-shadow: 0 10px 22px rgba(124,58,237,.28), 0 6px 14px rgba(6,182,212,.22);
+}
+@media (hover:hover){
+  #section-available .btn--cast:hover{ filter: brightness(1.05); }
+}
+
+/* —— Player (pokazuje się po starcie castu) —— */
+#section-available .av2-player{
+  display:grid; grid-template-columns: 80px 1fr; gap:12px; align-items:center;
+  margin:12px 0; padding:12px;
+  border:1px solid var(--border); border-radius:16px;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+}
+#section-available .av2-pl-poster{
+  width:80px; height:120px; object-fit:cover; border-radius:12px;
+  border:1px solid var(--border); background:#0b1220;
+}
+#section-available .av2-pl-main{ display:grid; gap:8px; }
+#section-available .av2-pl-row input[type="range"]{ width:100%; }
+#section-available .av2-pl-meta{ display:flex; gap:10px; color:var(--muted); font-size:.95rem; }
+#section-available .av2-pl-ctrls{ display:flex; gap:8px; }
+
+/* ikonki playera spójne z Twoimi .btn */
+#section-available .btn.btn--ghost{ border:1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); color:var(--fg); }
+#section-available .btn.btn--danger{ background: linear-gradient(135deg, #ff4d6d, #ff7a8d); color:#fff; box-shadow: 0 12px 24px rgba(255,77,109,.25); }
+
+/* —— Modal Cast —— */
+#section-available .av2-modal::backdrop{ background: rgba(0,0,0,.45); }
+#section-available .av2-modal{ border:0; padding:0; background:transparent; }
+#section-available .av2-modal-card{
+  min-width: min(92vw, 520px);
+  display:grid; gap:12px;
+  padding:14px; border-radius:16px; border:1px solid var(--border);
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  box-shadow: var(--shadow);
+}
+#section-available .av2-modal-card h3{ margin: 0 0 6px; }
+#section-available .av2-modal-card .select{
+  width:100%; padding:10px 12px; border-radius:12px;
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  color: var(--fg);
+}
+html[data-theme="light"] #section-available .av2-modal-card .select{
+  background:#fff; color:#0f172a; border-color: rgba(0,0,0,.08);
+}
+#section-available .av2-modal-actions{ display:flex; gap:8px; justify-content:flex-end; }
+
+/* —— Mobile kompakt —— */
+@media (max-width: 560px){
+  #section-available .av-card{ grid-template-columns: 72px 1fr; }
+  #section-available .av-poster{ width:72px; height:108px; }
+  #section-available .av-actions{ grid-column: 1 / -1; justify-content: end; }
+}
