@@ -2384,3 +2384,61 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
   background:linear-gradient(180deg,#4a1420,#3b0f1a);
   color:#fecaca;
 }
+
+
+/* === Delete capsule – prawy górny róg karty === */
+.av-card {
+  position: relative;
+}
+.del-badge{
+  position:absolute; top:8px; right:8px;
+  font-size: clamp(12px, 2.6vw, 13px);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border:1px solid #263251;
+  background: #0b1220;
+  color:#d1d5db;
+  line-height:1; white-space:nowrap;
+  box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.del-badge.ok{
+  border-color:#183a2a;
+  background:linear-gradient(180deg,#144a2f,#0f3b24);
+  color:#d1fae5;
+}
+.del-badge.warn{
+  border-color:#3a2f1a;
+  background:linear-gradient(180deg,#4a3314,#3b2a0f);
+  color:#fff3c4;
+}
+.del-badge.danger{
+  border-color:#3a1a27;
+  background:linear-gradient(180deg,#4a1420,#3b0f1a);
+  color:#fecaca;
+}
+
+/* Pasek + info */
+.av-progress-wrap {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:4px;
+}
+.av-progress {
+  flex:1;
+  height:6px;
+  background:#1f2937;
+  border-radius:4px;
+  overflow:hidden;
+  margin-right:8px;
+}
+.av-progress .av-bar {
+  display:block;
+  height:100%;
+  background:#3b82f6;
+}
+.av-del-date {
+  font-size:11px;
+  color:#9ca3af;
+  white-space:nowrap;
+}

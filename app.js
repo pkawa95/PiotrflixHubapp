@@ -1161,22 +1161,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff = showDel ? (it.deleteAt - Date.now()) : 0;
       const delBadge = showDel ? `<div class="del-badge ${delClass(diff)}" data-delete-at="${it.deleteAt}">${fmtTTL(diff)}</div>` : '';
-      const delDate  = showDel ? ` · usunie: ${fmtDateShort(it.deleteAt)}` : '';
+      const delDateHtml  = showDel ? `<span class="av-del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>` : '';
 
       return `
       <article class="av-card">
+        ${delBadge}
         <div class="poster" style="position:relative">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
-          ${delBadge}
           <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
         </div>
         <div class="body">
           <div class="title">${esc(it.title)}${year}</div>
           ${sub?`<div class="meta">${sub}</div>`:''}
-          <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-            <span class="av-bar" style="width:${pct}%;"></span>
+          <div class="av-progress-wrap">
+            <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+              <span class="av-bar" style="width:${pct}%;"></span>
+            </div>
+            ${delDateHtml}
           </div>
-          <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}${delDate}</div>
+          <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
           <div class="actions">
             <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
