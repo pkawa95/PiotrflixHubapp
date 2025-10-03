@@ -1018,314 +1018,332 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ===================== AVAILABLE (Filmy/Seriale + Cast + Player) ===================== */
-(function(){
-  const section = document.getElementById('section-available');
-  if (!section) return;
+/* ====== AVAILABLE 2.0 – JS ====== */
+(() => {
+  // ---- Konfiguracja / helpery ----
+  const BASE_URL = localStorage.getItem("pf_base") || "https://api.pkportfolio.pl";
+  const token = () => localStorage.getItem("pf_token") || "";
+  const castClientKey = "pf_cast_client";
 
-  // API / auth
-  const API =
-    document.getElementById('auth-screen')?.dataset.apiBase ||
-    localStorage.getItem('pf_base') || '';
-  const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
-  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
+  async function api(path, opt = {}) {
+    const headers = opt.headers || {};
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    const t = token();
+    if (t) headers["Authorization"] = "Bearer " + t;
+    const url = path.startsWith("http") ? path : BASE_URL + path;
+    const res = await fetch(url, { ...opt, headers });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`${res.status} ${res.statusText}: ${msg}`);
+    }
+    const ct = res.headers.get("content-type") || "";
+    return ct.includes("application/json") ? res.json() : res.text();
+  }
 
-  // DOM
-  const tabs = Array.from(section.querySelectorAll('.tx-tab')); // data-av-mode: movies | series
-  const list = section.querySelector('#av-list');
+  // ---- Elementy UI ----
+  const $ = (id) => document.getElementById(id);
+  const listEl = $("av2-list");
+  const infoEl = $("av2-info");
+  const playerBox = $("av2-player");
+  const plPoster = $("av2-pl-poster");
+  const plSeek = $("av2-pl-seek");
+  const plTime = $("av2-pl-time");
+  const plPct = $("av2-pl-pct");
+  const btnPlay = $("av2-btn-play");
+  const btnPause = $("av2-btn-pause");
+  const btnStop = $("av2-btn-stop");
 
-  // Cast modal
-  const modal = section.querySelector('#av-cast-modal');
-  const deviceSel = section.querySelector('#av-device');
-  const btnPlay = section.querySelector('#av-play');
+  const tabs = Array.from(document.querySelectorAll("#section-available .av2-tab"));
+  const modal = /** @type {HTMLDialogElement} */ ($("av2-cast-modal"));
+  const castDeviceSel = $("av2-device");
+  const castStartBtn = $("av2-cast-start");
 
-  // Player
-  const player = section.querySelector('#av-player');
-  const plPoster = section.querySelector('#av-pl-poster');
-  const plTitle  = section.querySelector('#av-pl-title');
-  const plSeek   = section.querySelector('#av-pl-seek');
-  const plTime   = section.querySelector('#av-pl-time');
-  const plDur    = section.querySelector('#av-pl-dur');
-  const plPct    = section.querySelector('#av-pl-pct');
-  const bPrev = section.querySelector('#av-btn-prev');
-  const bPlay = section.querySelector('#av-btn-play');
-  const bStop = section.querySelector('#av-btn-stop');
-  const bNext = section.querySelector('#av-btn-next');
-
-  // State
-  const STORAGE_MODE = 'available:mode';
-  let mode = localStorage.getItem(STORAGE_MODE) || 'movies'; // movies | series
-  let items = [];
-  let castTarget = null;  // { item_id, title, poster, type }
-  let polling = null;
-  let currentClientId = null;
-  let currentDuration = 0;
-
-  // Helpers
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const pct = (v) => {
-    const n = Number(v ?? 0);
-    if (!Number.isFinite(n)) return 0;
-    if (n <= 1.01) return Math.max(0, Math.min(100, n * 100));
-    return Math.max(0, Math.min(100, n));
+  // ---- Stan ----
+  let AV_RAW_MOVIES = [];
+  let AV_RAW_SERIES = [];
+  let AV_INDEX_BY_CANON = {};
+  let currentTab = "movies";
+  let currentCast = {
+    clientId: localStorage.getItem(castClientKey) || "",
+    itemId: null,
+    durationMs: 0,
+    viewOffsetMs: 0,
+    poster: ""
   };
-  const msToClock = (ms) => {
-    ms = Math.max(0, Number(ms||0));
-    const s = Math.floor(ms/1000);
-    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-    return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
-               : `${m}:${String(sec).padStart(2,'0')}`;
-  };
-  const pick = (o, ...k) => { for (const key of k){ if (o && o[key] != null) return o[key]; } };
+  let statusTimer = null;
 
-  // Tabs
-  function setMode(m){
-    mode = m;
-    localStorage.setItem(STORAGE_MODE, mode);
-    tabs.forEach(t => {
-      const on = t.dataset.avMode === mode;
-      t.classList.toggle('is-active', on);
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
+  // ---- Utils ----
+  const _first = (o, keys, d = "") => {
+    for (const k of keys) if (o && o[k] != null && o[k] !== "") return o[k];
+    return d;
+  };
+  const _num = (v, d = 0) => {
+    const n = Number(String(v ?? "").replace(",", "."));
+    return Number.isFinite(n) ? n : d;
+  };
+  const pickPlexId = (raw) => {
+    const cand = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key, raw?.id].find(
+      (v) => v != null && String(v).trim() !== ""
+    );
+    if (!cand) return null;
+    const s = String(cand).trim();
+    return /^\d+$/.test(s) ? s : null;
+  };
+  const canon = (r) => {
+    const title = _first(r, ["display_title", "title", "name"], "—");
+    const poster = _first(r, ["image_url", "poster", "poster_url", "thumb", "cover", "cover_url"], "");
+    const isSeries =
+      (_first(r, ["kind", "type", "mtype", "media_type"], "").toLowerCase() === "series") ||
+      !!r.season || !!r.episode || r.is_series === true;
+    const kind = isSeries ? "series" : "movie";
+
+    let pos = 0, dur = 0;
+    if (r.position_ms != null) pos = _num(r.position_ms) / 1000;
+    else pos = _num(_first(r, ["watched_seconds", "position", "last_position", "pos"], 0));
+    if (r.duration_ms != null) dur = _num(r.duration_ms) / 1000;
+    else dur = _num(_first(r, ["duration", "runtime", "total_seconds"], 0));
+
+    let prog = _num(_first(r, ["progress", "ratio"], 0));
+    if (prog > 1.01) prog = prog / 100;
+    if (!prog && dur > 0) prog = Math.max(0, Math.min(1, pos / dur));
+
+    let id = _first(r, ["plex_id", "ratingKey", "plex_rating_key", "id"], null);
+    if (!id || !/^\d+$/.test(String(id))) {
+      const basis = `${title}|${_first(r, ["year", "release_year"], "")}|${r.season ?? ""}|${r.episode ?? ""}`;
+      id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/, "");
+    }
+
+    return { id: String(id), title, poster, kind, position: pos, duration: dur, progress: prog || 0, season: r.season, episode: r.episode };
+  };
+  const fmtTime = (s) => {
+    s = Math.max(0, Math.floor(s));
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
+
+  // ---- Render listy ----
+  function renderList(raw) {
+    AV_INDEX_BY_CANON = {};
+    const items = (raw || []).map((r) => {
+      const c = canon(r);
+      AV_INDEX_BY_CANON[c.id] = r;
+      return c;
     });
-    loadAvailable();
-  }
-  section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tx-tab'); if (!btn) return;
-    setMode(btn.dataset.avMode);
-  });
-  // Init selected tab
-  setMode(mode);
 
-  // Fetchers
-  async function loadAvailable(){
-    if (!tokenOk()){
-      list.innerHTML = `<div class="tx-empty">Musisz być zalogowany.</div>`;
+    if (!items.length) {
+      listEl.innerHTML = "";
+      infoEl.textContent = "Brak pozycji do wyświetlenia.";
       return;
     }
-    list.innerHTML = `<div class="tx-empty">Ładowanie ${mode === 'movies' ? 'filmów' : 'seriali'}…</div>`;
 
-    try{
-      // ✅ dopasuj do własnych endpointów backendu
-      const path = mode === 'movies' ? '/available/movies' : '/available/series';
-      const r = await window.authFetch(joinUrl(API, path));
-      const data = await r.json().catch(()=> ({}));
-      items = Array.isArray(data?.items) ? data.items
-            : Array.isArray(data) ? data
-            : [];
-      renderList(items);
-    }catch(e){
-      console.error(e);
-      list.innerHTML = `<div class="tx-empty">Nie udało się pobrać listy.</div>`;
-    }
-  }
+    infoEl.textContent = `Pozycji: ${items.length}`;
 
-  function renderList(arr){
-    if (!arr.length){
-      list.innerHTML = `<div class="tx-empty">Brak pozycji do wyświetlenia.</div>`;
-      return;
-    }
-    const html = arr.map(it => {
-      const id     = String(pick(it,'id','item_id','ratingKey','pms_id','plex_id') || '');
-      const title  = pick(it,'title','name','display_title') || '—';
-      const poster = pick(it,'poster','image_url','thumb','grandparentThumb') || 'https://via.placeholder.com/300x450?text=Poster';
-      // progress (prefer percent 0..100, else ratio 0..1, else from duration/offset)
-      let pr = pick(it,'progress_percent','progress','percent') ?? 0;
-      if (!pr){
-        const dur = Number(pick(it,'duration_ms','duration') || 0);
-        const off = Number(pick(it,'view_offset_ms','viewOffset') || 0);
-        pr = dur>0 ? (off/dur)*100 : 0;
-      }
-      pr = Math.max(0, Math.min(100, Number(pr)||0));
+    listEl.innerHTML = items
+      .map((it) => {
+        const pct = Math.round((it.progress || 0) * 100);
+        const ep =
+          it.kind === "series"
+            ? ` · S${String(it.season ?? "--").toString().padStart(2, "0")}E${String(it.episode ?? "--")
+                .toString()
+                .padStart(2, "0")}`
+            : "";
+        return `
+          <div class="av2-row">
+            <img src="${it.poster || ""}" alt="" class="av2-poster"/>
+            <div class="av2-body">
+              <h3 class="av2-title">${(it.title || "—").replace(/</g, "&lt;")}${ep}</h3>
+              <div class="av2-progress"><div class="av2-bar" style="width:${pct}%"></div></div>
+              <div class="av2-pct">${pct}%</div>
+            </div>
+            <div class="av2-actions">
+              <button class="btn btn--primary" data-cast="${it.id}">Cast</button>
+            </div>
+          </div>`;
+      })
+      .join("");
 
-      return `
-      <article class="av-card" data-id="${esc(id)}" data-title="${esc(title)}" data-poster="${esc(poster)}" data-type="${mode}">
-        <img class="av-card__poster" src="${esc(poster)}" alt="">
-        <div class="av-card__body">
-          <h4 class="av-card__title">${esc(title)}</h4>
-          <div class="av-card__progress"><div class="av-card__bar" style="width:${pr.toFixed(1)}%;"></div></div>
-          <div class="av-card__meta"><strong>${pr.toFixed(0)}%</strong> ukończono</div>
-        </div>
-        <div class="av-card__actions">
-          <button class="tbtn av-btn-cast" type="button">Cast</button>
-        </div>
-      </article>`;
-    }).join('');
-    list.innerHTML = html;
-  }
-
-  // Cast modal helpers
-  async function openCastModal(target){
-    castTarget = target;    // {item_id, title, poster, type}
-    await fillDevices();
-    if (typeof modal.showModal === 'function') modal.showModal();
-    else modal.setAttribute('open','');
-  }
-  function closeCastModal(){
-    castTarget = null;
-    if (modal.open) modal.close();
-    modal.removeAttribute('open');
-  }
-  async function fillDevices(){
-    deviceSel.innerHTML = `<option value="">Ładowanie…</option>`;
-    try{
-      const r = await window.authFetch(joinUrl(API, '/cast/players'));
-      const j = await r.json().catch(()=> ({}));
-      const arr = Array.isArray(j?.devices) ? j.devices : [];
-      deviceSel.innerHTML = arr.length
-        ? arr.map(d => `<option value="${esc(d.id)}">${esc(d.name || d.product || d.id)}</option>`).join('')
-        : `<option value="">Brak urządzeń</option>`;
-    }catch(_){
-      deviceSel.innerHTML = `<option value="">Błąd pobierania</option>`;
-    }
-  }
-
-  // Start cast
-  async function startCast(){
-    const dev = deviceSel.value;
-    if (!dev || !castTarget) { closeCastModal(); return; }
-    try{
-      const r = await window.authFetch(joinUrl(API, '/cast/start'), {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ item_id: castTarget.item_id, client_id: dev, client_name: undefined })
+    // podłącz kliknięcia „Cast”
+    listEl.querySelectorAll("[data-cast]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const canonId = e.currentTarget.getAttribute("data-cast");
+        await openCastModal(canonId);
       });
-      const j = await r.json().catch(()=> ({}));
-      if (!r.ok || !j?.ok) throw new Error(j?.detail || 'cast start failed');
+    });
+  }
 
-      currentClientId = dev;
+  // ---- Ładowanie danych ----
+  async function loadAvailable() {
+    infoEl.textContent = "Ładuję…";
+    listEl.innerHTML = "";
+    try {
+      const j = await api("/me/available", { method: "GET" });
+      AV_RAW_MOVIES = Array.isArray(j?.films) ? j.films : [];
+      AV_RAW_SERIES = Array.isArray(j?.series) ? j.series : [];
+      renderList(currentTab === "movies" ? AV_RAW_MOVIES : AV_RAW_SERIES);
+    } catch (e) {
+      infoEl.innerHTML = `<span style="color:var(--error)">${e.message || e}</span>`;
+    }
+  }
 
+  // ---- Modal / urządzenia / start castu ----
+  async function loadCastPlayers() {
+    castDeviceSel.innerHTML = `<option value="">— ładuję… —</option>`;
+    try {
+      const j = await api("/cast/players", { method: "GET" });
+      const list = Array.isArray(j?.devices) ? j.devices : [];
+      if (!list.length) {
+        castDeviceSel.innerHTML = `<option value="">(brak klientów Plex)</option>`;
+        return;
+      }
+      const opts = list
+        .map((d) => `<option value="${d.id}">${(d.name || d.product || "Plex Client")} — ${d.platform || ""}</option>`)
+        .join("");
+      castDeviceSel.innerHTML = `<option value="">— wybierz —</option>${opts}`;
+      const prev = localStorage.getItem(castClientKey) || "";
+      if (prev && list.some((x) => String(x.id) === String(prev))) castDeviceSel.value = prev;
+    } catch (e) {
+      castDeviceSel.innerHTML = `<option value="">(błąd: ${e.message || e})</option>`;
+    }
+  }
+
+  async function openCastModal(canonId) {
+    // zapamiętaj wybrany element
+    modal.dataset.canonId = canonId;
+    await loadCastPlayers();
+    modal.showModal();
+  }
+
+  castDeviceSel.addEventListener("change", () => {
+    const v = castDeviceSel.value || "";
+    if (v) localStorage.setItem(castClientKey, v);
+    else localStorage.removeItem(castClientKey);
+  });
+
+  castStartBtn.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    const clientId = castDeviceSel.value;
+    if (!clientId) return; // dialog zamknie się sam, jeśli klikniesz „Wyjście”
+    const canonId = modal.dataset.canonId;
+    const raw = AV_INDEX_BY_CANON[canonId] || {};
+    let itemId = pickPlexId(raw);
+    if (!itemId && /^\d+$/.test(canonId)) itemId = canonId;
+
+    if (!itemId) {
+      alert("Brak plex ratingKey w tej pozycji – podaj ręcznie.");
+      return;
+    }
+
+    try {
+      const body = { item_id: String(itemId), client_id: clientId, client_name: "" };
+      const j = await api("/cast/start", { method: "POST", body: JSON.stringify(body) });
       // pokaż player
-      showPlayer(castTarget.title, castTarget.poster);
-      // od razu odśwież status
-      pollStatusOnce();
-      startPolling();
-    }catch(e){
-      console.error(e);
-      alert('Nie udało się rozpocząć odtwarzania.');
-    }finally{
-      closeCastModal();
+      currentCast.clientId = clientId;
+      currentCast.itemId = String(itemId);
+      currentCast.poster = canon(raw).poster || "";
+      localStorage.setItem(castClientKey, clientId);
+      modal.close();
+      showPlayer();
+      // init prog + poll
+      await refreshStatus(); // jedna aktualizacja
+      startStatusPolling();
+    } catch (e) {
+      alert("Cast start error: " + (e.message || e));
     }
-  }
-
-  // Player UI
-  function showPlayer(title, poster){
-    player.hidden = false; player.setAttribute('aria-hidden','false');
-    plTitle.textContent = title || '—';
-    plPoster.src = poster || '';
-  }
-  function hidePlayer(){
-    player.hidden = true; player.setAttribute('aria-hidden','true');
-    currentClientId = null;
-    stopPolling();
-  }
-
-  function startPolling(){
-    stopPolling();
-    polling = setInterval(pollStatusOnce, 1200);
-  }
-  function stopPolling(){
-    if (polling) clearInterval(polling);
-    polling = null;
-  }
-
-  async function pollStatusOnce(){
-    if (!currentClientId) return;
-    try{
-      const url = new URL(joinUrl(API, '/cast/status'));
-      url.searchParams.set('client_id', currentClientId);
-      const r = await window.authFetch(url.toString());
-      const j = await r.json().catch(()=> ({}));
-      const s = Array.isArray(j?.sessions) ? j.sessions[0] : null;
-      if (!s){ return; }
-
-      const dur = Number(s.duration_ms || 0);
-      const off = Number(s.view_offset_ms || 0);
-      currentDuration = dur;
-
-      plDur.textContent  = msToClock(dur);
-      plTime.textContent = msToClock(off);
-      const p = dur>0 ? Math.max(0, Math.min(1000, Math.round(off/dur*1000))) : 0;
-      plSeek.value = String(p);
-      plPct.textContent = `${Math.round((p/1000)*100)}%`;
-
-      // podmień miniaturę/tytuł jeżeli brakowało
-      if (!plPoster.src){
-        plPoster.src = s.thumb || '';
-      }
-      if (plTitle.textContent === '—' && s.title){
-        plTitle.textContent = s.title;
-      }
-    }catch(e){
-      // ciche błędy – grzecznie próbujemy dalej
-    }
-  }
-
-  async function sendCmd(cmd, seekMs){
-    if (!currentClientId) return;
-    const body = { client_id: currentClientId, cmd };
-    if (cmd === 'seek' && Number.isFinite(seekMs)) body.seek_ms = Math.max(0, Math.floor(seekMs));
-    try{
-      await window.authFetch(joinUrl(API, '/cast/cmd'), {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify(body)
-      });
-      // szybki refresh
-      setTimeout(pollStatusOnce, 200);
-    }catch(e){
-      console.error('cmd failed', e);
-    }
-  }
-
-  // Events: list → cast
-  list.addEventListener('click', (e) => {
-    const btn = e.target.closest('.av-btn-cast'); if (!btn) return;
-    const card = btn.closest('.av-card'); if (!card) return;
-    const itemId = card.dataset.id;
-    const title  = card.dataset.title || '';
-    const poster = card.dataset.poster || '';
-    const type   = card.dataset.type || 'movies';
-    if (!itemId) return;
-    openCastModal({ item_id: itemId, title, poster, type });
   });
 
-  // Modal actions
-  btnPlay.addEventListener('click', startCast);
-  modal.addEventListener('close', () => { /* nic – obie akcje zamykają modal */ });
+  // ---- Player / status poll ----
+  function showPlayer() {
+    if (currentCast.poster) plPoster.src = currentCast.poster;
+    playerBox.hidden = false;
+  }
+  function hidePlayer() {
+    playerBox.hidden = true;
+  }
 
-  // Player controls
-  bPlay.addEventListener('click', () => sendCmd('pause'));   // toggle w PMS (pause/play)
-  bStop.addEventListener('click', () => { sendCmd('stop'); hidePlayer(); });
-  bNext.addEventListener('click', () => sendCmd('next'));
-  bPrev.addEventListener('click', () => sendCmd('previous'));
+  async function refreshStatus() {
+    if (!currentCast.clientId) return;
+    const qs = `?client_id=${encodeURIComponent(currentCast.clientId)}`;
+    try {
+      const j = await api("/cast/status" + qs, { method: "GET" });
+      const s = (Array.isArray(j?.sessions) ? j.sessions : []).find(
+        (x) => String(x.client_id || "") === String(currentCast.clientId)
+      );
+      if (!s) return;
+      // duration / offset w ms
+      currentCast.durationMs = Number(s.duration_ms || 0);
+      currentCast.viewOffsetMs = Number(s.view_offset_ms || 0);
+      // plakat fallback z sesji, jeśli brak
+      if (!currentCast.poster && s.thumb && /^https?:\/\//.test(s.thumb)) plPoster.src = s.thumb;
 
-  // Seek (range 0..1000)
-  let seeking = false;
-  plSeek.addEventListener('input', () => {
-    seeking = true;
-    const pos = Number(plSeek.value||0)/1000;
-    const ms = Math.floor(currentDuration * pos);
-    plTime.textContent = msToClock(ms);
-    plPct.textContent = `${Math.round(pos*100)}%`;
-  });
-  plSeek.addEventListener('change', () => {
-    const pos = Number(plSeek.value||0)/1000;
-    const ms = Math.floor(currentDuration * pos);
-    seeking = false;
-    sendCmd('seek', ms);
-  });
+      const durSec = Math.floor(currentCast.durationMs / 1000);
+      const posSec = Math.floor(currentCast.viewOffsetMs / 1000);
+      const pct = currentCast.durationMs > 0 ? Math.round((currentCast.viewOffsetMs / currentCast.durationMs) * 100) : 0;
 
-  // Integracja z główną nawigacją (focus / autoload)
-  window.showSection = window.showSection || function(){};
-  const prevShow = window.showSection;
-  window.showSection = function(name){
-    try{ if (typeof prevShow === 'function') prevShow(name); }catch(e){}
-    if (name === 'available'){
-      loadAvailable();
+      plSeek.max = String(durSec || 0);
+      plSeek.value = String(posSec || 0);
+      plTime.textContent = `${fmtTime(posSec)} / ${fmtTime(durSec)}`;
+      plPct.textContent = `${pct}%`;
+    } catch (e) {
+      // cicho — sesja mogła zniknąć
     }
-  };
+  }
 
-  // Jeśli już wszedłeś w „Dostępne”, wczytaj od razu
-  if (!section.hasAttribute('hidden')) loadAvailable();
+  function startStatusPolling() {
+    stopStatusPolling();
+    statusTimer = setInterval(refreshStatus, 2000);
+  }
+  function stopStatusPolling() {
+    if (statusTimer) clearInterval(statusTimer);
+    statusTimer = null;
+  }
 
+  // seek (puszczamy komendę dopiero po "change"; w trakcie "input" tylko UI)
+  plSeek.addEventListener("input", () => {
+    const pos = Number(plSeek.value || "0");
+    const dur = Number(plSeek.max || "0");
+    const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
+    plTime.textContent = `${fmtTime(pos)} / ${fmtTime(dur)}`;
+    plPct.textContent = `${pct}%`;
+  });
+  plSeek.addEventListener("change", async () => {
+    const ms = Math.max(0, Number(plSeek.value || "0")) * 1000;
+    await sendCastCmd("seek", ms);
+    await refreshStatus();
+  });
+
+  async function sendCastCmd(cmd, seek_ms = null) {
+    if (!currentCast.clientId) return;
+    const body = { client_id: currentCast.clientId, cmd };
+    if (cmd === "seek" && seek_ms != null) body.seek_ms = Number(seek_ms) || 0;
+    await api("/cast/cmd", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  btnPlay.addEventListener("click", async () => {
+    await sendCastCmd("play");
+    startStatusPolling();
+  });
+  btnPause.addEventListener("click", async () => {
+    await sendCastCmd("pause");
+  });
+  btnStop.addEventListener("click", async () => {
+    await sendCastCmd("stop");
+    stopStatusPolling();
+    hidePlayer();
+  });
+
+  // ---- Tabs ----
+  tabs.forEach((t) =>
+    t.addEventListener("click", () => {
+      tabs.forEach((x) => x.classList.remove("is-active"));
+      t.classList.add("is-active");
+      currentTab = t.dataset.tab;
+      renderList(currentTab === "movies" ? AV_RAW_MOVIES : AV_RAW_SERIES);
+    })
+  );
+
+  // ---- Start ----
+  (async () => {
+    await loadAvailable();
+  })();
 })();
