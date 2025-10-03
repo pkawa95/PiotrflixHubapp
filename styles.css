@@ -1835,3 +1835,183 @@ html[data-theme="light"] #section-search #sx-quality {
 }
 
 /* Na desktopach nic się nie zmienia – wciąż pionowy i schludny */
+
+/* =========================================================
+   TORRENTS + QUEUE — MOBILE TIGHT LAYOUT (≤ 640px)
+   ========================================================= */
+@media (max-width: 640px){
+
+  /* --- kontenery i odstępy --- */
+  #section-torrents .tx-container{
+    padding: 8px 8px 96px; /* odsunięcie od dolnej nawigacji */
+    align-items: center;
+  }
+
+  /* --- stickybar: logo nad tabami, wyśrodkowane --- */
+  #section-torrents .tx-stickybar{
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+  }
+  #section-torrents .tx-brand{ order: 1; width: 100%; display:flex; justify-content:center; }
+  #section-torrents .tx-logo{ height: 32px; }
+  #section-torrents .tx-tabs{ order: 2; }
+
+  /* --- toolbary (torrents/queue) w kolumnie, ładne labelki --- */
+  #section-torrents .tx-toolbar{
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    width: 100%;
+    max-width: 520px;
+    padding: 14px 12px;
+    border-radius: var(--radius);
+  }
+  #section-torrents .tx-toolbar .tx-group{
+    width: 100%;
+    display: grid;
+    gap: 6px;
+  }
+  #section-torrents .tx-toolbar .tx-label{
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+  }
+  /* selecty pełna szerokość i równa wysokość */
+  #section-torrents .tx-toolbar .select{
+    width: 100%;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  /* --- listy: jedna kolumna --- */
+  #section-torrents #tx-torrents.tx-list,
+  #section-torrents #tx-queue.tx-list{
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+    width: 100%;
+    max-width: 520px;
+    justify-content: center;
+  }
+
+  /* =======================================================
+     Karta TORRENTU (bez posterów) — kolumna + akcje na dole
+     ======================================================= */
+  #section-torrents .tcard{
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+  #section-torrents .tcard__left{
+    display: grid;
+    gap: 8px;
+  }
+  #section-torrents .tcard__title{
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1.25;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #section-torrents .tcard__meta{
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: .92rem;
+  }
+  #section-torrents .tcard__progress{ height: 10px; }
+
+  /* akcje pod spodem, pełna szerokość; ładne zawijanie */
+  #section-torrents .tcard__right{
+    grid-column: 1 / -1;
+    display: grid;
+    grid-auto-flow: column;
+    gap: 8px;
+    justify-content: end;
+    flex-wrap: wrap;
+  }
+  #section-torrents .tcard__right .tbtn{
+    padding: 9px 12px;
+    border-radius: 12px;
+    min-height: 40px;
+  }
+
+  /* =======================================================
+     Karta KOLEJKI (z posterem) — poster + treść, akcje na dole
+     ======================================================= */
+  #section-torrents .qcard{
+    grid-template-columns: 70px 1fr !important;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 16px;
+    align-items: start;
+  }
+  #section-torrents .qcard__img{
+    width: 70px; height: 105px; border-radius: 10px;
+  }
+  #section-torrents .qcard__title{
+    margin: 0 0 4px;
+    font-weight: 800;
+    font-size: .98rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #section-torrents .qcard__meta{
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  #section-torrents .qcard__right{
+    grid-column: 1 / -1;
+    display: grid;
+    grid-auto-flow: column;
+    gap: 8px;
+    justify-content: end;
+  }
+  #section-torrents .qcard__right .tbtn{
+    padding: 9px 12px;
+    min-height: 40px;
+    border-radius: 12px;
+  }
+
+  /* subtelne wyrównanie badge */
+  #section-torrents .tbadge{
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: .85rem;
+  }
+  #section-torrents .tbadge__dot{ width: 8px; height: 8px; }
+
+  /* ukryte elementy sekcji nie zajmują miejsca */
+  #section-torrents :is(#tx-torrents, #tx-queue, .tx-toolbar)[hidden]{
+    display: none !important;
+  }
+}
+
+/* --- drobna korekta dla bardzo wąskich (≤360px): przyciski w kolumnie --- */
+@media (max-width: 360px){
+  #section-torrents .tcard__right,
+  #section-torrents .qcard__right{
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+  #section-torrents .tcard__right .tbtn,
+  #section-torrents .qcard__right .tbtn{
+    width: 100%;
+  }
+}
