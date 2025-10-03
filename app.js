@@ -1018,268 +1018,296 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* =========================================================
-   Piotrflix — JS for "Dostępne" + "Cast" (drop-in)
-   - reads API base & token from localStorage (pf_base / pf_token)
-   - builds Available grid (films + series) with progress bars
-   - CAST modal: choose device -> start -> mini player appears
-   - Mini player: poster, title, seek, time, play/pause, stop
-   - Hidden until a cast session is active
-   - Optional filter buttons: [data-av-kind="movie|series"]
-   ========================================================= */
+/* ==== DOSTĘPNE + CAST (auto-detect endpointów) ========================== */
+/* Działa z: 
+   - GET /me/available           → {films:[...], series:[...]}
+   - GET/POST /available         → [... ] lub {items:[...]}
+   - GET/POST /library/available → jw.
+   - GET/POST /media/available   → jw.
+   - GET/POST /available/list    → jw.
+   - Pary: /library/movies + /library/series (albo /library/shows)
+*/
+(() => {
+  const sel = id => document.getElementById(id);
+  const avInfo = sel('avInfo');
+  const availableGrid = sel('availableGrid');
+  const avQuery = sel('avQuery');
+  const avKind  = sel('avKind');
+  const avSort  = sel('avSort');
+  const avBtn   = sel('avRefresh');
+  const avAuto  = sel('avAuto');
 
-(function(){
-  /* ---------- Config / helpers ---------- */
-  const API_BASE = localStorage.getItem('pf_base') || '';
-  const token = () => localStorage.getItem('pf_token') || '';
-  const qs = (sel) => document.querySelector(sel);
-  const qsa = (sel) => Array.from(document.querySelectorAll(sel));
-  const api = (path, opt={}) => {
-    const url = path.startsWith('http') ? path : (API_BASE + path);
-    const headers = opt.headers || {};
-    if (!headers['Content-Type'] && typeof opt.body === 'string') headers['Content-Type'] = 'application/json';
-    const t = token(); if (t) headers['Authorization'] = 'Bearer ' + t;
-    return fetch(url, { credentials:'same-origin', ...opt, headers });
-  };
-  const apiJson = async (path,opt={})=>{
-    const r = await api(path,opt);
-    if(!r.ok) throw new Error((await r.text().catch(()=>'')) || `${r.status} ${r.statusText}`);
-    const ct = r.headers.get('content-type')||'';
-    return ct.includes('application/json') ? r.json() : r.text();
-  };
-  const fmtTime = (s)=>{ s=Math.max(0,Math.floor(+s||0)); const m=Math.floor(s/60), ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; };
-  const toast = (msg='OK', ms=1400)=>{
-    const el=document.createElement('div');
-    Object.assign(el.style,{position:'fixed',right:'16px',bottom:'16px',padding:'9px 12px',borderRadius:'10px',background:'linear-gradient(90deg,#10b981,#22c55e)',color:'#052e1c',fontWeight:'700',zIndex:9999,boxShadow:'0 10px 24px rgba(0,0,0,.35)'});
-    el.textContent=msg; document.body.appendChild(el); setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(4px)';},ms-200); setTimeout(()=>el.remove(),ms);
-  };
+  let _availableRaw = [];
+  let _availableIndex = {};
+  let _posterByPlexId = {};
+  let _delTimer = null;
 
-  /* ---------- DOM hooks (adapt IDs if needed) ---------- */
-  const elGrid        = qs('#availableGrid');      // kontener kart
-  const modal         = qs('#castModal');          // modal wyboru urządzenia
-  const castSel       = qs('#castDevice');         // select urządzeń
-  const castStartBtn  = qs('#castStart');
-  const castCancelBtn = qs('#castCancel');
+  const PLACEHOLDER = 'https://placehold.co/300x450?text=Brak';
 
-  const mini          = qs('#miniPlayer');         // mini player (ukryty, aż jest sesja)
-  const miniPoster    = qs('#miniPoster');
-  const miniTitle     = qs('#miniTitle');
-  const miniSeek      = qs('#miniSeek');           // <input type="range" min=0 max=100>
-  const miniTime      = qs('#miniTime');           // "mm:ss / mm:ss"
-  const miniPlay      = qs('#miniPlayPause');      // toggle
-  const miniStop      = qs('#miniStop');           // stop
+  async function fetchJsonSmart(path, method='GET'){
+    try{
+      const res = await api(path, {method});
+      if (typeof res === 'string') { try{ return JSON.parse(res); }catch{ return null; } }
+      return res;
+    }catch(e){ return null; }
+  }
 
-  // opcjonalne guziki filtrowania
-  qsa('[data-av-kind]').forEach(b=>{
-    b.addEventListener('click', ()=>{ setKind(b.getAttribute('data-av-kind')); });
-  });
+  async function detectAvailableEndpoint(){
+    const cached = localStorage.getItem('pf_available_ep');
+    if (cached) return JSON.parse(cached);
 
-  /* ---------- State ---------- */
-  let RAW_AVAILABLE = [];             // surowe z /me/available
-  let AV_KIND = 'all';                // 'all'|'movie'|'series'
-  let CAST_CLIENT_ID = localStorage.getItem('pf_cast_client') || '';
-  let CAST_TIMER = null;
-  let CAST_DURATION = 0;              // seconds
-  let CAST_POSITION = 0;              // seconds
+    const candidates = [
+      {u:'/me/available',        mode:'split'},
+      {u:'/available',           mode:'flat'},
+      {u:'/library/available',   mode:'flat'},
+      {u:'/media/available',     mode:'flat'},
+      {u:'/available/list',      mode:'flat'},
+      {u:'/content/available',   mode:'flat'},
+    ];
 
-  /* ---------- Available: fetch + render ---------- */
-  const first = (o, arr, d='')=>arr.reduce((v,k)=> v!=null && v!=='' ? v : (o?.[k] ?? null), null) ?? d;
-  const num = (x, d=0)=>{ const n=Number(String(x??'').replace(',','.')); return Number.isFinite(n)?n:d; };
+    for(const c of candidates){
+      const j = await fetchJsonSmart(c.u,'GET') || await fetchJsonSmart(c.u,'POST');
+      if(!j) continue;
+      const looksOk =
+        (Array.isArray(j) && j.length) ||
+        (Array.isArray(j?.items) && j.items.length) ||
+        Array.isArray(j?.films) || Array.isArray(j?.series);
+      if(looksOk){
+        const mode = Array.isArray(j) ? 'flat' : (j.items ? 'items' : (j.films||j.series ? 'split' : c.mode));
+        const ep = {u:c.u, mode};
+        localStorage.setItem('pf_available_ep', JSON.stringify(ep));
+        return ep;
+      }
+    }
 
-  function canonRow(r){
-    const title  = first(r, ['display_title','title','name'], '—');
-    const poster = first(r, ['image_url','poster','poster_url','thumb','cover'], '');
-    const kindRaw= String(first(r, ['kind','type','mtype','media_type'], '')||'').toLowerCase();
-    const isSeries = kindRaw==='series' || !!r.season || !!r.episode || r.is_series===true || String(r.is_series).toLowerCase()==='true';
+    // starszy układ: osobne filmy/seriale
+    const pairs = [
+      ['/library/movies','/library/series'],
+      ['/library/movies','/library/shows'],
+      ['/me/movies','/me/series'],
+    ];
+    for(const [m,s] of pairs){
+      const jm = await fetchJsonSmart(m,'GET') || await fetchJsonSmart(m,'POST');
+      const js = await fetchJsonSmart(s,'GET') || await fetchJsonSmart(s,'POST');
+      if( (Array.isArray(jm)&&jm.length) || (Array.isArray(js)&&js.length) ){
+        const ep = {u:`${m}|${s}`, mode:'pair'};
+        localStorage.setItem('pf_available_ep', JSON.stringify(ep));
+        return ep;
+      }
+    }
+    // fallback
+    return {u:'/me/available', mode:'split'};
+  }
+
+  function normalizeAvailable(payload, mode){
+    if(mode==='split'){
+      return {
+        films:  Array.isArray(payload?.films)  ? payload.films  : [],
+        series: Array.isArray(payload?.series) ? payload.series : [],
+      };
+    }
+    if(mode==='items'){
+      const arr = Array.isArray(payload?.items) ? payload.items : [];
+      return {films: arr, series: []};
+    }
+    if(mode==='flat'){
+      const arr = Array.isArray(payload) ? payload
+                : (Array.isArray(payload?.items) ? payload.items : []);
+      return {films: arr, series: []};
+    }
+    // mode === 'pair' obsługujemy w loadAvailable()
+    return {films: [], series: []};
+  }
+
+  // helpers
+  const _first = (o,keys,d='')=>{ for(const k of keys){ if(o && o[k]!=null && o[k] !== '') return o[k]; } return d; };
+  const _num   = (x,d=0)=>{ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; };
+  const _bool  = x => !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true');
+  function _parseDeleteAt(v){ if(v==null||v==='') return null; const n=Number(String(v).replace(',','.')); if(isFinite(n)) return n<1e12?Math.round(n*1000):Math.round(n); const t=Date.parse(String(v)); return isNaN(t)?null:t; }
+
+  function canon(r){
+    const title  = _first(r, ['display_title','title','name'], '—');
+    const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'], PLACEHOLDER);
+
+    const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
+    const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
     const kind = isSeries ? 'series' : 'movie';
 
-    let pos = 0, dur = 0;
-    if (r.position_ms!=null) pos = num(r.position_ms)/1000;
-    else pos = num(first(r,['watched_seconds','position','view_offset_ms'],0)); // view_offset_ms w sekundach? często w ms – sprawdzamy niżej
-    if (pos>0 && String(first(r,['view_offset_ms'], '')).length>5) pos = num(first(r,['view_offset_ms'],0))/1000;
+    const year = _first(r, ['year','release_year','y'], null);
 
-    if (r.duration_ms!=null) dur = num(r.duration_ms)/1000;
-    else dur = num(first(r,['duration','runtime','total_seconds','duration_sec','duration_ms'],0));
-    if (dur===0 && num(first(r,['duration_ms'],0))>0) dur = num(first(r,['duration_ms'],0))/1000;
+    let pos=null, dur=null;
+    if (r.position_ms != null)      pos = _num(r.position_ms)/1000;
+    else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
+    else pos = _num(_first(r, ['watched_seconds','position','pos'], 0));
 
-    const progress = (dur>0) ? Math.max(0, Math.min(1, pos/dur)) : 0;
+    if (r.duration_ms != null)      dur = _num(r.duration_ms)/1000;
+    else                            dur = _num(_first(r, ['duration','runtime','total_seconds'], 0));
 
-    const ratingKey = first(r, ['plex_id','ratingKey','plex_rating_key'], null);
-    const id = /^\d+$/.test(String(ratingKey||'')) ? String(ratingKey) : (first(r,['id'], '')||'');
+    let prog=null;
+    const rawProg = _first(r, ['progress','ratio'], null);
+    const rawPerc = _first(r, ['percent'], null);
+    if (rawProg != null && rawProg!==''){ let v=Number(String(rawProg).replace(',','.')); if(isFinite(v)) prog = v>1.01 ? v/100 : v; }
+    else if (rawPerc != null && rawPerc!==''){ const v=parseFloat(String(rawPerc).replace('%','').replace(',','.')); if(isFinite(v)) prog=v/100; }
+    if (prog==null) { prog = (isFinite(pos)&&isFinite(dur)&&dur>0) ? Math.max(0,Math.min(1,pos/dur)) : 0; }
+    else            { prog = Math.max(0,Math.min(1,prog)); }
 
-    return { id, kind, title, poster, progress, pos, dur };
-  }
+    const season     = _num(_first(r, ['season','s'], null), null);
+    const episode    = _num(_first(r, ['episode','e'], null), null);
+    const updated_at = _first(r, ['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
 
-  function setKind(k){
-    AV_KIND = (k==='movie'||k==='series') ? k : 'all';
-    renderAvailable();
-  }
-
-  async function loadAvailable(){
-    if(!elGrid) return;
-    elGrid.innerHTML = `<div class="muted" style="padding:10px">Ładuję…</div>`;
-    try{
-      const j = await apiJson('/me/available', {method:'GET'});
-      const films  = Array.isArray(j?.films)  ? j.films  : [];
-      const series = Array.isArray(j?.series) ? j.series : [];
-      RAW_AVAILABLE = films.concat(series);
-      renderAvailable();
-    }catch(e){
-      elGrid.innerHTML = `<div class="err" style="padding:10px">${e.message||e}</div>`;
+    let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'], null);
+    let id;
+    if (idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
+    else {
+      const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'');
+      id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
     }
+
+    const size_bytes = _num(_first(r, ['size_bytes','filesize','size'], 0));
+    const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
+    const favorite   = _bool(_first(r, ['favorite'], false));
+
+    return { id, title, poster, kind, year, duration: isFinite(dur)?dur:0, position: isFinite(pos)?pos:0,
+             progress: prog, season, episode, updated_at, size_bytes, deleteAt, favorite };
   }
 
-  function renderAvailable(){
-    if(!elGrid) return;
-    const items = RAW_AVAILABLE.map(canonRow)
-      .filter(x => AV_KIND==='all' ? true : x.kind===AV_KIND);
+  const epLabel = it => (it.kind!=='series') ? '' : `S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
+  function bytes(n){ n=Number(n||0); const u=['B','KiB','MiB','GiB','TiB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; }
+  const dcls = ms => (ms<=0 ? 'danger' : ((ms/86400000)<=1 ? 'warn' : 'ok'));
+  function ttl(ms){ if(ms<=0) return 'do usunięcia'; const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60); if(d>=2) return `za ${d} dni`; if(d===1) return 'za 1 dzień'; if(h>=1) return `za ${h} h`; return `za ${m} min`; }
 
-    elGrid.innerHTML = items.map(it=>{
-      const pct = Math.round((it.progress||0)*100);
-      const rk  = it.id || '';
-      const t   = (it.title||'').replace(/"/g,'&quot;');
-      const p   = (it.poster||'').replace(/"/g,'&quot;');
+  function renderAvailable(list){
+    if(_delTimer){ clearInterval(_delTimer); _delTimer=null; }
+    if(!Array.isArray(list) || !list.length){
+      availableGrid.innerHTML = '';
+      avInfo.textContent = 'Brak pozycji.';
+      return;
+    }
+
+    const q = (avQuery.value||'').toLowerCase();
+    const k = avKind.value||'all';
+    const srt = avSort.value||'recent';
+
+    _availableIndex = {};
+    let items = list.map(r => { const c = canon(r); _availableIndex[c.id]=r; return c; });
+
+    if(k!=='all') items = items.filter(x => x.kind===k);
+    if(q) items = items.filter(x => (x.title||'').toLowerCase().includes(q));
+
+    // mapy plakatów (przydają się do cast sessions)
+    _posterByPlexId = {};
+    for(const raw of list){
+      const pid = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
+      if(pid){ const c = canon(raw); if(c.poster) _posterByPlexId[String(pid)] = c.poster; }
+    }
+
+    if(srt==='title') items.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
+    else if(srt==='progress') items.sort((a,b)=> (b.progress||0) - (a.progress||0));
+    else items.sort((a,b)=> String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
+
+    availableGrid.innerHTML = items.map(it=>{
+      const pct = Math.max(0, Math.min(100, Math.round((it.progress||0)*100)));
+      const year = it.year ? ` (${it.year})` : '';
+      const ep = epLabel(it);
+      const metaL = `${it.kind}${ep? ' · '+ep:''}${it.size_bytes? ' · '+bytes(it.size_bytes):''}`;
+      const delDiff = it.deleteAt ? (it.deleteAt - Date.now()) : null;
+      const delTxt  = (it.deleteAt && !it.favorite) ? ttl(delDiff) : '';
+      const delCls  = (it.deleteAt && !it.favorite) ? dcls(delDiff) : '';
+      const delDate = (it.deleteAt && !it.favorite) ? ` · usunie: ${new Date(it.deleteAt).toLocaleString()}` : '';
+      const delBadge = (it.deleteAt && !it.favorite) ? `<div class="del-badge ${delCls}" data-delete-at="${it.deleteAt}">${delTxt}</div>` : '';
+
+      const canAutoId = /^\d+$/.test(String(it.id));
+      const tip = canAutoId ? `Cast ratingKey=${it.id}` : `Wpisz ratingKey przy starcie`;
+
       return `
-        <div class="av-item" style="display:flex;gap:12px;border:1px solid #1a2340;border-radius:14px;background:linear-gradient(180deg,#121a2f,#0d1326);padding:10px">
-          <img src="${p}" alt="" style="width:64px;height:96px;object-fit:cover;border-radius:10px;border:1px solid #1a2340;background:#0e162e">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;line-height:1.25;margin:2px 0 6px">${t}</div>
-            <div style="height:8px;border:1px solid #1b2340;border-radius:999px;overflow:hidden;background:#0b1220">
-              <span style="display:block;height:100%;width:${pct}%;background:linear-gradient(90deg,#1f4ed8,#22c55e)"></span>
-            </div>
-            <div class="tiny muted" style="margin-top:6px">${pct}% ${it.dur?`· ${Math.round(it.pos/60)} / ${Math.round(it.dur/60)} min`:''}</div>
-            <div style="margin-top:8px">
-              <button class="btn" data-cast="${rk}" data-title="${encodeURIComponent(it.title)}" data-poster="${encodeURIComponent(it.poster)}">Cast ▶</button>
+        <div class="av-card">
+          <div class="poster">
+            <img src="${it.poster||PLACEHOLDER}" alt="">
+            ${delBadge}
+            <div class="vprog"><span style="width:${pct}%;"></span></div>
+          </div>
+          <div class="body">
+            <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
+            <div class="meta">${metaL}${delDate}</div>
+            <div class="tiny">Postęp: ${pct}% ${it.duration? `· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min` : ''}</div>
+            <div class="actions">
+              <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
             </div>
           </div>
         </div>`;
-    }).join('') || `<div class="muted" style="padding:10px">Brak pozycji.</div>`;
-  }
+    }).join('');
 
-  /* ---------- Cast: modal ---------- */
-  function showModal(){ if(modal) modal.classList.add('open'); }
-  function hideModal(){ if(modal) modal.classList.remove('open'); }
+    avInfo.textContent = `Pozycji: ${items.length}`;
 
-  async function openCastModal(itemId, title, poster){
-    if(!modal || !castSel) return;
-    showModal();
-    castSel.innerHTML = `<option value="">Ładuję…</option>`;
-    try{
-      const j = await apiJson('/cast/players', {method:'GET'});
-      const list = Array.isArray(j?.devices) ? j.devices : [];
-      if(!list.length){ castSel.innerHTML = `<option value="">(brak klientów)</option>`; return; }
-      castSel.innerHTML = `<option value="">— wybierz —</option>` + list.map(d=>`<option value="${d.id}">${d.name||d.product||'Plex'} — ${d.platform||''}</option>`).join('');
-      if(CAST_CLIENT_ID && list.some(x=>String(x.id)===String(CAST_CLIENT_ID))) castSel.value = CAST_CLIENT_ID;
-
-      if(castStartBtn){
-        castStartBtn.onclick = async ()=>{
-          const cid = castSel.value;
-          if(!cid){ toast('Wybierz urządzenie'); return; }
-          CAST_CLIENT_ID = cid;
-          localStorage.setItem('pf_cast_client', cid);
-          try{
-            await apiJson('/cast/start', {method:'POST', body: JSON.stringify({ item_id:String(itemId), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text || '' })});
-            hideModal();
-            showMiniPlayer({title, poster});
-            await refreshCastStatus(); autoCastOn();
-          }catch(e){ toast(e.message||e); }
-        };
-      }
-      if(castCancelBtn) castCancelBtn.onclick = ()=> hideModal();
-    }catch(e){
-      castSel.innerHTML = `<option value="">(błąd: ${e.message||e})</option>`;
-    }
-  }
-
-  // open modal via "Cast ▶" inside Available
-  document.addEventListener('click', (ev)=>{
-    const b = ev.target.closest('button[data-cast]');
-    if(!b) return;
-    const id = b.getAttribute('data-cast') || '';
-    const title = decodeURIComponent(b.getAttribute('data-title')||'');
-    const poster= decodeURIComponent(b.getAttribute('data-poster')||'');
-    if(!/^\d+$/.test(id)){ toast('Brak ratingKey (Plex)'); return; }
-    openCastModal(id, title, poster);
-  });
-
-  /* ---------- Mini player ---------- */
-  function showMiniPlayer(meta={}){
-    if(!mini) return;
-    if(miniPoster) miniPoster.src = meta.poster || '';
-    if(miniTitle)  miniTitle.textContent = meta.title || '—';
-    mini.classList.remove('hidden');  // pokaż
-  }
-  function hideMiniPlayer(){ if(mini) mini.classList.add('hidden'); }
-
-  async function castCmd(cmd, extra={}){
-    if(!CAST_CLIENT_ID){ toast('Wybierz urządzenie Plex'); return; }
-    await apiJson('/cast/cmd', {method:'POST', body: JSON.stringify({ client_id: CAST_CLIENT_ID, cmd, ...extra })});
-  }
-
-  if(miniPlay){
-    miniPlay.addEventListener('click', async ()=>{
-      const state = miniPlay.getAttribute('data-state') || 'pause';
-      await castCmd(state==='play' ? 'pause' : 'play');
-      await refreshCastStatus();
-    });
-  }
-  if(miniStop){
-    miniStop.addEventListener('click', async ()=>{
-      await castCmd('stop');
-      await refreshCastStatus();
-    });
-  }
-  if(miniSeek){
-    miniSeek.addEventListener('input', async (e)=>{
-      const v = Number(e.target.value||0);                 // 0..100
-      const to = Math.round((v/100) * (CAST_DURATION||0)); // seconds
-      await castCmd('seek', { seek_ms: to*1000 });
-    });
-  }
-
-  async function refreshCastStatus(){
-    try{
-      const qsClient = CAST_CLIENT_ID ? `?client_id=${encodeURIComponent(CAST_CLIENT_ID)}` : '';
-      const j = await apiJson('/cast/status' + qsClient, {method:'GET'});
-      const mine = Array.isArray(j?.sessions) ? j.sessions.find(s=> String(s.client_id||'')===String(CAST_CLIENT_ID)) : null;
-
-      if(!mine){ hideMiniPlayer(); return; } // brak sesji → chowamy
-
-      // pokaż jeśli ukryty
-      showMiniPlayer({
-        title: mine.title || (miniTitle?.textContent||'—'),
-        poster: (mine.thumb && /^https?:/.test(mine.thumb)) ? mine.thumb : (miniPoster?.src||'')
+    _delTimer = setInterval(() => {
+      document.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
+        const ts = Number(el.getAttribute('data-delete-at'));
+        if(!isFinite(ts)) return;
+        const diff = ts - Date.now();
+        el.textContent = ttl(diff);
+        el.classList.remove('ok','warn','danger');
+        el.classList.add(dcls(diff));
       });
+    }, 30000);
+  }
 
-      CAST_DURATION = Math.round((mine.duration_ms||0)/1000);
-      CAST_POSITION = Math.round((mine.view_offset_ms||0)/1000);
-      const pct = CAST_DURATION>0 ? Math.round(CAST_POSITION/CAST_DURATION*100) : 0;
+  async function loadAvailable(){
+    avInfo.textContent = 'Ładuję...';
+    availableGrid.innerHTML = '';
 
-      if(miniSeek) miniSeek.value = String(pct);
-      if(miniTime) miniTime.textContent = `${fmtTime(CAST_POSITION)} / ${fmtTime(CAST_DURATION)}`;
+    const ep = await detectAvailableEndpoint();
+    console.info('[Dostępne] endpoint:', ep);
 
-      const playing = String(mine.state||'').toLowerCase()==='playing';
-      if(miniPlay){
-        miniPlay.textContent = playing ? 'Pauza' : 'Wznów';
-        miniPlay.setAttribute('data-state', playing ? 'play' : 'pause');
+    try{
+      if(ep.mode === 'pair'){
+        const [m,s] = ep.u.split('|');
+        const jm = await fetchJsonSmart(m,'GET') || await fetchJsonSmart(m,'POST') || [];
+        const js = await fetchJsonSmart(s,'GET') || await fetchJsonSmart(s,'POST') || [];
+        _availableRaw = ([]).concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
+        renderAvailable(_availableRaw);
+        return;
       }
-    }catch(_){
-      hideMiniPlayer();
+
+      const j = await fetchJsonSmart(ep.u,'GET') || await fetchJsonSmart(ep.u,'POST') || {};
+      const ns = normalizeAvailable(j, ep.mode);
+      _availableRaw = (ns.films||[]).concat(ns.series||[]);
+      renderAvailable(_availableRaw);
+    }catch(e){
+      avInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
     }
   }
-  function autoCastOn(){ if(!CAST_TIMER) CAST_TIMER = setInterval(refreshCastStatus, 2500); }
-  function autoCastOff(){ if(CAST_TIMER){ clearInterval(CAST_TIMER); CAST_TIMER=null; } }
 
-  /* ---------- Init ---------- */
-  hideMiniPlayer();            // ukryj na starcie
-  loadAvailable().catch(()=>{}); // początkowe wczytanie
-
-  // expose optional API
+  // udostępniam debug w konsoli
   window.piotrflixAvailable = {
     reload: loadAvailable,
-    setKind,       // 'movie' | 'series' | 'all'
-    castStatus: refreshCastStatus,
-    castAutoOn: autoCastOn,
-    castAutoOff: autoCastOff
+    endpoint: detectAvailableEndpoint
   };
+
+  // filtry
+  avBtn.onclick = loadAvailable;
+  avAuto.onclick = function(){ if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; } else { this._t=setInterval(loadAvailable, 10000); this.textContent='Auto: ON'; loadAvailable(); } };
+  avQuery.addEventListener('input', ()=>renderAvailable(_availableRaw));
+  avKind.addEventListener('change', ()=>renderAvailable(_availableRaw));
+  avSort.addEventListener('change', ()=>renderAvailable(_availableRaw));
+
+  // Cast z karty
+  window.castFromAvailable = async (canonId)=>{
+    const raw = _availableIndex[canonId] || {};
+    let itemId = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
+    if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
+    if(!itemId){
+      itemId = prompt('Brak plex_id w pozycji. Podaj Plex ratingKey (item_id):', '');
+    }
+    if(!itemId || !/^\d+$/.test(String(itemId))){
+      alert('Nieprawidłowy item_id (ratingKey).'); return;
+    }
+    if (typeof castStart === 'function') await castStart(itemId);
+  };
+
+  // załaduj od razu (po DOMContentLoaded oraz po logowaniu możesz wywołać window.piotrflixAvailable.reload())
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadAvailable);
+  } else {
+    loadAvailable();
+  }
 })();
