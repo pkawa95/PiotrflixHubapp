@@ -1452,4 +1452,4 @@ document.addEventListener("DOMContentLoaded", () => {
   window.openCastModal = openCastModal;
 
   // (brak boot – podpinaj pfSetCastItem(...) i openCastModal() z własnego UI)
-})();
+})();})
