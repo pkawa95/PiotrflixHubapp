@@ -376,15 +376,16 @@
 
       
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
-      <section id="section-available" aria-labelledby="av2-title">
+<!-- ===================== DOSTĘPNE (sekcja v2 – poprawione) ===================== -->
+<section id="section-available" aria-labelledby="av2-title">
   <!-- sticky: logo + tabs -->
-  <div class="av2-sticky">
+  <div class="av2-sticky" id="av2-header">
     <div class="av2-brand">
-      <img src="static/logo/piotrflix.png" alt="Piotrflix" class="av2-logo" />
+      <img src="static/piotrflix.png" alt="Piotrflix" class="av2-logo" />
     </div>
-    <div class="av2-tabs" role="tablist" aria-label="Przełącz widok">
-      <button id="av-tab-movies" data-av-tab="movies" class="is-active">Filmy</button>
-      <button id="av-tab-series" data-av-tab="series">Seriale</button>
+    <div class="av2-tabs" id="av2-tabs" role="tablist" aria-label="Przełącz widok">
+      <button id="av2-tab-movies" data-av2-tab="movies" class="is-active" role="tab" aria-selected="true">Filmy</button>
+      <button id="av2-tab-series" data-av2-tab="series" role="tab" aria-selected="false">Seriale</button>
     </div>
   </div>
 
@@ -422,7 +423,12 @@
       </select>
       <div class="av2-modal-actions">
         <button id="av2-cast-start" class="btn btn--primary" value="play">Odtwarzaj</button>
-        <button class="btn btn--ghost" value="cancel">Wyjście</button>
+        <button id="av2-cast-cancel" class="btn btn--ghost" value="cancel">Wyjście</button>
+      </div>
+    </form>
+  </dialog>
+</section>
+
     </main>
   </div>
 

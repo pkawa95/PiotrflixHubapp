@@ -1018,459 +1018,264 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* =====================  DOSTĘPNE — zgodne z authFetch/API  ===================== */
+/* ===================== DOSTĘPNE v2 — zgodne z HTML (av2-*) ===================== */
 (function(){
-  const $ = id => document.getElementById(id);
+  const section = document.getElementById('section-available');
+  if (!section) return;
 
-  // --- spójna baza API + auth jak w innych modułach
-  const API =
-    document.getElementById("auth-screen")?.dataset.apiBase ||
-    localStorage.getItem("pf_base") || "";
-  const joinUrl = (b, p) => `${(b||"").replace(/\/+$/,"")}/${String(p||"").replace(/^\/+/,"")}`;
+  // API przez authFetch (masz to już z auth)
+  const API = document.getElementById("auth-screen")?.dataset.apiBase || localStorage.getItem("pf_base") || "";
+  const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
   const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
 
-  // ujednolicone wywołanie API przez authFetch (obsługuje token + auto-refresh)
-  async function apiJson(path, opt = {}) {
+  async function apiJson(path, opt={}) {
     const headers = new Headers(opt.headers || {});
-    // jeśli podajemy body jako obiekt -> JSON
     if (!headers.has("Content-Type") && opt.body && typeof opt.body === "object" && !(opt.body instanceof FormData)) {
-      headers.set("Content-Type", "application/json");
+      headers.set("Content-Type","application/json");
     }
     const init = { ...opt, headers };
-    if (headers.get("Content-Type") === "application/json" && init.body && typeof init.body === "object") {
+    if (headers.get("Content-Type")==="application/json" && init.body && typeof init.body === "object") {
       init.body = JSON.stringify(init.body);
     }
-
     const res = await window.authFetch(joinUrl(API, path), init);
     const txt = await res.text().catch(()=> "");
     if (!res.ok) {
-      let msg = txt;
-      try { const j = JSON.parse(txt); msg = j.message || j.error || msg; } catch {}
-      throw new Error(`${res.status} ${msg}`);
+      try { const j = JSON.parse(txt); throw new Error(j.message || j.error || `${res.status}`); }
+      catch { throw new Error(txt || `HTTP ${res.status}`); }
     }
     try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  /* ---------- UI refs (guardy) ---------- */
-  const tabMovies = $("av-tab-movies");
-  const tabSeries = $("av-tab-series");
-  const listEl    = $("av-list");
-  const emptyEl   = $("av-empty");
+  // UI refs — wszystko po sekcji (żeby nie kolidować)
+  const tabsHost = section.querySelector('#av2-tabs');
+  const tabMovies = section.querySelector('#av2-tab-movies');
+  const tabSeries = section.querySelector('#av2-tab-series');
+  const infoEl    = section.querySelector('#av2-info');
+  const listEl    = section.querySelector('#av2-list');
 
-  const dlg       = $("cast-modal");
-  const castSel   = $("cast-device");
-  const castStart = $("cast-start");
-  const castClose = $("cast-close");
-  const castInfo  = $("cast-info");
+  const playerBox = section.querySelector('#av2-player');
+  const plPoster  = section.querySelector('#av2-pl-poster');
+  const plSeek    = section.querySelector('#av2-pl-seek');
+  const plTime    = section.querySelector('#av2-pl-time');
+  const plPct     = section.querySelector('#av2-pl-pct');
+  const btnPlay   = section.querySelector('#av2-btn-play');
+  const btnPause  = section.querySelector('#av2-btn-pause');
+  const btnStop   = section.querySelector('#av2-btn-stop');
 
-  const playerBox = $("av-player");
-  const plPoster  = $("pl-poster");
-  const plTitle   = $("pl-title");
-  const plSeek    = $("pl-seek");
-  const plTime    = $("pl-time");
-  const plPct     = $("pl-pct");
-  const plPlay    = $("pl-play");
-  const plStop    = $("pl-stop");
-  const plBack    = $("pl-seek-back");
-  const plFwd     = $("pl-seek-fwd");
+  const dlg       = section.querySelector('#av2-cast-modal');
+  const castSel   = section.querySelector('#av2-device');
+  const castForm  = section.querySelector('#av2-cast-form');
+  const castStart = section.querySelector('#av2-cast-start');
 
-  const setText = (el, t)=>{ if(el) el.textContent = t; };
-  const setHTML = (el, h)=>{ if(el) el.innerHTML = h; };
-  const setShow = (el, on)=>{ if(el) el.style.display = on ? "" : "none"; };
+  // helpers
+  const setText = (el,t)=>{ if(el) el.textContent=t; };
+  const setHTML = (el,h)=>{ if(el) el.innerHTML=h; };
+  const clamp01 = x => Math.max(0, Math.min(1, Number(x)||0));
+  const fmtTime = (sec)=>{ sec=Math.max(0,Math.floor(Number(sec)||0));
+    const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+    return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  };
+  const esc = s => String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
 
-  /* ---------- State ---------- */
-  let RAW = { films: [], series: [] };
-  let activeKind = "movies";
-  let selectedItem = null;
-  let currentClientId = localStorage.getItem("pf_cast_client") || "";
+  // state
+  let RAW = { films:[], series:[] };
+  let activeKind = 'movies';
+  let selected = null;
+  let currentClientId = localStorage.getItem('pf_cast_client') || '';
   let statusTimer = null;
 
-  /* ---------- Util ---------- */
-  const clamp01 = x => Math.max(0, Math.min(1, Number(x)||0));
-  const fmtTime = sec => {
-    sec = Math.max(0, Math.floor(Number(sec)||0));
-    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return (h? String(h).padStart(2,"0")+":" : "") + String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
-  };
-  const escapeHtml = s => String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+  // canon
   function canon(r){
-    const title  = r.display_title || r.title || r.name || "—";
-    const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-    const year   = r.year || r.release_year || null;
-    const isSeries = (r.kind||r.type||r.mtype||"").toLowerCase()==="series" || !!r.season || !!r.episode;
-    const kind   = isSeries ? "series" : "movie";
-    const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0)) / 1000;
-    const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
-    let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0); prog = clamp01(prog>1.01? prog/100: prog);
+    const title  = r.display_title || r.title || r.name || '—';
+    const poster = r.image_url || r.poster || r.poster_url || r.thumb || '';
+    const isSeries = (r.kind||r.type||'').toLowerCase()==='series' || !!r.season || !!r.episode;
+    const kind   = isSeries ? 'series' : 'movie';
+    const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0))/1000;
+    const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0))/1000;
+    let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
+    prog = clamp01(prog>1.01 ? prog/100 : prog);
     const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
-    return { id, title, poster, year, kind, pos, dur, prog, season:r.season??null, episode:r.episode??null };
+    return { id, title, poster, kind, pos, dur, prog,
+      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null };
   }
-  const epLabel = it => it.kind==="series" ? `S${String(it.season??"--").padStart(2,"0")}E${String(it.episode??"--").padStart(2,"0")}` : "";
+  const ep = it => it.kind==='series' ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
 
-  /* ---------- Render ---------- */
+  // render
   function render(){
-    const arrRaw =
-      activeKind==="movies"
-        ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies)? RAW.movies : []))
-        : (Array.isArray(RAW.series) ? RAW.series : []);
+    const arrRaw = (activeKind==='movies')
+      ? (Array.isArray(RAW.films)? RAW.films : (Array.isArray(RAW.movies)? RAW.movies: []))
+      : (Array.isArray(RAW.series)? RAW.series : []);
     const arr = arrRaw.map(canon);
 
-    if (listEl){
-      setHTML(listEl, arr.map(it=>{
-        const pct = Math.round((it.prog||0)*100);
-        return `
-        <article class="av-card">
-          <img class="av-poster" src="${it.poster||""}" alt="">
-          <div class="av-body">
-            <h3 class="av-title">${escapeHtml(it.title)}${it.year?` (${it.year})`:""}</h3>
-            <div class="av-meta">
-              <span>${it.kind}${it.kind==="series" && it.season!=null && it.episode!=null ? " · "+epLabel(it) : ""}</span>
-            </div>
-            <div class="av-progress"><span class="av-bar" style="width:${pct}%;"></span></div>
-            <div class="av-meta"><span>${pct}%</span>${it.dur?`<span>${Math.round(it.pos/60)} / ${Math.round(it.dur/60)} min</span>`:""}</div>
-          </div>
-          <div class="av-actions">
-            <button class="btn--cast" data-id="${it.id}" data-title="${escapeHtml(it.title)}" data-poster="${it.poster||""}">Cast ▶</button>
-          </div>
-        </article>`;
-      }).join(""));
-      listEl.querySelectorAll(".btn--cast").forEach(btn=>{
-        btn.addEventListener("click", ()=>{
-          selectedItem = {
-            id: btn.getAttribute("data-id") || "",
-            title: btn.getAttribute("data-title") || "",
-            poster: btn.getAttribute("data-poster") || ""
-          };
-          openCastModal();
-        });
-      });
+    if (!arr.length){
+      setHTML(listEl, '');
+      setText(infoEl, 'Brak pozycji do wyświetlenia.');
+      return;
     }
+    setText(infoEl, `Pozycji: ${arr.length}`);
 
-    if (emptyEl){
-      const has = arr.length>0;
-      setShow(emptyEl, !has);
-      if (!has) setText(emptyEl, "Brak pozycji do wyświetlenia.");
-    }
+    const html = arr.map(it=>{
+      const pct = Math.round((it.prog||0)*100);
+      const year = it.year? ` (${it.year})` : '';
+      const sub = it.kind + (it.kind==='series' && it.season!=null && it.episode!=null ? ` · ${ep(it)}`:'');
+      return `
+      <article class="av-card">
+        <div class="poster">
+          <img class="av-poster" src="${esc(it.poster)}" alt="">
+          <div class="vprog"><span style="width:${pct}%;"></span></div>
+        </div>
+        <div class="body">
+          <div class="title">${esc(it.title)}${year}</div>
+          <div class="meta">${sub}</div>
+          <div class="tiny">Postęp: ${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
+          <div class="actions">
+            <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
+          </div>
+        </div>
+      </article>`;
+    }).join('');
+    setHTML(listEl, html);
+
+    // podłącz Cast do wygenerowanych kart
+    listEl.querySelectorAll('.btn--cast').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        selected = {
+          id: b.getAttribute('data-id') || '',
+          title: b.getAttribute('data-title') || '',
+          poster: b.getAttribute('data-poster') || ''
+        };
+        openCastModal();
+      });
+    });
   }
 
-  /* ---------- Load available ---------- */
+  // load
   async function loadAvailable(){
     if (!tokenOk()){
-      if (emptyEl){
-        setShow(emptyEl, true);
-        setText(emptyEl, "Musisz być zalogowany (brak tokenu).");
-      }
-      if (listEl) setHTML(listEl, "");
+      setText(infoEl, 'Musisz być zalogowany (brak tokenu).');
+      setHTML(listEl, '');
       return;
     }
-    if (emptyEl){ setShow(emptyEl, true); setText(emptyEl, "Ładuję listę…"); }
-    if (listEl) setHTML(listEl, "");
+    setText(infoEl, 'Ładuję listę…');
+    setHTML(listEl, '');
     try{
-      const j = await apiJson("/me/available", { method:"GET" });
+      const j = await apiJson('/me/available', {method:'GET'});
       if (Array.isArray(j)){
-        RAW.films  = j.filter(x => (x.kind||x.type||"").toLowerCase()!=="series");
-        RAW.series = j.filter(x => (x.kind||x.type||"").toLowerCase()==="series");
+        RAW.films  = j.filter(x => (x.kind||x.type||'').toLowerCase()!=='series');
+        RAW.series = j.filter(x => (x.kind||x.type||'').toLowerCase()==='series');
       } else {
-        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies) ? j.movies : []);
+        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies)? j.movies: []);
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
       render();
     }catch(e){
-      if (emptyEl){ setShow(emptyEl, true); setText(emptyEl, `Błąd: ${e.message||e}`); }
+      setText(infoEl, `Błąd: ${e.message||e}`);
     }
   }
 
-  /* ---------- Tabs ---------- */
+  // tabs
   function setTab(kind){
-    activeKind = (kind==="series") ? "series" : "movies";
-    if (tabMovies) tabMovies.classList.toggle("is-active", activeKind==="movies");
-    if (tabSeries) tabSeries.classList.toggle("is-active", activeKind==="series");
+    activeKind = (kind==='series')?'series':'movies';
+    tabMovies?.classList.toggle('is-active', activeKind==='movies');
+    tabSeries?.classList.toggle('is-active', activeKind==='series');
     render();
   }
-  if (tabMovies) tabMovies.addEventListener("click", ()=> setTab("movies"));
-  if (tabSeries) tabSeries.addEventListener("click", ()=> setTab("series"));
-
-  (() => {
-  /* ========== COMMON ========== */
-  const $ = (id) => document.getElementById(id);
-  const setText = (el, t) => { if (el) el.textContent = t; };
-  const setHTML = (el, h) => { if (el) el.innerHTML = h; };
-  const setShow = (el, on) => { if (el) el.style.display = on ? "" : "none"; };
-  const fmtTime = (sec) => {
-    sec = Math.max(0, Math.floor(Number(sec)||0));
-    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    return (h? String(h).padStart(2,"0")+":" : "") + String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
-  };
-
-  const BASE_URL = localStorage.getItem("pf_base") || "https://api.pkportfolio.pl";
-  const TOKEN_KEY = "pf_token";
-
-  async function apiJson(path, opt = {}) {
-    const headers = new Headers(opt.headers || {});
-    const t = localStorage.getItem(TOKEN_KEY) || "";
-    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-    if (t) headers.set("Authorization", "Bearer " + t);
-
-    let body = opt.body;
-    if (body && typeof body === "object" && !(body instanceof FormData)) body = JSON.stringify(body);
-
-    const url = path.startsWith("http") ? path : (BASE_URL + path);
-    const res = await fetch(url, { method: opt.method || "GET", headers, body });
-    const text = await res.text().catch(() => "");
-    if (!res.ok) throw new Error(text || `${res.status} ${res.statusText}`);
-    try { return JSON.parse(text); } catch { return text; }
-  }
-
-  /* ========== UI refs (Dostępne + Cast) ========== */
-  const tabMovies = $("av-tab-movies");
-  const tabSeries = $("av-tab-series");
-  const tabsHost  = $("av-tabs") || document;     // fallback dla delegacji
-  const listEl    = $("av-list");
-  const emptyEl   = $("av-empty");
-
-  const dlg       = $("cast-modal");
-  const castSel   = $("cast-device");
-  const castStart = $("cast-start");
-  const castClose = $("cast-close");
-  const castInfo  = $("cast-info");
-
-  const playerBox = $("av-player");
-  const plPoster  = $("pl-poster");
-  const plTitle   = $("pl-title");
-  const plSeek    = $("pl-seek");
-  const plTime    = $("pl-time");
-  const plPct     = $("pl-pct");
-  const plPlay    = $("pl-play");
-  const plStop    = $("pl-stop");
-  const plBack    = $("pl-seek-back");
-  const plFwd     = $("pl-seek-fwd");
-
-  /* ========== Safety: anty-overlay na nagłówku z tabami ========== */
-  // Jeśli masz w HTML wrapper z id="av-header" (gdzie są guziki Filmy/Seriale),
-  // to wymuś na nim „klikowalność”, aby nic go nie przykryło.
-  const avHeader = $("av-header");
-  if (avHeader) {
-    avHeader.style.position = "relative";
-    avHeader.style.zIndex = "10";
-    avHeader.style.pointerEvents = "auto";
-  }
-
-  /* ========== State ========== */
-  let RAW = { films: [], series: [] };
-  let activeKind = "movies";
-  let selectedItem = null;
-  let currentClientId = localStorage.getItem("pf_cast_client") || "";
-  let statusTimer = null;
-
-  /* ========== Utils ========== */
-  const clamp01 = (x) => Math.max(0, Math.min(1, Number(x)||0));
-  const escapeHtml = (s) => String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
-  function canon(r){
-    const title  = r.display_title || r.title || r.name || "—";
-    const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-    const year   = r.year || r.release_year || null;
-    const isSeries = (r.kind||r.type||r.mtype||"").toLowerCase()==="series" || !!r.season || !!r.episode;
-    const kind   = isSeries ? "series" : "movie";
-    const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0)) / 1000;
-    const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
-    let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0); prog = clamp01(prog>1.01? prog/100: prog);
-    const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
-    return { id, title, poster, year, kind, pos, dur, prog, season:r.season??null, episode:r.episode??null };
-  }
-  const epLabel = (it) => it.kind==="series" ? `S${String(it.season??"--").padStart(2,"0")}E${String(it.episode??"--").padStart(2,"0")}` : "";
-
-  /* ========== Render listy „Dostępne” ========== */
-  function render(){
-    const arrRaw =
-      activeKind==="movies"
-        ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies)? RAW.movies : []))
-        : (Array.isArray(RAW.series) ? RAW.series : []);
-    const arr = arrRaw.map(canon);
-
-    if (listEl){
-      setHTML(listEl, arr.map(it=>{
-        const pct = Math.round((it.prog||0)*100);
-        return `
-        <article class="av-card">
-          <img class="av-poster" src="${it.poster||""}" alt="">
-          <div class="av-body">
-            <h3 class="av-title">${escapeHtml(it.title)}${it.year?` (${it.year})`:""}</h3>
-            <div class="av-meta">
-              <span>${it.kind}${it.kind==="series" && it.season!=null && it.episode!=null ? " · "+epLabel(it) : ""}</span>
-            </div>
-            <div class="av-progress"><span class="av-bar" style="width:${pct}%;"></span></div>
-            <div class="av-meta"><span>${pct}%</span>${it.dur?`<span>${Math.round(it.pos/60)} / ${Math.round(it.dur/60)} min</span>`:""}</div>
-          </div>
-          <div class="av-actions">
-            <button class="btn--cast" data-id="${it.id}" data-title="${escapeHtml(it.title)}" data-poster="${it.poster||""}">Cast ▶</button>
-          </div>
-        </article>`;
-      }).join(""));
-
-      // guziki CAST w kartach
-      listEl.querySelectorAll(".btn--cast").forEach(btn=>{
-        btn.addEventListener("click", ()=>{
-          selectedItem = {
-            id: btn.getAttribute("data-id") || "",
-            title: btn.getAttribute("data-title") || "",
-            poster: btn.getAttribute("data-poster") || ""
-          };
-          openCastModal();
-        });
-      });
-    }
-
-    if (emptyEl){
-      const has = arr.length>0;
-      setShow(emptyEl, !has);
-      if (!has) setText(emptyEl, "Brak pozycji do wyświetlenia.");
-    }
-  }
-
-  /* ========== Loader „Dostępne” ========== */
-  async function loadAvailable(){
-    const token = localStorage.getItem(TOKEN_KEY) || "";
-    if (!token){
-      if (emptyEl){
-        setShow(emptyEl, true);
-        setText(emptyEl, "Brak tokenu. Ustaw go: pfSetToken('TWÓJ_JWT') i odśwież.");
-      }
-      if (listEl) setHTML(listEl, "");
-      return;
-    }
-    if (emptyEl){ setShow(emptyEl, true); setText(emptyEl, "Ładuję listę…"); }
-    if (listEl) setHTML(listEl, "");
-    try{
-      const j = await apiJson("/me/available", { method:"GET" });
-      if (Array.isArray(j)){
-        RAW.films  = j.filter(x => (x.kind||x.type||"").toLowerCase()!=="series");
-        RAW.series = j.filter(x => (x.kind||x.type||"").toLowerCase()==="series");
-      } else {
-        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies) ? j.movies : []);
-        RAW.series = Array.isArray(j?.series) ? j.series : [];
-      }
-      render();
-    }catch(e){
-      if (emptyEl){ setShow(emptyEl, true); setText(emptyEl, `Błąd: ${e.message||e}`); }
-    }
-  }
-
-  /* ========== Taby: super-odporna delegacja ========== */
-  function setTab(kind){
-    activeKind = (kind==="series") ? "series" : "movies";
-    tabMovies && tabMovies.classList.toggle("is-active", activeKind==="movies");
-    tabSeries && tabSeries.classList.toggle("is-active", activeKind==="series");
-    render();
-  }
-  // kliknięcia po id…
-  tabMovies && tabMovies.addEventListener("click", (e)=>{ e.preventDefault(); setTab("movies"); });
-  tabSeries && tabSeries.addEventListener("click", (e)=>{ e.preventDefault(); setTab("series"); });
-  // …i delegacja po data-attr (działa nawet po re-renderach)
-  tabsHost.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-av-tab]");
+  tabsHost?.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-av2-tab]');
     if (!t) return;
-    const k = t.getAttribute("data-av-tab");
-    if (k === "movies" || k === "series") {
-      e.preventDefault();
-      setTab(k);
-    }
+    const k = t.getAttribute('data-av2-tab');
+    if (k==='movies' || k==='series'){ e.preventDefault(); setTab(k); }
   });
 
-  /* ========== CAST (modal + player) – przez apiJson ========== */
+  // CAST
   function openCastModal(){
-    if (castInfo) setText(castInfo, "Ładuję urządzenia…");
-    if (castSel) castSel.innerHTML = "";
-    apiJson("/cast/players",{method:"GET"})
-      .then(j=>{
-        const list = Array.isArray(j?.devices) ? j.devices : [];
-        if (!castSel) return;
-        if (!list.length) castSel.innerHTML = `<option value="">(brak klientów Plex)</option>`;
-        else {
-          castSel.innerHTML = `<option value="">— wybierz —</option>` +
-            list.map(d=>`<option value="${d.id}">${(d.name||d.product||"Plex")} — ${d.platform||""}</option>`).join("");
-          const prev = localStorage.getItem("pf_cast_client") || "";
-          if (prev && list.some(x=>String(x.id)===String(prev))) castSel.value = prev;
-        }
-        if (castInfo) setText(castInfo, "—");
-      })
-      .catch(e=>{
-        if (castSel) castSel.innerHTML = `<option value="">(błąd)</option>`;
-        if (castInfo) setText(castInfo, e.message||String(e));
-      });
-    if (dlg){ if (typeof dlg.showModal==="function") dlg.showModal(); else dlg.setAttribute("open",""); }
-  }
-  function closeCastModal(){ if (!dlg) return; if (dlg.open) dlg.close(); else dlg.removeAttribute("open"); }
-  castSel && castSel.addEventListener("change", ()=>{ currentClientId = castSel.value||""; if(currentClientId) localStorage.setItem("pf_cast_client", currentClientId); });
-  castStart && castStart.addEventListener("click", async (e)=>{
-    e.preventDefault();
-    if (!castSel) return;
-    const client = castSel.value;
-    if (!client){ if (castInfo) setText(castInfo,"Wybierz urządzenie."); return; }
-    if (!selectedItem || !/^\d+$/.test(String(selectedItem.id||""))){ if (castInfo) setText(castInfo,"Brak ratingKey."); return; }
-    try{
-      if (castInfo) setText(castInfo, "Startuję…");
-      await apiJson("/cast/start",{method:"POST", body: { item_id:String(selectedItem.id), client_id:client, client_name: castSel.options[castSel.selectedIndex]?.text||"" }});
-      if (castInfo) setText(castInfo, "OK");
-      closeCastModal(); showPlayer(selectedItem); startStatusLoop();
-    }catch(e2){ if (castInfo) setText(castInfo, e2.message||String(e2)); }
-  });
-  castClose && castClose.addEventListener("click", e=>{ e.preventDefault(); closeCastModal(); });
+    // wczytaj listę klientów
+    if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
+    apiJson('/cast/players',{method:'GET'}).then(j=>{
+      const list = Array.isArray(j?.devices) ? j.devices : [];
+      if (!list.length){ castSel.innerHTML = `<option value="">(brak klientów)</option>`; }
+      else {
+        castSel.innerHTML = `<option value="">— wybierz —</option>` + list.map(d=>`<option value="${d.id}">${esc(d.name||d.product||'Plex')} — ${esc(d.platform||'')}</option>`).join('');
+        const prev = localStorage.getItem('pf_cast_client') || '';
+        if (prev && list.some(x=>String(x.id)===String(prev))) castSel.value = prev;
+      }
+    }).catch(_=>{ castSel.innerHTML = `<option value="">(błąd)</option>`; });
 
-  function showPlayer(item){
-    if (!playerBox) return;
-    playerBox.hidden = false;
-    if (plTitle)  plTitle.textContent = item?.title || "—";
-    if (plPoster) plPoster.src = item?.poster || "";
-    if (plSeek)   plSeek.value = 0;
-    if (plTime)   plTime.textContent = "00:00 / 00:00";
-    if (plPct)    plPct.textContent = "0%";
+    if (typeof dlg?.showModal === 'function') dlg.showModal(); else dlg?.setAttribute('open','');
   }
-  function updatePlayerFromStatus(st){
+
+  castSel?.addEventListener('change', ()=> {
+    currentClientId = castSel.value || '';
+    if (currentClientId) localStorage.setItem('pf_cast_client', currentClientId);
+  });
+
+  castStart?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    const cid = castSel?.value || '';
+    if (!cid){ return; }
+    if (!selected || !/^\d+$/.test(String(selected.id||''))){ return; }
+    try{
+      await apiJson('/cast/start', {method:'POST', body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||'' }});
+      // pokaż player
+      playerBox.hidden = false;
+      if (plPoster) plPoster.src = selected.poster || '';
+      startStatusLoop();
+    }catch(_){}
+    finally { dlg?.close?.(); }
+  });
+
+  function updateFromStatus(st){
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
-    const sess = sessions.find(s => String(s.client_id||"") === String(currentClientId)) || sessions[0];
+    const sess = sessions.find(s=> String(s.client_id||'')===String(currentClientId)) || sessions[0];
     if (!sess) return;
     const dur = Number(sess.duration_ms||0)/1000;
     const pos = Number(sess.view_offset_ms||0)/1000;
     const pct = dur>0 ? Math.round(pos/dur*100) : 0;
-    if (plSeek){ plSeek.max = dur>0 ? String(dur) : "100"; plSeek.value = String(pos||0); }
-    if (plTime) plTime.textContent = `${fmtTime(pos)} / ${fmtTime(dur)}`;
-    if (plPct)  plPct.textContent = `${pct}%`;
-    if (plTitle && sess.title) plTitle.textContent = sess.title;
+    if (plSeek){ plSeek.max = dur>0 ? String(dur) : '100'; plSeek.value = String(pos||0); }
+    if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
+    if (plPct)  setText(plPct, `${pct}%`);
   }
-  function startStatusLoop(){ stopStatusLoop(); statusTimer = setInterval(async ()=>{ try{
-      const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : "";
-      const j = await apiJson("/cast/status"+qs,{method:"GET"}); updatePlayerFromStatus(j);
-    }catch(_){} }, 1500); }
+  function startStatusLoop(){
+    stopStatusLoop();
+    statusTimer = setInterval(async ()=>{
+      try{
+        const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : '';
+        const j = await apiJson('/cast/status'+qs, {method:'GET'});
+        updateFromStatus(j);
+      }catch(_){}
+    }, 1500);
+  }
   function stopStatusLoop(){ if (statusTimer){ clearInterval(statusTimer); statusTimer=null; } }
-  plSeek && plSeek.addEventListener("input", async ()=>{ if(!currentClientId) return; const seekMs = Math.round(Number(plSeek.value||"0")*1000);
-    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: seekMs }}); }catch(_){}
+
+  plSeek?.addEventListener('input', async ()=>{
+    if (!currentClientId) return;
+    const seekMs = Math.round(Number(plSeek.value||'0')*1000);
+    try{ await apiJson('/cast/cmd', {method:'POST', body:{ client_id: currentClientId, cmd:'seek', seek_ms: seekMs }}); }catch(_){}
   });
-  plPlay && plPlay.addEventListener("click", async ()=>{ if(!currentClientId) return;
-    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"play" }}); }catch(_){}
-    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"pause" }}); }catch(_){}
+  btnPlay?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'play' }}); }catch(_){}
   });
-  plStop && plStop.addEventListener("click", async ()=>{ if(!currentClientId) return;
-    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"stop" }}); }catch(_){}
+  btnPause?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'pause' }}); }catch(_){}
+  });
+  btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
     stopStatusLoop();
   });
-  plBack && plBack.addEventListener("click", ()=> nudgeSeek(-10));
-  plFwd  && plFwd .addEventListener("click", ()=> nudgeSeek(+30));
-  async function nudgeSeek(delta){
-    if(!currentClientId) return; const now = Number(plSeek?.value||"0"); const target = Math.max(0, now+delta);
-    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: Math.round(target*1000) }}); }catch(_){}
-  }
 
-  // wystaw, jeśli wywołujesz gdzie indziej
-  window.openCastModal = openCastModal;
-
-  /* ========== Boot ========== */
+  // boot
   function boot(){
-    // Upewnij się, że tab startowy jest trafiony i KLIK działa
-    setTab("movies");
+    setTab('movies');
     loadAvailable();
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
-})();
- 
+
+  // opcjonalnie: integracja z dolną nawigacją
+  window.showSection = window.showSection || function(){};
+  const prevShow = window.showSection;
+  window.showSection = function(name){
+    try{ prevShow && prevShow(name); }catch(_){}
+    if (name === 'available') { loadAvailable(); }
+  };
 })();
