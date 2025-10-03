@@ -1698,3 +1698,83 @@ html[data-theme="light"] #section-search #sx-quality {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 1) Mobile: ukryj przycisk zmiany trybu */
+@media (max-width: 640px){
+  .theme-toggle { display: none !important; }
+}
+
+/* 2) #section-search — logo na górze, pod nim taby */
+#section-search .tx-stickybar{
+  display: flex;
+  flex-direction: column;          /* ↓ logo, potem zakładki */
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+#section-search .tx-brand{ order: 1; width: 100%; display:flex; justify-content:center; }
+#section-search .tx-logo{ height: 36px; }
+#section-search .tx-tabs{ order: 2; }
+
+/* Desktop wraca do układu poziomego */
+@media (min-width: 720px){
+  #section-search .tx-stickybar{
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: initial;
+  }
+  #section-search .tx-brand{ order: 0; }
+  #section-search .tx-tabs{ order: 0; }
+}
+
+/* 3) Toolbar wyszukiwania — mobile-first schludny grid */
+#section-search #sx-toolbar.tx-toolbar{
+  display: grid;
+  grid-template-columns: 1fr auto;              /* input szeroko + przycisk */
+  grid-template-rows: auto auto;                 /* rząd 1: input; rząd 2: jakość + btn */
+  grid-template-areas:
+    "q    btn"
+    "qual btn";
+  align-items: end;
+  gap: 10px;
+}
+
+/* mapowanie grup (1: input, 2: jakość, 3: przycisk) */
+#section-search #sx-toolbar .tx-group:nth-child(1){ grid-area: q; min-width: 0; display: grid; gap: 6px; }
+#section-search #sx-toolbar .tx-group:nth-child(2){ grid-area: qual; display: grid; gap: 6px; }
+#section-search #sx-toolbar .tx-group:nth-child(3){ grid-area: btn; align-self: stretch; justify-self: end; }
+
+/* dopieszczenie labeli i pól */
+#section-search #sx-toolbar .tx-label{ font-size: .85rem; font-weight: 700; color: var(--muted); }
+#section-search .sx-input{ height: 44px; }
+#section-search #sx-quality{ height: 44px; }
+
+/* przycisk Szukaj – równa wysokość, elegancki hit area */
+#section-search #sx-btn-search{
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Tablet/desktop: klasyczne 3 kolumny (input | jakość | przycisk) */
+@media (min-width: 880px){
+  #section-search #sx-toolbar.tx-toolbar{
+    grid-template-columns: 1fr minmax(160px, 220px) auto;
+    grid-template-areas: "q qual btn";
+  }
+}
+
+/* Bardzo wąskie telefony: wszystko w kolumnie, przycisk na pełną szerokość */
+@media (max-width: 360px){
+  #section-search #sx-toolbar.tx-toolbar{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "q"
+      "qual"
+      "btn";
+  }
+  #section-search #sx-toolbar .tx-group:nth-child(3){ justify-self: stretch; }
+  #section-search #sx-btn-search{ width: 100%; }
+}
