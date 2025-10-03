@@ -1064,7 +1064,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const dlg       = section.querySelector('#av2-cast-modal');
   const castSel   = section.querySelector('#av2-device');
-  const castForm  = section.querySelector('#av2-cast-form');
   const castStart = section.querySelector('#av2-cast-start');
 
   // helpers
@@ -1076,6 +1075,15 @@ document.addEventListener("DOMContentLoaded", () => {
     return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   };
   const esc = s => String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
+  const fmtDate = (ms)=> new Date(ms).toLocaleString('pl-PL', {year:'numeric',month:'2-digit',day:'2-digit'});
+
+  const plDays = (n)=>{
+    if (n === 0) return 'dziś';
+    if (n === 1) return '1 dzień';
+    if (n%100>=12 && n%100<=14) return `${n} dni`;
+    if ([2,3,4].includes(n%10)) return `${n} dni`;
+    return `${n} dni`;
+  };
 
   // state
   let RAW = { films:[], series:[] };
@@ -1084,7 +1092,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentClientId = localStorage.getItem('pf_cast_client') || '';
   let statusTimer = null;
 
-  // canon
+  // canon (+ usuwanie: delAtMs, daysLeft, delDateStr)
   function canon(r){
     const title  = r.display_title || r.title || r.name || '—';
     const poster = r.image_url || r.poster || r.poster_url || r.thumb || '';
@@ -1094,10 +1102,38 @@ document.addEventListener("DOMContentLoaded", () => {
     let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
     prog = clamp01(prog>1.01 ? prog/100 : prog);
     const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
+
+    // ---- wylicz termin usunięcia (obsługa różnych pól) ----
+    const now = Date.now();
+    let delAtMs = null;
+
+    const guessMs = (v)=>{
+      if (v==null) return null;
+      const n = Number(v);
+      if (Number.isFinite(n)) {
+        // sekundy vs milisekundy
+        return n > 1e12 ? n : n*1000;
+      }
+      const t = Date.parse(String(v));
+      return Number.isFinite(t) ? t : null;
+    };
+
+    delAtMs = guessMs(r.delete_at) ?? guessMs(r.expires_at) ?? guessMs(r.expire_at)
+           ?? guessMs(r.expiration) ?? guessMs(r.expiration_ms) ?? guessMs(r.expiration_ts) ?? guessMs(r.expire_ts);
+
+    const daysHint = Number(r.days_left ?? r.ttl_days);
+    if (!delAtMs && Number.isFinite(daysHint)) delAtMs = now + Math.max(0,daysHint)*86400000;
+
+    let daysLeft = null, delDateStr = null;
+    if (delAtMs && delAtMs>0) {
+      daysLeft = Math.max(0, Math.ceil((delAtMs - now)/86400000));
+      delDateStr = fmtDate(delAtMs);
+    }
+
     return {
-      id, title, poster, pos, dur, prog,
+      id, title, poster, pos, dur, prog, isSeries,
       season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null,
-      isSeries
+      delAtMs, daysLeft, delDateStr
     };
   }
   const ep = it => it.isSeries ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
@@ -1119,21 +1155,42 @@ document.addEventListener("DOMContentLoaded", () => {
     const html = arr.map(it=>{
       const pct = Math.round((it.prog||0)*100);
       const year = it.year? ` (${it.year})` : '';
-      // UWAGA: bez „movie/series” – tylko ewentualnie SxxExx
       const sub = it.isSeries && it.season!=null && it.episode!=null ? ep(it) : '';
+
+      let badge = '';
+      if (it.daysLeft != null) {
+        const cls = it.daysLeft <= 0 ? 'exp-badge--danger'
+                  : it.daysLeft <= 3 ? 'exp-badge--warn'
+                  : 'exp-badge--ok';
+        const label = it.daysLeft === 0 ? 'dziś' : `za ${plDays(it.daysLeft)}`;
+        badge = `<span class="exp-badge ${cls}" title="Planowane usunięcie">${label}</span>`;
+      }
+
+      const rightDate = it.delDateStr ? `<span class="expires ${it.daysLeft<=3?'expires--warn':''}">usunie się ${it.delDateStr}</span>` : '';
+
       return `
       <article class="av-card">
         <div class="poster">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
           <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
         </div>
+
         <div class="body">
-          <div class="title">${esc(it.title)}${year}</div>
+          <div class="headline">
+            <div class="title">${esc(it.title)}${year}</div>
+            ${badge}
+          </div>
           ${sub?`<div class="meta">${sub}</div>`:''}
+
           <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
             <span class="av-bar" style="width:${pct}%;"></span>
           </div>
-          <div class="tiny">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
+
+          <div class="tiny-row">
+            <span class="tiny-left">${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</span>
+            ${rightDate}
+          </div>
+
           <div class="actions">
             <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
@@ -1229,7 +1286,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || '';
       startStatusLoop();
-    }catch(_){ /* można dodać toast */ }
+    }catch(_){ /* toast? */ }
     finally { dlg?.close?.(); }
   });
 
@@ -1270,14 +1327,12 @@ document.addEventListener("DOMContentLoaded", () => {
   btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
     try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
     stopStatusLoop();
-    // chowamy player po stop
-    if (playerBox) playerBox.hidden = true;
+    if (playerBox) playerBox.hidden = true; // chowamy player
   });
 
   // boot
   function boot(){
-    // player domyślnie UKRYTY
-    if (playerBox) playerBox.hidden = true;
+    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
     setTab('movies');
     loadAvailable();
   }
@@ -1292,4 +1347,3 @@ document.addEventListener("DOMContentLoaded", () => {
     if (name === 'available') { loadAvailable(); }
   };
 })();
-
