@@ -2351,34 +2351,3 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
   #section-available .av-poster{ width:72px; height:108px; }
 }
 
-/* ===== Kapsułka „za X dni” + prawa data (AVAILABLE) ===== */
-.av-card .title-row{
-  display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
-}
-.exp-badge{
-  display:inline-block; white-space:nowrap;
-  font-weight:800; font-size:var(--f-sm);
-  padding:4px 10px; border-radius:999px;
-  border:1px solid var(--stroke-2);
-  background:linear-gradient(180deg,#0b1220,#0a1020);
-  color:#dbeafe;
-  box-shadow:0 6px 16px rgba(0,0,0,.25);
-}
-.exp-badge.ok{
-  border-color:#124a2f; background:linear-gradient(180deg,#0f3b24,#0b2e1d); color:#d1fae5;
-}
-.exp-badge.warn{
-  border-color:#6a5113; background:linear-gradient(180deg,#4a3314,#3b2a0f); color:#fff3c4;
-}
-.exp-badge.danger{
-  border-color:#7a2430; background:linear-gradient(180deg,#4a1420,#3f0f1a); color:#fecaca;
-}
-
-/* meta w jednym wierszu – lewa treść + prawa data */
-.av-card .meta{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  color:#94a3b8; font-size:var(--f-sm); margin:6px 0 4px;
-}
-.expires-right{ white-space:nowrap; opacity:.95; }
-.expires-right.is-warn{ color:#f59e0b; }
-.expires-right.is-danger{ color:#ef4444; }
