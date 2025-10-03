@@ -1018,29 +1018,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ==== DOSTĘPNE + CAST (robust, DOMContentLoaded-safe) =================== */
+/* ==== DOSTĘPNE + CAST (robust) ========================================= */
 (function(){
-  // --- helpers ---
-  const onceReady = (fn)=> (document.readyState==='loading'
+  const ready = (fn)=> (document.readyState==='loading'
     ? document.addEventListener('DOMContentLoaded', fn, {once:true})
     : fn());
 
-  const PLACEHOLDER = 'https://placehold.co/300x450?text=Brak';
+  const PH = 'https://placehold.co/300x450?text=No+Poster';
 
-  // zewnętrzne zależności:
-  const hasFn = (name)=> typeof window[name] === 'function';
-
-  async function fetchJsonSmart(path, method='GET'){
+  // small helpers
+  async function tryJson(path, method='GET'){
     try{
       const res = await api(path, {method});
       if (typeof res === 'string') { try{ return JSON.parse(res); }catch{ return null; } }
       return res;
     }catch{ return null; }
   }
+  const _first=(o,k,d='')=>{for(const x of k){if(o&&o[x]!=null&&o[x]!=='')return o[x];}return d;}
+  const _num=(x,d=0)=>{const n=Number(String(x).replace(',','.'));return isFinite(n)?n:d;}
+  const _bool=x=>!!(x===true||x==='1'||x===1||String(x).toLowerCase()==='true');
+  function _parseDeleteAt(v){ if(v==null||v==='')return null; const n=Number(String(v).replace(',','.')); if(isFinite(n))return n<1e12?Math.round(n*1000):Math.round(n); const t=Date.parse(String(v)); return isNaN(t)?null:t; }
 
   async function detectAvailableEndpoint(){
     const cached = localStorage.getItem('pf_available_ep');
-    if (cached) return JSON.parse(cached);
+    if(cached){ try{ return JSON.parse(cached);}catch{} }
 
     const candidates = [
       {u:'/me/available',        mode:'split'},
@@ -1052,34 +1053,31 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
 
     for(const c of candidates){
-      const j = await fetchJsonSmart(c.u,'GET') || await fetchJsonSmart(c.u,'POST');
+      const j = await tryJson(c.u,'GET') || await tryJson(c.u,'POST');
       if(!j) continue;
-      const looksOk =
-        (Array.isArray(j) && j.length) ||
-        (Array.isArray(j?.items) && j.items.length) ||
+      const looks =
+        Array.isArray(j) || Array.isArray(j?.items) ||
         Array.isArray(j?.films) || Array.isArray(j?.movies) ||
         Array.isArray(j?.series) || Array.isArray(j?.shows);
-      if(looksOk){
-        const mode =
-          Array.isArray(j) ? 'flat' :
-          (j.items ? 'items' :
-          (j.films||j.movies||j.series||j.shows ? 'split' : c.mode));
+      if(looks){
+        const mode = Array.isArray(j) ? 'flat' : (j.items?'items':'split');
         const ep = {u:c.u, mode};
         localStorage.setItem('pf_available_ep', JSON.stringify(ep));
         return ep;
       }
     }
 
-    // starszy układ: osobne filmy/seriale
+    // pair ( osobne movies/series )
     const pairs = [
+      ['/me/movies','/me/series'],
+      ['/available/movies','/available/series'],
       ['/library/movies','/library/series'],
       ['/library/movies','/library/shows'],
-      ['/me/movies','/me/series'],
     ];
     for(const [m,s] of pairs){
-      const jm = await fetchJsonSmart(m,'GET') || await fetchJsonSmart(m,'POST');
-      const js = await fetchJsonSmart(s,'GET') || await fetchJsonSmart(s,'POST');
-      if( (Array.isArray(jm)&&jm.length) || (Array.isArray(js)&&js.length) ){
+      const jm = await tryJson(m,'GET') || await tryJson(m,'POST');
+      const js = await tryJson(s,'GET') || await tryJson(s,'POST');
+      if((Array.isArray(jm)&&jm.length) || (Array.isArray(js)&&js.length)){
         const ep = {u:`${m}|${s}`, mode:'pair'};
         localStorage.setItem('pf_available_ep', JSON.stringify(ep));
         return ep;
@@ -1088,233 +1086,198 @@ document.addEventListener("DOMContentLoaded", () => {
     return {u:'/me/available', mode:'split'};
   }
 
-  function normalizeAvailable(payload, mode){
+  function normalize(payload, mode){
     if(mode==='split'){
       const films  = payload?.films  ?? payload?.movies ?? [];
       const series = payload?.series ?? payload?.shows  ?? [];
-      return {films: Array.isArray(films)?films:[], series: Array.isArray(series)?series:[]};
+      return {films:Array.isArray(films)?films:[], series:Array.isArray(series)?series:[]};
     }
     if(mode==='items'){
       const arr = Array.isArray(payload?.items) ? payload.items : [];
-      return {films: arr, series: []};
+      return {films:arr, series:[]};
     }
     if(mode==='flat'){
-      const arr = Array.isArray(payload) ? payload
-                : (Array.isArray(payload?.items) ? payload.items : []);
-      return {films: arr, series: []};
+      const arr = Array.isArray(payload) ? payload : (Array.isArray(payload?.items)?payload.items:[]);
+      return {films:arr, series:[]};
     }
-    return {films: [], series: []};
+    return {films:[], series:[]};
   }
-
-  // canonicalizer
-  const _first = (o,keys,d='')=>{ for(const k of keys){ if(o && o[k]!=null && o[k] !== '') return o[k]; } return d; };
-  const _num   = (x,d=0)=>{ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; };
-  const _bool  = x => !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true');
-  function _parseDeleteAt(v){ if(v==null||v==='') return null; const n=Number(String(v).replace(',','.')); if(isFinite(n)) return n<1e12?Math.round(n*1000):Math.round(n); const t=Date.parse(String(v)); return isNaN(t)?null:t; }
 
   function canon(r){
-    const title  = _first(r, ['display_title','title','name'], '—');
-    const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'], PLACEHOLDER);
-
-    const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
+    const title  = _first(r,['display_title','title','name'],'—');
+    const poster = _first(r,['image_url','poster','poster_url','thumb','cover','cover_url'],PH);
+    const kindRaw = (_first(r,['kind','type','mtype','media_type'],'')||'').toLowerCase();
     const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
-    const kind = isSeries ? 'series' : 'movie';
+    const kind = isSeries ? 'series':'movie';
+    const year = _first(r,['year','release_year','y'],null);
 
-    const year = _first(r, ['year','release_year','y'], null);
-
-    let pos=null, dur=null;
-    if (r.position_ms != null) pos = _num(r.position_ms)/1000;
-    else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
-    else pos = _num(_first(r, ['watched_seconds','position','pos'], 0));
-
-    if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
-    else                        dur = _num(_first(r, ['duration','runtime','total_seconds'], 0));
+    let pos=null,dur=null;
+    if(r.position_ms!=null) pos=_num(r.position_ms)/1000;
+    else if(r.view_offset_ms!=null) pos=_num(r.view_offset_ms)/1000;
+    else pos=_num(_first(r,['watched_seconds','position','pos'],0));
+    if(r.duration_ms!=null) dur=_num(r.duration_ms)/1000;
+    else                    dur=_num(_first(r,['duration','runtime','total_seconds'],0));
 
     let prog=null;
-    const rawProg = _first(r, ['progress','ratio'], null);
-    const rawPerc = _first(r, ['percent'], null);
-    if (rawProg != null && rawProg!==''){ let v=Number(String(rawProg).replace(',','.')); if(isFinite(v)) prog = v>1.01 ? v/100 : v; }
-    else if (rawPerc != null && rawPerc!==''){ const v=parseFloat(String(rawPerc).replace('%','').replace(',','.')); if(isFinite(v)) prog=v/100; }
-    if (prog==null) { prog = (isFinite(pos)&&isFinite(dur)&&dur>0) ? Math.max(0,Math.min(1,pos/dur)) : 0; }
-    else            { prog = Math.max(0,Math.min(1,prog)); }
+    const rawProg=_first(r,['progress','ratio'],null);
+    const rawPerc=_first(r,['percent'],null);
+    if(rawProg!=null&&rawProg!==''){let v=Number(String(rawProg).replace(',','.')); if(isFinite(v)) prog=v>1.01?v/100:v;}
+    else if(rawPerc!=null&&rawPerc!==''){const v=parseFloat(String(rawPerc).replace('%','').replace(',','.')); if(isFinite(v)) prog=v/100;}
+    if(prog==null) prog=(isFinite(pos)&&isFinite(dur)&&dur>0)?Math.max(0,Math.min(1,pos/dur)):0;
 
-    const season     = _num(_first(r, ['season','s'], null), null);
-    const episode    = _num(_first(r, ['episode','e'], null), null);
-    const updated_at = _first(r, ['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
+    const season=_num(_first(r,['season','s'],null),null);
+    const episode=_num(_first(r,['episode','e'],null),null);
+    const updated_at=_first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'],null);
 
-    let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'], null);
+    let idCand=_first(r,['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'],null);
     let id;
-    if (idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
-    else {
-      const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'');
-      id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
+    if(idCand && /^\d+$/.test(String(idCand))) id=String(idCand);
+    else{
+      const basis=(title||'')+'|'+(year||'')+'|'+(season??'')+'|'+(episode??'');
+      id=btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
     }
 
-    const size_bytes = _num(_first(r, ['size_bytes','filesize','size'], 0));
-    const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
-    const favorite   = _bool(_first(r, ['favorite'], false));
+    const size_bytes=_num(_first(r,['size_bytes','filesize','size'],0));
+    const deleteAt=_parseDeleteAt(_first(r,['deleteAt','delete_at'],null));
+    const favorite=_bool(_first(r,['favorite'],false));
 
-    return { id, title, poster, kind, year, duration: isFinite(dur)?dur:0, position: isFinite(pos)?pos:0,
-             progress: prog, season, episode, updated_at, size_bytes, deleteAt, favorite };
+    return { id,title,poster,kind,year,
+      duration:isFinite(dur)?dur:0, position:isFinite(pos)?pos:0, progress:prog,
+      season,episode,updated_at,size_bytes,deleteAt,favorite
+    };
   }
 
-  const epLabel = it => (it.kind!=='series') ? '' : `S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
-  const bytes = (n)=>{ n=Number(n||0); const u=['B','KiB','MiB','GiB','TiB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; };
-  const dcls  = ms => (ms<=0 ? 'danger' : ((ms/86400000)<=1 ? 'warn' : 'ok'));
-  const ttl   = ms => { if(ms<=0) return 'do usunięcia'; const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60); if(d>=2) return `za ${d} dni`; if(d===1) return 'za 1 dzień'; if(h>=1) return `za ${h} h`; return `za ${m} min`; };
+  const epLabel = it => (it.kind!=='series')?'':`S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
+  const bytes = (n)=>{n=Number(n||0);const u=['B','KiB','MiB','GiB','TiB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(n<10?2:1)} ${u[i]}`;}
+  const ttl  = ms=>{if(ms<=0)return'do usunięcia';const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);if(d>=2)return`za ${d} dni`;if(d===1)return'za 1 dzień';if(h>=1)return`za ${h} h`;return`za ${m} min`;};
+  const cls  = ms=> (ms<=0?'danger':((ms/86400000)<=1?'warn':'ok'));
 
-  // --- stan modułu (w zasięgu) ---
-  let DOM = {};
-  let _availableRaw = [];
-  let _availableIndex = {};
-  let _posterByPlexId = {};
-  let _delTimer = null;
+  // state
+  let DOM={}, _raw=[], _index={}, _posterByPlexId={}, _badgeTimer=null;
 
-  function wireUI(){
-    const byId = (id)=> document.getElementById(id);
+  function wire(){
+    const $ = id=>document.getElementById(id);
     DOM = {
-      grid:   byId('availableGrid'),
-      info:   byId('avInfo'),
-      q:      byId('avQuery'),
-      kind:   byId('avKind'),
-      sort:   byId('avSort'),
-      btn:    byId('avRefresh'),
-      auto:   byId('avAuto'),
+      grid: $('availableGrid'), info: $('avInfo'),
+      q: $('avQuery'), kind:$('avKind'), sort:$('avSort'),
+      btn:$('avRefresh'), auto:$('avAuto')
     };
-
-    // ochronne bindy (jeśli skrypt w <head/>)
-    if (DOM.btn)  DOM.btn.onclick  = loadAvailable;
-    if (DOM.auto) DOM.auto.onclick = function(){ 
+    DOM.btn && (DOM.btn.onclick = load);
+    DOM.auto && (DOM.auto.onclick = function(){
       if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; }
-      else { this._t=setInterval(loadAvailable, 10000); this.textContent='Auto: ON'; loadAvailable(); }
-    };
-    if (DOM.q)    DOM.q.addEventListener('input', ()=>renderAvailable(_availableRaw));
-    if (DOM.kind) DOM.kind.addEventListener('change', ()=>renderAvailable(_availableRaw));
-    if (DOM.sort) DOM.sort.addEventListener('change', ()=>renderAvailable(_availableRaw));
+      else { this._t=setInterval(load,10000); this.textContent='Auto: ON'; load(); }
+    });
+    DOM.q && DOM.q.addEventListener('input', ()=>render(_raw));
+    DOM.kind && DOM.kind.addEventListener('change', ()=>render(_raw));
+    DOM.sort && DOM.sort.addEventListener('change', ()=>render(_raw));
   }
 
-  function renderAvailable(list){
-    if(_delTimer){ clearInterval(_delTimer); _delTimer=null; }
-    if(!Array.isArray(list) || !list.length){
-      if(DOM.grid) DOM.grid.innerHTML = '';
-      if(DOM.info) DOM.info.textContent = 'Brak pozycji.';
+  function render(list){
+    if(_badgeTimer){ clearInterval(_badgeTimer); _badgeTimer=null; }
+    if(!Array.isArray(list)||!list.length){
+      DOM.grid && (DOM.grid.innerHTML='');
+      DOM.info && (DOM.info.textContent='Brak pozycji.');
       return;
     }
+    const q=(DOM.q?.value||'').toLowerCase();
+    const k=DOM.kind?.value||'all';
+    const s=DOM.sort?.value||'recent';
 
-    const q = (DOM.q?.value||'').toLowerCase();
-    const k = DOM.kind?.value || 'all';
-    const srt = DOM.sort?.value || 'recent';
+    _index={};
+    let items=list.map(r=>{const c=canon(r); _index[c.id]=r; return c;});
+    if(k!=='all') items=items.filter(x=>x.kind===k);
+    if(q) items=items.filter(x=>(x.title||'').toLowerCase().includes(q));
 
-    _availableIndex = {};
-    let items = list.map(r => { const c = canon(r); _availableIndex[c.id]=r; return c; });
-
-    if(k!=='all') items = items.filter(x => x.kind===k);
-    if(q) items = items.filter(x => (x.title||'').toLowerCase().includes(q));
-
-    _posterByPlexId = {};
+    _posterByPlexId={};
     for(const raw of list){
-      const pid = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
-      if(pid){ const c = canon(raw); if(c.poster) _posterByPlexId[String(pid)] = c.poster; }
+      const pid=[raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key].find(v=>v!=null&&/^\d+$/.test(String(v)));
+      if(pid){ const c=canon(raw); if(c.poster) _posterByPlexId[String(pid)]=c.poster; }
     }
 
-    if(srt==='title') items.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
-    else if(srt==='progress') items.sort((a,b)=> (b.progress||0) - (a.progress||0));
-    else items.sort((a,b)=> String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
+    if(s==='title') items.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+    else if(s==='progress') items.sort((a,b)=>(b.progress||0)-(a.progress||0));
+    else items.sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
 
-    if(DOM.grid) DOM.grid.innerHTML = items.map(it=>{
-      const pct = Math.max(0, Math.min(100, Math.round((it.progress||0)*100)));
-      const year = it.year ? ` (${it.year})` : '';
-      const ep = epLabel(it);
-      const metaL = `${it.kind}${ep? ' · '+ep:''}${it.size_bytes? ' · '+bytes(it.size_bytes):''}`;
-      const delDiff = it.deleteAt ? (it.deleteAt - Date.now()) : null;
-      const delTxt  = (it.deleteAt && !it.favorite) ? ttl(delDiff) : '';
-      const delCls  = (it.deleteAt && !it.favorite) ? dcls(delDiff) : '';
-      const delDate = (it.deleteAt && !it.favorite) ? ` · usunie: ${new Date(it.deleteAt).toLocaleString()}` : '';
-      const delBadge = (it.deleteAt && !it.favorite) ? `<div class="del-badge ${delCls}" data-delete-at="${it.deleteAt}">${delTxt}</div>` : '';
-
-      const canAutoId = /^\d+$/.test(String(it.id));
-      const tip = canAutoId ? `Cast ratingKey=${it.id}` : `Wpisz ratingKey przy starcie`;
-
-      return `
-        <div class="av-card">
-          <div class="poster">
-            <img src="${it.poster||PLACEHOLDER}" alt="">
-            ${delBadge}
-            <div class="vprog"><span style="width:${pct}%;"></span></div>
+    DOM.grid && (DOM.grid.innerHTML = items.map(it=>{
+      const pct=Math.max(0,Math.min(100,Math.round((it.progress||0)*100)));
+      const year=it.year?` (${it.year})`:'';
+      const ep=epLabel(it);
+      const meta=`${it.kind}${ep? ' · '+ep:''}${it.size_bytes?' · '+bytes(it.size_bytes):''}`;
+      const dd=it.deleteAt?(it.deleteAt-Date.now()):null;
+      const badge=(it.deleteAt && !it.favorite)?`<div class="del-badge ${cls(dd)}" data-delete-at="${it.deleteAt}">${ttl(dd)}</div>`:'';
+      const tip=/^\d+$/.test(String(it.id))?`Cast ratingKey=${it.id}`:`Wpisz ratingKey przy starcie`;
+      return `<div class="av-card">
+        <div class="poster">
+          <img src="${it.poster||PH}" alt="">
+          ${badge}
+          <div class="vprog"><span style="width:${pct}%;"></span></div>
+        </div>
+        <div class="body">
+          <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
+          <div class="meta">${meta}${it.deleteAt?` · usunie: ${new Date(it.deleteAt).toLocaleString()}`:''}</div>
+          <div class="tiny">Postęp: ${pct}% ${it.duration?`· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min`:''}</div>
+          <div class="actions">
+            <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
           </div>
-          <div class="body">
-            <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
-            <div class="meta">${metaL}${delDate}</div>
-            <div class="tiny">Postęp: ${pct}% ${it.duration? `· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min` : ''}</div>
-            <div class="actions">
-              <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
-            </div>
-          </div>
-        </div>`;
-    }).join('');
+        </div>
+      </div>`;
+    }).join(''));
 
-    if(DOM.info) DOM.info.textContent = `Pozycji: ${items.length}`;
+    DOM.info && (DOM.info.textContent = `Pozycji: ${items.length}`);
 
-    _delTimer = setInterval(() => {
+    _badgeTimer = setInterval(()=>{
       document.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
-        const ts = Number(el.getAttribute('data-delete-at'));
-        if(!isFinite(ts)) return;
-        const diff = ts - Date.now();
-        el.textContent = ttl(diff);
-        el.classList.remove('ok','warn','danger');
-        el.classList.add(dcls(diff));
+        const ts=Number(el.getAttribute('data-delete-at')); if(!isFinite(ts)) return;
+        const diff=ts-Date.now(); el.textContent=ttl(diff);
+        el.classList.remove('ok','warn','danger'); el.classList.add(cls(diff));
       });
-    }, 30000);
+    },30000);
   }
 
-  async function loadAvailable(){
-    if(DOM.info){ DOM.info.textContent = 'Ładuję...'; }
-    if(DOM.grid){ DOM.grid.innerHTML = ''; }
-
+  async function load(){
+    DOM.info && (DOM.info.textContent='Ładuję…');
+    DOM.grid && (DOM.grid.innerHTML='');
     const ep = await detectAvailableEndpoint();
     console.info('[Dostępne] endpoint:', ep);
 
     try{
-      if(ep.mode === 'pair'){
-        const [m,s] = ep.u.split('|');
-        const jm = await fetchJsonSmart(m,'GET') || await fetchJsonSmart(m,'POST') || [];
-        const js = await fetchJsonSmart(s,'GET') || await fetchJsonSmart(s,'POST') || [];
-        _availableRaw = ([]).concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
+      if(ep.mode==='pair'){
+        const [m,s]=ep.u.split('|');
+        const jm = await tryJson(m,'GET') || await tryJson(m,'POST') || [];
+        const js = await tryJson(s,'GET') || await tryJson(s,'POST') || [];
+        _raw = [].concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
       }else{
-        const j = await fetchJsonSmart(ep.u,'GET') || await fetchJsonSmart(ep.u,'POST') || {};
-        const ns = normalizeAvailable(j, ep.mode);
-        _availableRaw = (ns.films||[]).concat(ns.series||[]);
+        const j = await tryJson(ep.u,'GET') || await tryJson(ep.u,'POST') || {};
+        const ns = normalize(j, ep.mode);
+        _raw = (ns.films||[]).concat(ns.series||[]);
       }
-      renderAvailable(_availableRaw);
+      console.log('[Dostępne] items:', _raw.length, _raw);
+      render(_raw);
+      return _raw; // ważne: pozwala await/then
     }catch(e){
-      if(DOM.info) DOM.info.innerHTML = `<span class="err">${e.message||e}</span>`;
+      DOM.info && (DOM.info.innerHTML=`<span class="err">${e.message||e}</span>`);
+      console.error('[Dostępne] error:', e);
+      _raw=[]; render(_raw);
+      return _raw;
     }
   }
 
-  // Cast z karty
-  window.castFromAvailable = async (canonId)=>{
-    const raw = _availableIndex[canonId] || {};
-    let itemId = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
-    if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
-    if(!itemId){
-      itemId = prompt('Brak plex_id w pozycji. Podaj Plex ratingKey (item_id):', '');
-    }
-    if(!itemId || !/^\d+$/.test(String(itemId))){
-      alert('Nieprawidłowy item_id (ratingKey).'); return;
-    }
-    if (hasFn('castStart')) await window.castStart(itemId);
-  };
-
-  // debug w konsoli
+  // export do konsoli
   window.piotrflixAvailable = {
     endpoint: detectAvailableEndpoint,
-    reload:   loadAvailable,
-    get last(){ return _availableRaw; }
+    reload:   load,
+    get last(){ return _raw; }
   };
 
-  // start kiedy DOM gotowy
-  onceReady(() => {
-    wireUI();
-    loadAvailable();
-  });
+  // CAST z karty
+  window.castFromAvailable = async (canonId)=>{
+    const raw = _index[canonId] || {};
+    let itemId = [raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
+    if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
+    if(!itemId) itemId = prompt('Podaj Plex ratingKey (item_id):','');
+    if(!itemId || !/^\d+$/.test(String(itemId))) { alert('Nieprawidłowy item_id.'); return; }
+    if (typeof window.castStart === 'function') await window.castStart(itemId);
+  };
+
+  ready(()=>{ wire(); load(); });
 })();
