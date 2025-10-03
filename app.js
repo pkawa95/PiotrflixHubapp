@@ -1018,285 +1018,152 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* app.js — „dobry” frontend pod Twój backend */
-(() => {
-  const cfg = {
-    // Ustaw raz ręcznie, jeśli chcesz inny adres:
-    baseURL: localStorage.getItem("pf.api") || "http://127.0.0.1:8000",
-  };
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Utilities
-  // ───────────────────────────────────────────────────────────────────────────
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const el = (tag, attrs = {}, ...kids) => {
-    const n = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (k === "class") n.className = v;
-      else if (k === "style" && typeof v === "object") Object.assign(n.style, v);
-      else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
-      else n.setAttribute(k, v);
-    }
-    for (const k of kids) n.append(k);
-    return n;
-  };
-  const fmtPct = (x) => `${Math.round(Math.max(0, Math.min(1, +x || 0)) * 100)}%`;
-
-  const tokens = {
-    get access()  { return localStorage.getItem("pf.access") || ""; },
-    get refresh() { return localStorage.getItem("pf.refresh") || ""; },
-    set(pair) {
-      if (!pair) return;
-      if (pair.access_token)  localStorage.setItem("pf.access",  pair.access_token);
-      if (pair.refresh_token) localStorage.setItem("pf.refresh", pair.refresh_token);
-    },
-    clear() {
-      localStorage.removeItem("pf.access");
-      localStorage.removeItem("pf.refresh");
-    }
-  };
-
-  async function api(path, opts = {}) {
-    const url = path.startsWith("http") ? path : cfg.baseURL + path;
-    const headers = new Headers(opts.headers || {});
-    headers.set("Accept", "application/json");
-    if (!(opts.body instanceof FormData)) headers.set("Content-Type", "application/json");
-    const token = tokens.access;
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    const res = await fetch(url, { ...opts, headers, credentials: "omit" });
-
-    // 401 → spróbuj odświeżyć albo zrób dev-login
-    if (res.status === 401) {
-      const ok = await tryRefreshOrDevLogin();
-      if (!ok) throw new Error("Auth failed");
-      return api(path, opts);
-    }
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`${res.status} ${res.statusText} — ${text}`);
-    }
-    const ct = res.headers.get("content-type") || "";
-    return ct.includes("application/json") ? res.json() : res.text();
-  }
-
-  async function tryRefreshOrDevLogin() {
-    // refresh jeśli mamy refresh_token
-    if (tokens.refresh) {
-      try {
-        const data = await api("/auth/refresh", {
-          method: "POST",
-          body: JSON.stringify({ refresh_token: tokens.refresh }),
-          headers: { "Content-Type": "application/json" },
-        });
-        tokens.set(data);
-        return true;
-      } catch (_) { /* fallthrough */ }
-    }
-    // dev-login tylko lokalnie
-    try {
-      const data = await fetch(cfg.baseURL + "/auth/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ auto_create: true })
-      }).then(r => r.json());
-      if (data && data.access_token) { tokens.set(data); return true; }
-    } catch (_) { /* ignore */ }
-    return false;
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Data layer
-  // ───────────────────────────────────────────────────────────────────────────
-  function canonItem(x, kind = "") {
-    const g = (obj, ...keys) => {
-      for (const k of keys) {
-        const v = (obj && obj[k]) || (obj && obj.meta && obj.meta[k]);
+// ───────────────────── available + render ─────────────────────
+  function canon(x) {
+    const first = (...k) => {
+      for (const key of k) {
+        const v = x?.[key];
         if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      const m = x?.meta;
+      if (m && typeof m === "object") {
+        for (const key of k) {
+          const v = m[key];
+          if (typeof v === "string" && v.trim()) return v.trim();
+        }
       }
       return "";
     };
-    const id   = g(x, "id", "path", "plex_id", "ratingKey");
-    const title= g(x, "display_title", "title", "name");
-    const img  = g(x, "image_url", "poster", "poster_url", "thumb", "cover");
-    const prog = typeof x.progress === "number" ? x.progress
-               : typeof x.percent === "number" ? x.percent / 100
-               : 0;
-    const watched_seconds = +x.watched_seconds || 0;
-    const duration = +x.duration || 0;
-    return { id, display_title: title, image_url: img, progress: prog, watched_seconds, duration, kind: x.kind || kind };
+    const id = first("id", "plex_id", "ratingKey", "path");
+    return {
+      id,
+      kind: (x.kind||"").toString(),
+      title: first("display_title","title","name"),
+      img: first("image_url","poster","poster_url","thumb","cover") || PLACEHOLDER,
+      progress: typeof x.progress === "number" ? Math.max(0, Math.min(1, x.progress)) : 0,
+      watched: +x.watched_seconds || 0,
+      duration: +x.duration || 0,
+    };
   }
 
   async function loadAvailable() {
-    // Preferowane: /sync/available
-    try {
-      const v2 = await api("/sync/available");
-      if (v2 && Array.isArray(v2.results)) return v2.results.map(i => canonItem(i, i.kind));
-    } catch (e) {
-      console.warn("sync/available failed:", e);
-    }
-    // Fallback: /me/available + merge z /me/progress/raw
-    const [av, pr] = await Promise.all([
-      api("/me/available").catch(() => ({ films: [], series: [] })),
-      api("/me/progress/raw").catch(() => ({}))
-    ]);
-    const progById = {};
-    for (const [k, v] of Object.entries(pr || {})) {
-      const id = (v && (v.id || k)) || k;
-      progById[id] = v || {};
-    }
-    const out = [];
-    for (const f of (av.films || [])) {
-      const base = canonItem(f, "movie");
-      const p = progById[base.id] || {};
-      out.push(mergeProgress(base, p));
-    }
-    for (const s of (av.series || [])) {
-      const base = canonItem(s, "series");
-      const p = progById[base.id] || {};
-      out.push(mergeProgress(base, p));
-    }
-    return out;
+    const data = await api("/sync/available");
+    const items = Array.isArray(data?.results) ? data.results.map(canon) : [];
+    return { items, updated_at: data?.updated_at || null };
   }
 
-  function mergeProgress(item, p) {
-    const r = { ...item };
-    const ms = (k) => (p && typeof p[k] !== "undefined") ? +p[k] : null;
-    const num = (k) => (p && typeof p[k] === "number") ? +p[k] : null;
-    const str = (k) => (p && typeof p[k] === "string") ? p[k].trim() : "";
-
-    const pos_ms = ms("position_ms") ?? ms("watched_ms") ?? ms("view_offset_ms");
-    const dur_ms = ms("duration_ms") ?? ms("total_ms") ?? ms("runtime_ms");
-    if (pos_ms != null) r.watched_seconds = Math.max(0, pos_ms / 1000);
-    if (dur_ms != null) r.duration = Math.max(0, dur_ms / 1000);
-
-    if (num("progress") != null) r.progress = p.progress > 1.01 ? p.progress / 100 : p.progress;
-    else if (num("ratio") != null) r.progress = p.ratio;
-    else if (str("percent")) {
-      const v = parseFloat(str("percent").replace("%",""));
-      if (!isNaN(v)) r.progress = v / 100;
-    } else if ((r.duration || 0) > 0) {
-      r.progress = Math.max(0, Math.min(1, (r.watched_seconds || 0) / r.duration));
-    }
-    if (str("image_url") || str("thumb") || str("poster_url") || str("poster")) {
-      r.image_url = str("image_url") || str("thumb") || str("poster_url") || str("poster");
-    }
-    r.progress = Math.max(0, Math.min(1, +r.progress || 0));
-    return r;
-  }
-
-  async function seedDemo() {
-    const demo = {
-      available: {
-        films: [
-          { id: "54123", display_title: "Demo Movie (2021)", image_url: "https://via.placeholder.com/300x450?text=Demo+Movie", year: 2021 },
-        ],
-        series: [
-          { id: "77701", display_title: "Demo Show — S01E01", image_url: "https://via.placeholder.com/300x450?text=Demo+Show", season: 1, episode: 1 }
-        ]
-      },
-      progress: {
-        "54123": { id:"54123", position_ms: 120_000, duration_ms: 3_600_000, image_url:"https://via.placeholder.com/300x450?text=Demo+Movie" },
-        "77701": { id:"77701", position_ms: 35_000,  duration_ms: 2_700_000, image_url:"https://via.placeholder.com/300x450?text=Demo+Show" }
-      }
-    };
-    await api("/sync/upload", { method: "POST", body: JSON.stringify(demo) });
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // UI
-  // ───────────────────────────────────────────────────────────────────────────
-  function ensureScaffold() {
-    if ($("#pf-app")) return $("#pf-app");
-    const root = el("div", { id: "pf-app", style: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'" }});
-    const header = el("div", { class: "pf-header", style: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px" } },
-      el("h1", { style: { fontSize: "20px", margin: 0 } }, "Piotrflix — Biblioteka"),
-      el("span", { id: "pf-upd", style: { marginLeft: "auto", fontSize: "12px", opacity: .7 } }, "")
-    );
-    const controls = el("div", { style: { display: "flex", gap: "8px", padding: "0 16px 12px" } },
-      el("button", { id: "pf-reload", class: "pf-btn" }, "⟳ Odśwież"),
-      el("button", { id: "pf-seed", class: "pf-btn" }, "★ Załaduj demo, jeśli pusto")
-    );
-    const grid = el("div", { id: "pf-grid", style: {
-      display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-      gap: "16px", padding: "0 16px 24px"
-    }});
-    const note = el("div", { id: "pf-note", style: { padding: "0 16px 12px", fontSize: "14px", opacity: .8 } });
-
-    document.body.append(root);
-    root.append(header, controls, note, grid);
-
-    // Handlers (bez błędów, jeśli elementów nie ma)
-    $("#pf-reload")?.addEventListener("click", () => hydrate());
-    $("#pf-seed")?.addEventListener("click", async () => {
-      $("#pf-seed").disabled = true;
-      try {
-        await seedDemo();
-        await hydrate();
-      } finally {
-        $("#pf-seed").disabled = false;
-      }
-    });
-    return root;
-  }
-
-  function render(items, updated_at = null) {
-    ensureScaffold();
-    const grid = $("#pf-grid"); grid.innerHTML = "";
+  function render(items, updated_at) {
+    ui();
+    $("#pf-grid").innerHTML = "";
+    $("#pf-grid").style.display = "grid";
+    $("#pf-note").style.display = "block";
     $("#pf-upd").textContent = updated_at ? `zaktualizowano: ${new Date(updated_at).toLocaleString()}` : "";
 
     if (!items.length) {
-      $("#pf-note").innerHTML =
-        `Brak pozycji. Wyślij snapshot na <code>/sync/upload</code> lub kliknij „Załaduj demo”.`;
+      $("#pf-note").innerHTML = `Brak pozycji. Endpoint <code>/sync/available</code> zwrócił pustą listę.`;
       return;
     }
     $("#pf-note").textContent = "";
 
     for (const it of items) {
-      const img = el("img", {
-        src: it.image_url || "https://via.placeholder.com/300x450?text=Poster",
-        alt: it.display_title || "",
-        style: { width: "100%", height: "270px", objectFit: "cover", borderRadius: "10px" }
-      });
-      const title = el("div", { style: { marginTop: "8px", fontWeight: 600, fontSize: "14px", lineHeight: "1.2" } },
-        it.display_title || it.title || "(bez tytułu)"
+      const canCast = isDigits(it.id);
+      const btn = el("button", { class:"pf-btn", disabled: canCast ? null : "true", title: canCast ? "" : "Brak numeric ratingKey → nie można wystartować" }, "▶ Cast");
+      btn.addEventListener("click", () => openCastDialog(it));
+
+      const card = el("div", { class:"pf-card" },
+        el("img", { src: it.img, alt: it.title, loading:"lazy", style:{width:"100%",aspectRatio:"2/3",objectFit:"cover",background:"#0b1020"} }),
+        el("div", { style:{padding:"10px"} },
+          el("div", { class:"pf-row", style:{justifyContent:"space-between"} },
+            el("h3", {}, it.title || "Bez tytułu"),
+            el("span", { class:"kind" }, it.kind || "")
+          ),
+          el("div", { class:"pf-progress", style:{margin:"10px 0 8px"} },
+            el("div", { style:{ width: pct(it.progress), background:"#22c55e" }})
+          ),
+          el("div", { class:"pf-row", style:{justifyContent:"space-between", marginBottom:"10px"} },
+            el("span", { class:"pf-chip" }, `${pct(it.progress)} oglądnięte`),
+            el("span", { class:"pf-chip" }, it.duration ? `${Math.round(it.duration/60)} min` : "")
+          ),
+          btn
+        )
       );
-      const progWrap = el("div", { style: { marginTop: "6px", height: "6px", background: "#e5e7eb", borderRadius: "999px", overflow: "hidden" } },
-        el("div", { style: { width: fmtPct(it.progress || 0), height: "100%", background: "#60a5fa" } })
-      );
-      const meta = el("div", { style: { fontSize: "12px", opacity: .75, marginTop: "4px" } },
-        `${it.kind || ""} ${it.duration ? "· " + Math.round(it.duration / 60) + " min" : ""}`
-      );
-      const card = el("div", { class: "pf-card", style: { borderRadius: "12px", background: "#111827", color: "#f9fafb", padding: "12px", boxShadow: "0 2px 8px rgba(0,0,0,.25)" } },
-        img, title, progWrap, meta
-      );
-      grid.append(card);
+      $("#pf-grid").appendChild(card);
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Boot
-  // ───────────────────────────────────────────────────────────────────────────
-  async function hydrate() {
-    ensureScaffold();
+  // ─────────────────────────── cast part ───────────────────────────
+  async function savePlexToken() {
+    const token = $("#pf-plex-token").value.trim();
+    if (!token) return msg("pf-plex-msg", "Podaj token.", true);
     try {
-      if (!tokens.access) await tryRefreshOrDevLogin();
-      const data = await api("/sync/available").catch(() => null);
-      if (data && Array.isArray(data.results)) {
-        render(data.results.map(i => canonItem(i, i.kind)), data.updated_at);
-      } else {
-        // fallback path (stare API)
-        const items = await loadAvailable();
-        render(items, null);
-      }
-      console.log("[Dostępne] items:", $("#pf-grid").children.length);
+      const res = await api("/cast/upload-config", {
+        method:"POST",
+        body: JSON.stringify({ config: { plex: { token } } })
+      });
+      localStorage.setItem("pf.plexTokenSaved","1");
+      msg("pf-plex-msg", `Zapisano (tryb ${res?.mode}). Znaleziono klientów: ${res?.devices_count ?? "?"}.`);
     } catch (e) {
-      console.error(e);
-      $("#pf-note").innerHTML = `<span style="color:#ef4444">Błąd: ${String(e.message || e)}</span>`;
+      msg("pf-plex-msg", "Błąd zapisu tokenu: " + e.message, true);
     }
   }
 
-  // start
-  document.addEventListener("DOMContentLoaded", hydrate);
-  // wystaw kilka helperów w konsoli
-  window.piotrflix = { api, hydrate, loadAvailable, seedDemo, tokens, cfg };
-})();
+  async function fetchPlayers() {
+    const res = await api("/cast/players");
+    const devs = Array.isArray(res?.devices) ? res.devices : [];
+    return devs.map(d => ({ id:d.id, name:d.name || d.product || "Plex Client" }));
+  }
+
+  function openCastDialog(item) {
+    const modal = el("div", { class:"pf-modal" },
+      el("div", { class:"pf-panel" },
+        el("h3", { style:{margin:"0 0 8px"} }, `Cast: ${item.title}`),
+        el("div", { id:"pf-cast-msg", class:"pf-chip", style:{marginBottom:"6px"} }, "Ładowanie klientów…"),
+        el("div", { class:"pf-row", style:{margin:"8px 0"} },
+          el("select", { id:"pf-player", class:"pf-input" }, el("option", {}, "Ładuję listę…"))
+        ),
+        el("div", { class:"pf-row", style:{justifyContent:"flex-end", marginTop:"12px"} },
+          el("button", { class:"pf-btn", id:"pf-cancel" }, "Anuluj"),
+          el("button", { class:"pf-btn", id:"pf-cast-go" }, "Start")
+        )
+      )
+    );
+    document.body.appendChild(modal);
+
+    $("#pf-cancel").addEventListener("click", () => modal.remove());
+    $("#pf-cast-go").addEventListener("click", async () => {
+      const client_id = $("#pf-player").value;
+      if (!client_id) return msg("pf-cast-msg", "Wybierz klienta.", true);
+      try {
+        await api("/cast/start", { method:"POST", body: JSON.stringify({ item_id: item.id, client_id }) });
+        msg("pf-cast-msg", "Wystartowano ✅");
+        setTimeout(()=> modal.remove(), 800);
+      } catch (e) {
+        msg("pf-cast-msg", "Błąd startu: " + e.message, true);
+      }
+    });
+
+    (async () => {
+      try {
+        const players = await fetchPlayers();
+        const sel = $("#pf-player");
+        sel.innerHTML = "";
+        if (!players.length) {
+          sel.append(el("option", { value:"" }, "Brak klientów (upewnij się, że zapisano Plex token)."));
+        } else {
+          players.forEach(p => sel.append(el("option", { value:p.id }, `${p.name} (${p.id.slice(0,6)}…)`)));
+        }
+        msg("pf-cast-msg", `Gotowe. Klientów: ${players.length}.`);
+      } catch (e) {
+        msg("pf-cast-msg", "Nie udało się pobrać listy klientów: " + e.message, true);
+      }
+    })();
+  }
+
+  function msg(id, text, isErr=false) {
+    const n = $("#"+id);
+    if (!n) return;
+    n.textContent = text;
+    n.style.color = isErr ? "#fca5a5" : "#e5e7eb";
+  }
+
+
