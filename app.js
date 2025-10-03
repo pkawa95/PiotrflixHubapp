@@ -1296,4 +1296,4 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ===== Init =====
-  loadAvailable();
+  loadAvailable();})
