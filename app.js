@@ -1018,38 +1018,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ==== DOSTĘPNE + CAST (auto-detect endpointów) ========================== */
-/* Działa z: 
-   - GET /me/available           → {films:[...], series:[...]}
-   - GET/POST /available         → [... ] lub {items:[...]}
-   - GET/POST /library/available → jw.
-   - GET/POST /media/available   → jw.
-   - GET/POST /available/list    → jw.
-   - Pary: /library/movies + /library/series (albo /library/shows)
-*/
-(() => {
-  const sel = id => document.getElementById(id);
-  const avInfo = sel('avInfo');
-  const availableGrid = sel('availableGrid');
-  const avQuery = sel('avQuery');
-  const avKind  = sel('avKind');
-  const avSort  = sel('avSort');
-  const avBtn   = sel('avRefresh');
-  const avAuto  = sel('avAuto');
-
-  let _availableRaw = [];
-  let _availableIndex = {};
-  let _posterByPlexId = {};
-  let _delTimer = null;
+/* ==== DOSTĘPNE + CAST (robust, DOMContentLoaded-safe) =================== */
+(function(){
+  // --- helpers ---
+  const onceReady = (fn)=> (document.readyState==='loading'
+    ? document.addEventListener('DOMContentLoaded', fn, {once:true})
+    : fn());
 
   const PLACEHOLDER = 'https://placehold.co/300x450?text=Brak';
+
+  // zewnętrzne zależności:
+  const hasFn = (name)=> typeof window[name] === 'function';
 
   async function fetchJsonSmart(path, method='GET'){
     try{
       const res = await api(path, {method});
       if (typeof res === 'string') { try{ return JSON.parse(res); }catch{ return null; } }
       return res;
-    }catch(e){ return null; }
+    }catch{ return null; }
   }
 
   async function detectAvailableEndpoint(){
@@ -1071,9 +1057,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const looksOk =
         (Array.isArray(j) && j.length) ||
         (Array.isArray(j?.items) && j.items.length) ||
-        Array.isArray(j?.films) || Array.isArray(j?.series);
+        Array.isArray(j?.films) || Array.isArray(j?.movies) ||
+        Array.isArray(j?.series) || Array.isArray(j?.shows);
       if(looksOk){
-        const mode = Array.isArray(j) ? 'flat' : (j.items ? 'items' : (j.films||j.series ? 'split' : c.mode));
+        const mode =
+          Array.isArray(j) ? 'flat' :
+          (j.items ? 'items' :
+          (j.films||j.movies||j.series||j.shows ? 'split' : c.mode));
         const ep = {u:c.u, mode};
         localStorage.setItem('pf_available_ep', JSON.stringify(ep));
         return ep;
@@ -1095,16 +1085,14 @@ document.addEventListener("DOMContentLoaded", () => {
         return ep;
       }
     }
-    // fallback
     return {u:'/me/available', mode:'split'};
   }
 
   function normalizeAvailable(payload, mode){
     if(mode==='split'){
-      return {
-        films:  Array.isArray(payload?.films)  ? payload.films  : [],
-        series: Array.isArray(payload?.series) ? payload.series : [],
-      };
+      const films  = payload?.films  ?? payload?.movies ?? [];
+      const series = payload?.series ?? payload?.shows  ?? [];
+      return {films: Array.isArray(films)?films:[], series: Array.isArray(series)?series:[]};
     }
     if(mode==='items'){
       const arr = Array.isArray(payload?.items) ? payload.items : [];
@@ -1115,11 +1103,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 : (Array.isArray(payload?.items) ? payload.items : []);
       return {films: arr, series: []};
     }
-    // mode === 'pair' obsługujemy w loadAvailable()
     return {films: [], series: []};
   }
 
-  // helpers
+  // canonicalizer
   const _first = (o,keys,d='')=>{ for(const k of keys){ if(o && o[k]!=null && o[k] !== '') return o[k]; } return d; };
   const _num   = (x,d=0)=>{ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; };
   const _bool  = x => !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true');
@@ -1136,12 +1123,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const year = _first(r, ['year','release_year','y'], null);
 
     let pos=null, dur=null;
-    if (r.position_ms != null)      pos = _num(r.position_ms)/1000;
+    if (r.position_ms != null) pos = _num(r.position_ms)/1000;
     else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
     else pos = _num(_first(r, ['watched_seconds','position','pos'], 0));
 
-    if (r.duration_ms != null)      dur = _num(r.duration_ms)/1000;
-    else                            dur = _num(_first(r, ['duration','runtime','total_seconds'], 0));
+    if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
+    else                        dur = _num(_first(r, ['duration','runtime','total_seconds'], 0));
 
     let prog=null;
     const rawProg = _first(r, ['progress','ratio'], null);
@@ -1172,21 +1159,51 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const epLabel = it => (it.kind!=='series') ? '' : `S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
-  function bytes(n){ n=Number(n||0); const u=['B','KiB','MiB','GiB','TiB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; }
-  const dcls = ms => (ms<=0 ? 'danger' : ((ms/86400000)<=1 ? 'warn' : 'ok'));
-  function ttl(ms){ if(ms<=0) return 'do usunięcia'; const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60); if(d>=2) return `za ${d} dni`; if(d===1) return 'za 1 dzień'; if(h>=1) return `za ${h} h`; return `za ${m} min`; }
+  const bytes = (n)=>{ n=Number(n||0); const u=['B','KiB','MiB','GiB','TiB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; };
+  const dcls  = ms => (ms<=0 ? 'danger' : ((ms/86400000)<=1 ? 'warn' : 'ok'));
+  const ttl   = ms => { if(ms<=0) return 'do usunięcia'; const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60); if(d>=2) return `za ${d} dni`; if(d===1) return 'za 1 dzień'; if(h>=1) return `za ${h} h`; return `za ${m} min`; };
+
+  // --- stan modułu (w zasięgu) ---
+  let DOM = {};
+  let _availableRaw = [];
+  let _availableIndex = {};
+  let _posterByPlexId = {};
+  let _delTimer = null;
+
+  function wireUI(){
+    const byId = (id)=> document.getElementById(id);
+    DOM = {
+      grid:   byId('availableGrid'),
+      info:   byId('avInfo'),
+      q:      byId('avQuery'),
+      kind:   byId('avKind'),
+      sort:   byId('avSort'),
+      btn:    byId('avRefresh'),
+      auto:   byId('avAuto'),
+    };
+
+    // ochronne bindy (jeśli skrypt w <head/>)
+    if (DOM.btn)  DOM.btn.onclick  = loadAvailable;
+    if (DOM.auto) DOM.auto.onclick = function(){ 
+      if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; }
+      else { this._t=setInterval(loadAvailable, 10000); this.textContent='Auto: ON'; loadAvailable(); }
+    };
+    if (DOM.q)    DOM.q.addEventListener('input', ()=>renderAvailable(_availableRaw));
+    if (DOM.kind) DOM.kind.addEventListener('change', ()=>renderAvailable(_availableRaw));
+    if (DOM.sort) DOM.sort.addEventListener('change', ()=>renderAvailable(_availableRaw));
+  }
 
   function renderAvailable(list){
     if(_delTimer){ clearInterval(_delTimer); _delTimer=null; }
     if(!Array.isArray(list) || !list.length){
-      availableGrid.innerHTML = '';
-      avInfo.textContent = 'Brak pozycji.';
+      if(DOM.grid) DOM.grid.innerHTML = '';
+      if(DOM.info) DOM.info.textContent = 'Brak pozycji.';
       return;
     }
 
-    const q = (avQuery.value||'').toLowerCase();
-    const k = avKind.value||'all';
-    const srt = avSort.value||'recent';
+    const q = (DOM.q?.value||'').toLowerCase();
+    const k = DOM.kind?.value || 'all';
+    const srt = DOM.sort?.value || 'recent';
 
     _availableIndex = {};
     let items = list.map(r => { const c = canon(r); _availableIndex[c.id]=r; return c; });
@@ -1194,7 +1211,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if(k!=='all') items = items.filter(x => x.kind===k);
     if(q) items = items.filter(x => (x.title||'').toLowerCase().includes(q));
 
-    // mapy plakatów (przydają się do cast sessions)
     _posterByPlexId = {};
     for(const raw of list){
       const pid = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key].find(v=>v!=null && /^\d+$/.test(String(v)));
@@ -1205,7 +1221,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else if(srt==='progress') items.sort((a,b)=> (b.progress||0) - (a.progress||0));
     else items.sort((a,b)=> String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
 
-    availableGrid.innerHTML = items.map(it=>{
+    if(DOM.grid) DOM.grid.innerHTML = items.map(it=>{
       const pct = Math.max(0, Math.min(100, Math.round((it.progress||0)*100)));
       const year = it.year ? ` (${it.year})` : '';
       const ep = epLabel(it);
@@ -1237,7 +1253,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>`;
     }).join('');
 
-    avInfo.textContent = `Pozycji: ${items.length}`;
+    if(DOM.info) DOM.info.textContent = `Pozycji: ${items.length}`;
 
     _delTimer = setInterval(() => {
       document.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
@@ -1252,8 +1268,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadAvailable(){
-    avInfo.textContent = 'Ładuję...';
-    availableGrid.innerHTML = '';
+    if(DOM.info){ DOM.info.textContent = 'Ładuję...'; }
+    if(DOM.grid){ DOM.grid.innerHTML = ''; }
 
     const ep = await detectAvailableEndpoint();
     console.info('[Dostępne] endpoint:', ep);
@@ -1264,31 +1280,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const jm = await fetchJsonSmart(m,'GET') || await fetchJsonSmart(m,'POST') || [];
         const js = await fetchJsonSmart(s,'GET') || await fetchJsonSmart(s,'POST') || [];
         _availableRaw = ([]).concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
-        renderAvailable(_availableRaw);
-        return;
+      }else{
+        const j = await fetchJsonSmart(ep.u,'GET') || await fetchJsonSmart(ep.u,'POST') || {};
+        const ns = normalizeAvailable(j, ep.mode);
+        _availableRaw = (ns.films||[]).concat(ns.series||[]);
       }
-
-      const j = await fetchJsonSmart(ep.u,'GET') || await fetchJsonSmart(ep.u,'POST') || {};
-      const ns = normalizeAvailable(j, ep.mode);
-      _availableRaw = (ns.films||[]).concat(ns.series||[]);
       renderAvailable(_availableRaw);
     }catch(e){
-      avInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
+      if(DOM.info) DOM.info.innerHTML = `<span class="err">${e.message||e}</span>`;
     }
   }
-
-  // udostępniam debug w konsoli
-  window.piotrflixAvailable = {
-    reload: loadAvailable,
-    endpoint: detectAvailableEndpoint
-  };
-
-  // filtry
-  avBtn.onclick = loadAvailable;
-  avAuto.onclick = function(){ if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; } else { this._t=setInterval(loadAvailable, 10000); this.textContent='Auto: ON'; loadAvailable(); } };
-  avQuery.addEventListener('input', ()=>renderAvailable(_availableRaw));
-  avKind.addEventListener('change', ()=>renderAvailable(_availableRaw));
-  avSort.addEventListener('change', ()=>renderAvailable(_availableRaw));
 
   // Cast z karty
   window.castFromAvailable = async (canonId)=>{
@@ -1301,13 +1302,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if(!itemId || !/^\d+$/.test(String(itemId))){
       alert('Nieprawidłowy item_id (ratingKey).'); return;
     }
-    if (typeof castStart === 'function') await castStart(itemId);
+    if (hasFn('castStart')) await window.castStart(itemId);
   };
 
-  // załaduj od razu (po DOMContentLoaded oraz po logowaniu możesz wywołać window.piotrflixAvailable.reload())
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadAvailable);
-  } else {
+  // debug w konsoli
+  window.piotrflixAvailable = {
+    endpoint: detectAvailableEndpoint,
+    reload:   loadAvailable,
+    get last(){ return _availableRaw; }
+  };
+
+  // start kiedy DOM gotowy
+  onceReady(() => {
+    wireUI();
     loadAvailable();
-  }
+  });
 })();
