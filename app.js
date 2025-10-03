@@ -1018,13 +1018,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* =====================  DOSTĘPNE – logika  ===================== */
+/* =====================  DOSTĘPNE – logika (JS only)  ===================== */
 (function(){
   const $ = (id) => document.getElementById(id);
 
   // --- Konfiguracja API + token
   const BASE_URL = localStorage.getItem("pf_base") || "https://api.pkportfolio.pl";
   const getToken = () => localStorage.getItem("pf_token") || "";
+
   async function api(path, opt = {}){
     const headers = opt.headers || {};
     if (!headers["Content-Type"] && opt.body && typeof opt.body !== "string"){
@@ -1032,14 +1033,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const t = getToken();
     if (t) headers["Authorization"] = "Bearer " + t;
+
     const url = path.startsWith("http") ? path : (BASE_URL + path);
     const res = await fetch(url, { ...opt, headers });
-    if (res.status === 401) throw new Error("401 Unauthorized (brak / wygasły token)");
+
+    // błąd HTTP
+    if (!res.ok){
+      const text = await res.text().catch(()=> "");
+      throw new Error(`${res.status} ${res.statusText}${text ? ` – ${text}` : ""}`);
+    }
+
+    // parsuj wg content-type
     const ct = res.headers.get("content-type") || "";
-    return ct.includes("application/json") ? res.json() : res.text();
+    if (ct.includes("application/json")){
+      const data = await res.json();
+      // serwer czasem zwraca {error:"no token"} lub podobne
+      if (data && (data.error || data.message)){
+        const msg = data.error || data.message;
+        if (String(msg).toLowerCase().includes("token")) throw new Error(msg);
+      }
+      return data;
+    }
+    const text = await res.text();
+    if (String(text).toLowerCase().includes("no token")) throw new Error(text);
+    return text;
   }
 
-  // --- Elementy UI
+  // --- Elementy UI (muszą istnieć w HTML)
   const tabMovies = $("av-tab-movies");
   const tabSeries = $("av-tab-series");
   const listEl    = $("av-list");
@@ -1067,7 +1087,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Stan
   let RAW = { films: [], series: [] };
   let activeKind = "movies"; // "movies" | "series"
-  let selectedItem = null;   // {id,title,poster,...}
+  let selectedItem = null;
   let currentClientId = localStorage.getItem("pf_cast_client") || "";
   let statusTimer = null;
 
@@ -1080,9 +1100,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const s = sec%60;
     return (h>0 ? String(h).padStart(2,"0")+":" : "") + String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
   };
+  const escapeHtml = (s)=> String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
 
   function canon(item){
-    // unifikacja pól z /me/available
     const title  = item.display_title || item.title || item.name || "—";
     const poster = item.image_url || item.poster || item.poster_url || item.thumb || "";
     const year   = item.year || item.release_year || null;
@@ -1101,7 +1121,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Render listy
   function render(){
-    const arr = (activeKind==="movies" ? RAW.films : RAW.series).map(canon);
+    const arrRaw =
+      activeKind==="movies"
+        ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies)? RAW.movies : []))
+        : (Array.isArray(RAW.series) ? RAW.series : []);
+    const arr = arrRaw.map(canon);
+
     listEl.innerHTML = arr.map(it=>{
       const pct = Math.round((it.prog||0)*100);
       return `
@@ -1123,8 +1148,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const has = arr.length>0;
     emptyEl.style.display = has ? "none":"block";
+    if (!has) emptyEl.textContent = "Brak pozycji do wyświetlenia.";
 
-    // podłącz akcje cast
+    // akcje cast
     listEl.querySelectorAll(".btn--cast").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         selectedItem = {
@@ -1139,32 +1165,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Ładowanie danych
   async function loadAvailable(){
-    if (!getToken()){
-      emptyEl.textContent = "Nie jesteś zalogowany (brak pf_token w localStorage). Zaloguj się na stronie logowania.";
+    const t = getToken();
+    if (!t){
+      emptyEl.style.display = "block";
+      emptyEl.textContent = "Brak tokenu. Zaloguj się (pf_token w localStorage).";
       listEl.innerHTML = "";
+      console.warn("[available] brak pf_token w localStorage");
       return;
     }
-    emptyEl.textContent = "Ładuję…";
+    emptyEl.style.display = "block";
+    emptyEl.textContent = "Ładuję listę…";
     listEl.innerHTML = "";
     try{
       const j = await api("/me/available", { method:"GET" });
-      RAW.films  = Array.isArray(j?.films)  ? j.films  : [];
-      RAW.series = Array.isArray(j?.series) ? j.series : [];
+
+      // Backend może zwrócić:
+      // 1) {films:[], series:[]}
+      // 2) {movies:[], series:[]}
+      // 3) płaską tablicę (mieszane)
+      if (Array.isArray(j)){
+        RAW.films = j.filter(x => (x.kind||x.type||"").toLowerCase()!=="series");
+        RAW.series = j.filter(x => (x.kind||x.type||"").toLowerCase()==="series");
+      } else {
+        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies) ? j.movies : []);
+        RAW.series = Array.isArray(j?.series) ? j.series : [];
+      }
+
       render();
     }catch(e){
-      emptyEl.textContent = (e && e.message) ? e.message : "Błąd ładowania.";
+      console.error("[available] load error:", e);
+      emptyEl.style.display = "block";
+      emptyEl.textContent = `Błąd: ${e.message || e}`;
     }
   }
 
   // --- Taby
   function setTab(kind){
     activeKind = (kind==="series") ? "series" : "movies";
-    tabMovies.classList.toggle("is-active", activeKind==="movies");
-    tabSeries.classList.toggle("is-active", activeKind==="series");
+    if (tabMovies) tabMovies.classList.toggle("is-active", activeKind==="movies");
+    if (tabSeries) tabSeries.classList.toggle("is-active", activeKind==="series");
     render();
   }
-  tabMovies.addEventListener("click", ()=> setTab("movies"));
-  tabSeries.addEventListener("click", ()=> setTab("series"));
+  if (tabMovies) tabMovies.addEventListener("click", ()=> setTab("movies"));
+  if (tabSeries) tabSeries.addEventListener("click", ()=> setTab("series"));
 
   // --- Modal CAST
   async function openCastModal(){
@@ -1187,14 +1230,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open","");
   }
-  function closeCastModal(){ if (dlg.open) dlg.close(); else dlg.removeAttribute("open"); }
+  function closeCastModal(){ if (dlg && dlg.open) dlg.close(); else dlg?.removeAttribute("open"); }
 
-  castSel.addEventListener("change", ()=> {
+  if (castSel) castSel.addEventListener("change", ()=>{
     currentClientId = castSel.value || "";
     if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
   });
 
-  castStart.addEventListener("click", async (e)=>{
+  if (castStart) castStart.addEventListener("click", async (e)=>{
     e.preventDefault();
     const client = castSel.value;
     if (!client){ castInfo.textContent = "Wybierz urządzenie."; return; }
@@ -1216,11 +1259,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  castClose.addEventListener("click", (e)=>{ e.preventDefault(); closeCastModal(); });
+  if (castClose) castClose.addEventListener("click", (e)=>{ e.preventDefault(); closeCastModal(); });
 
   // --- Player
   function showPlayer(item){
-    if (!item) return;
+    if (!item || !playerBox) return;
     playerBox.hidden = false;
     plTitle.textContent = item.title || "—";
     plPoster.src = item.poster || "";
@@ -1230,10 +1273,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updatePlayerFromStatus(st){
-    // szukamy sesji dla wybranego klienta (albo pierwszej dostępnej)
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     const sess = sessions.find(s => String(s.client_id||"") === String(currentClientId)) || sessions[0];
-    if (!sess){ return; }
+    if (!sess) return;
 
     const dur = Number(sess.duration_ms||0)/1000;
     const pos = Number(sess.view_offset_ms||0)/1000;
@@ -1256,13 +1298,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : "";
         const j = await api("/cast/status"+qs, { method:"GET" });
         updatePlayerFromStatus(j);
-      }catch(_){}
+      }catch(err){
+        // nie spamuj UI; tylko log
+        console.debug("[cast/status] err:", err?.message || err);
+      }
     }, 1500);
   }
   function stopStatusLoop(){ if (statusTimer){ clearInterval(statusTimer); statusTimer=null; } }
 
   // seek z suwaka
-  plSeek.addEventListener("input", async ()=>{
+  if (plSeek) plSeek.addEventListener("input", async ()=>{
     const client = currentClientId; if (!client) return;
     const seekMs = Math.round(Number(plSeek.value||"0") * 1000);
     try{
@@ -1270,15 +1315,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }catch(_){}
   });
 
-  // play/pause toggle
-  plPlay.addEventListener("click", async ()=>{
+  // play/pause toggle (prosto)
+  if (plPlay) plPlay.addEventListener("click", async ()=>{
     const client = currentClientId; if (!client) return;
-    // Spróbuj najpierw pause, a zaraz potem play – Plex bywa różny; ale tu prościej: toggle = play
     try{ await api("/cast/cmd", { method:"POST", body: JSON.stringify({ client_id: client, cmd:"play" }) }); }catch(_){}
     try{ await api("/cast/cmd", { method:"POST", body: JSON.stringify({ client_id: client, cmd:"pause" }) }); }catch(_){}
   });
 
-  plStop.addEventListener("click", async ()=>{
+  if (plStop) plStop.addEventListener("click", async ()=>{
     const client = currentClientId; if (!client) return;
     try{
       await api("/cast/cmd", { method:"POST", body: JSON.stringify({ client_id: client, cmd:"stop" }) });
@@ -1286,8 +1330,8 @@ document.addEventListener("DOMContentLoaded", () => {
     stopStatusLoop();
   });
 
-  plBack.addEventListener("click", ()=> nudgeSeek(-10));
-  plFwd.addEventListener("click",  ()=> nudgeSeek(+30));
+  if (plBack) plBack.addEventListener("click", ()=> nudgeSeek(-10));
+  if (plFwd)  plFwd.addEventListener("click", ()=> nudgeSeek(+30));
   async function nudgeSeek(deltaSec){
     const client = currentClientId; if (!client) return;
     const now = Number(plSeek.value||"0");
@@ -1297,8 +1341,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }catch(_){}
   }
 
-  // --- Helpers
-  function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
-
   // --- Start
-  loadAvailable();})
+  loadAvailable();
+})();
