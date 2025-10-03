@@ -1046,7 +1046,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  // UI refs — wszystko po sekcji (żeby nie kolidować)
+  // UI refs
   const tabsHost = section.querySelector('#av2-tabs');
   const tabMovies = section.querySelector('#av2-tab-movies');
   const tabSeries = section.querySelector('#av2-tab-series');
@@ -1064,7 +1064,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const dlg       = section.querySelector('#av2-cast-modal');
   const castSel   = section.querySelector('#av2-device');
-  const castForm  = section.querySelector('#av2-cast-form');
   const castStart = section.querySelector('#av2-cast-start');
 
   // helpers
@@ -1085,21 +1084,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = Date.parse(s); return isNaN(t) ? null : t;
   };
   const fmtDateShort = (ms)=>{ if(!ms) return ''; try{ return new Date(ms).toLocaleString(); }catch{ return ''; } };
+
+  // „usunie się za …”: dni → godziny → minuty
   const fmtTTL = (diffMs)=>{
     if(diffMs<=0) return 'do usunięcia';
     const s = Math.floor(diffMs/1000);
     const d = Math.floor(s/86400);
     const h = Math.floor((s%86400)/3600);
     const m = Math.floor((s%3600)/60);
-    if(d>=2) return `za ${d} dni`;
-    if(d===1) return `za 1 dzień`;
-    if(h>=1) return `za ${h} h`;
-    return `za ${m} min`;
+    if(d>=2) return `usunie się za ${d} dni`;
+    if(d===1) return `usunie się za 1 dzień`;
+    if(h>=1)   return `usunie się za ${h} h`;
+    return      `usunie się za ${m} min`;
   };
+
+  // kolory: >3 dni = ok, 1–3 dni = warn, <1 dzień = danger, <=0 też danger
   const delClass = (diffMs)=>{
     if(diffMs<=0) return 'danger';
     const d = diffMs/86400000;
-    if(d<=1) return 'warn';
+    if(d < 1) return 'danger';
+    if(d <= 3) return 'warn';
     return 'ok';
   };
 
@@ -1123,7 +1127,6 @@ document.addEventListener("DOMContentLoaded", () => {
     prog = clamp01(prog>1.01 ? prog/100 : prog);
     const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
 
-    // DELETE: przyjmujemy deleteAt/delete_at z backendu
     const delAt = parseDeleteAt(r.deleteAt ?? r.delete_at ?? null);
     const favorite = !!(r.favorite);
 
@@ -1148,16 +1151,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     setText(infoEl, `Pozycji: ${arr.length}`);
 
-    // odświeżanie kapsułek
     if (badgeTimer){ clearInterval(badgeTimer); badgeTimer=null; }
 
     const html = arr.map(it=>{
       const pct = Math.round((it.prog||0)*100);
       const year = it.year? ` (${it.year})` : '';
-      // bez "movie/series" — tylko ewentualnie SxxExx
       const sub = (it.kind==='series' && it.season!=null && it.episode!=null) ? ep(it) : '';
 
-      // kapsułka i data
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff = showDel ? (it.deleteAt - Date.now()) : 0;
       const delBadge = showDel ? `<div class="del-badge ${delClass(diff)}" data-delete-at="${it.deleteAt}">${fmtTTL(diff)}</div>` : '';
@@ -1165,7 +1165,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       return `
       <article class="av-card">
-        <div class="poster">
+        <div class="poster" style="position:relative">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
           ${delBadge}
           <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
@@ -1185,7 +1185,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join('');
     setHTML(listEl, html);
 
-    // auto-refresh "za X dni" co 30 s
+    // auto-refresh badge co 20 s (bardziej granularnie dla h/min)
     const refreshBadges = ()=>{
       listEl.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
         const ts = Number(el.getAttribute('data-delete-at')||'');
@@ -1196,9 +1196,9 @@ document.addEventListener("DOMContentLoaded", () => {
         el.classList.add(delClass(diff));
       });
     };
-    badgeTimer = setInterval(refreshBadges, 30000);
+    badgeTimer = setInterval(refreshBadges, 20000);
 
-    // podłącz Cast do wygenerowanych kart
+    // podłącz Cast do kart
     listEl.querySelectorAll('.btn--cast').forEach(b=>{
       b.addEventListener('click', ()=>{
         selected = {
@@ -1251,7 +1251,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // CAST
   function openCastModal(){
-    // wczytaj listę klientów
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson('/cast/players',{method:'GET'}).then(j=>{
       const list = Array.isArray(j?.devices) ? j.devices : [];
@@ -1278,11 +1277,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!selected || !/^\d+$/.test(String(selected.id||''))) return;
     try{
       await apiJson('/cast/start', {method:'POST', body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||'' }});
-      // pokaż player DOPIERO po starcie
       if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || '';
       startStatusLoop();
-    }catch(_){/* opcjonalnie toast */}
+    }catch(_){/* opcjonalnie toast */ }
     finally { dlg?.close?.(); }
   });
 
@@ -1323,14 +1321,12 @@ document.addEventListener("DOMContentLoaded", () => {
   btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
     try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
     stopStatusLoop();
-    // ukryj player po stop
     if (playerBox) playerBox.hidden = true;
   });
 
   // boot
   function boot(){
-    // player DOMYŚLNIE UKRYTY
-    if (playerBox) playerBox.hidden = true;
+    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
     setTab('movies');
     loadAvailable();
   }
