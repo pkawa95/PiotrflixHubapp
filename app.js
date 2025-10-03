@@ -1018,3 +1018,314 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
+/* ===================== AVAILABLE (Filmy/Seriale + Cast + Player) ===================== */
+(function(){
+  const section = document.getElementById('section-available');
+  if (!section) return;
+
+  // API / auth
+  const API =
+    document.getElementById('auth-screen')?.dataset.apiBase ||
+    localStorage.getItem('pf_base') || '';
+  const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
+
+  // DOM
+  const tabs = Array.from(section.querySelectorAll('.tx-tab')); // data-av-mode: movies | series
+  const list = section.querySelector('#av-list');
+
+  // Cast modal
+  const modal = section.querySelector('#av-cast-modal');
+  const deviceSel = section.querySelector('#av-device');
+  const btnPlay = section.querySelector('#av-play');
+
+  // Player
+  const player = section.querySelector('#av-player');
+  const plPoster = section.querySelector('#av-pl-poster');
+  const plTitle  = section.querySelector('#av-pl-title');
+  const plSeek   = section.querySelector('#av-pl-seek');
+  const plTime   = section.querySelector('#av-pl-time');
+  const plDur    = section.querySelector('#av-pl-dur');
+  const plPct    = section.querySelector('#av-pl-pct');
+  const bPrev = section.querySelector('#av-btn-prev');
+  const bPlay = section.querySelector('#av-btn-play');
+  const bStop = section.querySelector('#av-btn-stop');
+  const bNext = section.querySelector('#av-btn-next');
+
+  // State
+  const STORAGE_MODE = 'available:mode';
+  let mode = localStorage.getItem(STORAGE_MODE) || 'movies'; // movies | series
+  let items = [];
+  let castTarget = null;  // { item_id, title, poster, type }
+  let polling = null;
+  let currentClientId = null;
+  let currentDuration = 0;
+
+  // Helpers
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const pct = (v) => {
+    const n = Number(v ?? 0);
+    if (!Number.isFinite(n)) return 0;
+    if (n <= 1.01) return Math.max(0, Math.min(100, n * 100));
+    return Math.max(0, Math.min(100, n));
+  };
+  const msToClock = (ms) => {
+    ms = Math.max(0, Number(ms||0));
+    const s = Math.floor(ms/1000);
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+               : `${m}:${String(sec).padStart(2,'0')}`;
+  };
+  const pick = (o, ...k) => { for (const key of k){ if (o && o[key] != null) return o[key]; } };
+
+  // Tabs
+  function setMode(m){
+    mode = m;
+    localStorage.setItem(STORAGE_MODE, mode);
+    tabs.forEach(t => {
+      const on = t.dataset.avMode === mode;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    loadAvailable();
+  }
+  section.querySelector('.tx-tabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tx-tab'); if (!btn) return;
+    setMode(btn.dataset.avMode);
+  });
+  // Init selected tab
+  setMode(mode);
+
+  // Fetchers
+  async function loadAvailable(){
+    if (!tokenOk()){
+      list.innerHTML = `<div class="tx-empty">Musisz być zalogowany.</div>`;
+      return;
+    }
+    list.innerHTML = `<div class="tx-empty">Ładowanie ${mode === 'movies' ? 'filmów' : 'seriali'}…</div>`;
+
+    try{
+      // ✅ dopasuj do własnych endpointów backendu
+      const path = mode === 'movies' ? '/available/movies' : '/available/series';
+      const r = await window.authFetch(joinUrl(API, path));
+      const data = await r.json().catch(()=> ({}));
+      items = Array.isArray(data?.items) ? data.items
+            : Array.isArray(data) ? data
+            : [];
+      renderList(items);
+    }catch(e){
+      console.error(e);
+      list.innerHTML = `<div class="tx-empty">Nie udało się pobrać listy.</div>`;
+    }
+  }
+
+  function renderList(arr){
+    if (!arr.length){
+      list.innerHTML = `<div class="tx-empty">Brak pozycji do wyświetlenia.</div>`;
+      return;
+    }
+    const html = arr.map(it => {
+      const id     = String(pick(it,'id','item_id','ratingKey','pms_id','plex_id') || '');
+      const title  = pick(it,'title','name','display_title') || '—';
+      const poster = pick(it,'poster','image_url','thumb','grandparentThumb') || 'https://via.placeholder.com/300x450?text=Poster';
+      // progress (prefer percent 0..100, else ratio 0..1, else from duration/offset)
+      let pr = pick(it,'progress_percent','progress','percent') ?? 0;
+      if (!pr){
+        const dur = Number(pick(it,'duration_ms','duration') || 0);
+        const off = Number(pick(it,'view_offset_ms','viewOffset') || 0);
+        pr = dur>0 ? (off/dur)*100 : 0;
+      }
+      pr = Math.max(0, Math.min(100, Number(pr)||0));
+
+      return `
+      <article class="av-card" data-id="${esc(id)}" data-title="${esc(title)}" data-poster="${esc(poster)}" data-type="${mode}">
+        <img class="av-card__poster" src="${esc(poster)}" alt="">
+        <div class="av-card__body">
+          <h4 class="av-card__title">${esc(title)}</h4>
+          <div class="av-card__progress"><div class="av-card__bar" style="width:${pr.toFixed(1)}%;"></div></div>
+          <div class="av-card__meta"><strong>${pr.toFixed(0)}%</strong> ukończono</div>
+        </div>
+        <div class="av-card__actions">
+          <button class="tbtn av-btn-cast" type="button">Cast</button>
+        </div>
+      </article>`;
+    }).join('');
+    list.innerHTML = html;
+  }
+
+  // Cast modal helpers
+  async function openCastModal(target){
+    castTarget = target;    // {item_id, title, poster, type}
+    await fillDevices();
+    if (typeof modal.showModal === 'function') modal.showModal();
+    else modal.setAttribute('open','');
+  }
+  function closeCastModal(){
+    castTarget = null;
+    if (modal.open) modal.close();
+    modal.removeAttribute('open');
+  }
+  async function fillDevices(){
+    deviceSel.innerHTML = `<option value="">Ładowanie…</option>`;
+    try{
+      const r = await window.authFetch(joinUrl(API, '/cast/players'));
+      const j = await r.json().catch(()=> ({}));
+      const arr = Array.isArray(j?.devices) ? j.devices : [];
+      deviceSel.innerHTML = arr.length
+        ? arr.map(d => `<option value="${esc(d.id)}">${esc(d.name || d.product || d.id)}</option>`).join('')
+        : `<option value="">Brak urządzeń</option>`;
+    }catch(_){
+      deviceSel.innerHTML = `<option value="">Błąd pobierania</option>`;
+    }
+  }
+
+  // Start cast
+  async function startCast(){
+    const dev = deviceSel.value;
+    if (!dev || !castTarget) { closeCastModal(); return; }
+    try{
+      const r = await window.authFetch(joinUrl(API, '/cast/start'), {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ item_id: castTarget.item_id, client_id: dev, client_name: undefined })
+      });
+      const j = await r.json().catch(()=> ({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.detail || 'cast start failed');
+
+      currentClientId = dev;
+
+      // pokaż player
+      showPlayer(castTarget.title, castTarget.poster);
+      // od razu odśwież status
+      pollStatusOnce();
+      startPolling();
+    }catch(e){
+      console.error(e);
+      alert('Nie udało się rozpocząć odtwarzania.');
+    }finally{
+      closeCastModal();
+    }
+  }
+
+  // Player UI
+  function showPlayer(title, poster){
+    player.hidden = false; player.setAttribute('aria-hidden','false');
+    plTitle.textContent = title || '—';
+    plPoster.src = poster || '';
+  }
+  function hidePlayer(){
+    player.hidden = true; player.setAttribute('aria-hidden','true');
+    currentClientId = null;
+    stopPolling();
+  }
+
+  function startPolling(){
+    stopPolling();
+    polling = setInterval(pollStatusOnce, 1200);
+  }
+  function stopPolling(){
+    if (polling) clearInterval(polling);
+    polling = null;
+  }
+
+  async function pollStatusOnce(){
+    if (!currentClientId) return;
+    try{
+      const url = new URL(joinUrl(API, '/cast/status'));
+      url.searchParams.set('client_id', currentClientId);
+      const r = await window.authFetch(url.toString());
+      const j = await r.json().catch(()=> ({}));
+      const s = Array.isArray(j?.sessions) ? j.sessions[0] : null;
+      if (!s){ return; }
+
+      const dur = Number(s.duration_ms || 0);
+      const off = Number(s.view_offset_ms || 0);
+      currentDuration = dur;
+
+      plDur.textContent  = msToClock(dur);
+      plTime.textContent = msToClock(off);
+      const p = dur>0 ? Math.max(0, Math.min(1000, Math.round(off/dur*1000))) : 0;
+      plSeek.value = String(p);
+      plPct.textContent = `${Math.round((p/1000)*100)}%`;
+
+      // podmień miniaturę/tytuł jeżeli brakowało
+      if (!plPoster.src){
+        plPoster.src = s.thumb || '';
+      }
+      if (plTitle.textContent === '—' && s.title){
+        plTitle.textContent = s.title;
+      }
+    }catch(e){
+      // ciche błędy – grzecznie próbujemy dalej
+    }
+  }
+
+  async function sendCmd(cmd, seekMs){
+    if (!currentClientId) return;
+    const body = { client_id: currentClientId, cmd };
+    if (cmd === 'seek' && Number.isFinite(seekMs)) body.seek_ms = Math.max(0, Math.floor(seekMs));
+    try{
+      await window.authFetch(joinUrl(API, '/cast/cmd'), {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(body)
+      });
+      // szybki refresh
+      setTimeout(pollStatusOnce, 200);
+    }catch(e){
+      console.error('cmd failed', e);
+    }
+  }
+
+  // Events: list → cast
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('.av-btn-cast'); if (!btn) return;
+    const card = btn.closest('.av-card'); if (!card) return;
+    const itemId = card.dataset.id;
+    const title  = card.dataset.title || '';
+    const poster = card.dataset.poster || '';
+    const type   = card.dataset.type || 'movies';
+    if (!itemId) return;
+    openCastModal({ item_id: itemId, title, poster, type });
+  });
+
+  // Modal actions
+  btnPlay.addEventListener('click', startCast);
+  modal.addEventListener('close', () => { /* nic – obie akcje zamykają modal */ });
+
+  // Player controls
+  bPlay.addEventListener('click', () => sendCmd('pause'));   // toggle w PMS (pause/play)
+  bStop.addEventListener('click', () => { sendCmd('stop'); hidePlayer(); });
+  bNext.addEventListener('click', () => sendCmd('next'));
+  bPrev.addEventListener('click', () => sendCmd('previous'));
+
+  // Seek (range 0..1000)
+  let seeking = false;
+  plSeek.addEventListener('input', () => {
+    seeking = true;
+    const pos = Number(plSeek.value||0)/1000;
+    const ms = Math.floor(currentDuration * pos);
+    plTime.textContent = msToClock(ms);
+    plPct.textContent = `${Math.round(pos*100)}%`;
+  });
+  plSeek.addEventListener('change', () => {
+    const pos = Number(plSeek.value||0)/1000;
+    const ms = Math.floor(currentDuration * pos);
+    seeking = false;
+    sendCmd('seek', ms);
+  });
+
+  // Integracja z główną nawigacją (focus / autoload)
+  window.showSection = window.showSection || function(){};
+  const prevShow = window.showSection;
+  window.showSection = function(name){
+    try{ if (typeof prevShow === 'function') prevShow(name); }catch(e){}
+    if (name === 'available'){
+      loadAvailable();
+    }
+  };
+
+  // Jeśli już wszedłeś w „Dostępne”, wczytaj od razu
+  if (!section.hasAttribute('hidden')) loadAvailable();
+
+})();

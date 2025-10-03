@@ -376,7 +376,70 @@
 
       
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
-      <section id="section-available" role="tabpanel" aria-hidden="true"></section>
+      <!-- ===================== DOSTĘPNE (sekcja) ===================== -->
+<section id="section-available" aria-label="Dostępne" hidden aria-hidden="true">
+  <div class="tx-container">
+
+    <!-- Sticky: logo + taby Filmy/Seriale -->
+    <div class="tx-stickybar">
+      <div class="tx-brand">
+        <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" onerror="this.style.display='none'">
+      </div>
+      <div class="tx-tabs" role="tablist" aria-label="Tryb dostępnych">
+        <button class="tx-tab is-active" data-av-mode="movies" role="tab" aria-selected="true">Filmy</button>
+        <button class="tx-tab" data-av-mode="series" role="tab" aria-selected="false">Seriale</button>
+      </div>
+    </div>
+
+    <!-- Lista kafli -->
+    <div id="av-list" class="tx-list" aria-live="polite">
+      <div class="tx-empty">Ładowanie…</div>
+    </div>
+
+    <!-- ===== Modal CAST ===== -->
+    <dialog id="av-cast-modal" class="av-modal" aria-labelledby="av-cast-title">
+      <form method="dialog" class="av-modal__card">
+        <h3 id="av-cast-title" class="av-modal__title">Wybierz urządzenie</h3>
+
+        <div class="av-modal__row">
+          <label for="av-device" class="av-modal__label">Urządzenie Plex</label>
+          <select id="av-device" class="select" required></select>
+        </div>
+
+        <div class="av-modal__actions">
+          <button value="cancel" class="btn tbtn--ghost" type="submit">Wyjście</button>
+          <button id="av-play" class="btn btn--primary" type="button">Odtwarzaj</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ===== Mini Player ===== -->
+    <section id="av-player" class="av-player" hidden aria-hidden="true" aria-label="Odtwarzacz">
+      <img id="av-pl-poster" class="av-player__poster" alt="">
+      <div class="av-player__main">
+        <div class="av-player__title" id="av-pl-title">—</div>
+
+        <input id="av-pl-seek" class="av-player__seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Przewijanie">
+
+        <div class="av-player__meta">
+          <span id="av-pl-time">00:00</span>
+          <span> / </span>
+          <span id="av-pl-dur">00:00</span>
+          <span class="av-player__pct" id="av-pl-pct">0%</span>
+        </div>
+      </div>
+
+      <div class="av-player__controls">
+        <button id="av-btn-prev" class="tbtn tbtn--ghost" type="button" title="Poprzedni">⏮</button>
+        <button id="av-btn-play" class="tbtn" type="button" title="Pauza/Wznów">⏯</button>
+        <button id="av-btn-stop" class="tbtn tbtn--danger" type="button" title="Stop">⏹</button>
+        <button id="av-btn-next" class="tbtn tbtn--ghost" type="button" title="Następny">⏭</button>
+      </div>
+    </section>
+
+  </div>
+</section>
+
     </main>
   </div>
 
