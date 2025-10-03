@@ -1018,286 +1018,285 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ==== DOSTĘPNE v2 (sync/available-first) =================================== */
-(function(){
-  const ready = (fn)=> (document.readyState==='loading'
-    ? document.addEventListener('DOMContentLoaded', fn, {once:true})
-    : fn());
-
-  // ── helpers ────────────────────────────────────────────────────────────────
-  async function tryJson(path, method='GET'){
-    try{
-      const res = await api(path, {method});
-      if (typeof res === 'string') { try{ return JSON.parse(res); }catch{ return null; } }
-      return res;
-    }catch{ return null; }
-  }
-  const _first=(o,k,d='')=>{for(const x of k){if(o&&o[x]!=null&&o[x]!=='')return o[x];}return d;}
-  const _num=(x,d=0)=>{const n=Number(String(x).replace(',','.'));return isFinite(n)?n:d;}
-  const _bool=x=>!!(x===true||x==='1'||x===1||String(x).toLowerCase()==='true');
-  function _parseDeleteAt(v){ if(v==null||v==='')return null; const n=Number(String(v).replace(',','.')); if(isFinite(n))return n<1e12?Math.round(n*1000):Math.round(n); const t=Date.parse(String(v)); return isNaN(t)?null:t; }
-
-  // ── DOM refs z istniejącej strony ─────────────────────────────────────────
-  const $ = id=>document.getElementById(id);
-  const DOM = {
-    grid: $('availableGrid'),
-    info: $('avInfo'),
-    q: $('avQuery'),
-    kind: $('avKind'),
-    sort: $('avSort'),
-    btn: $('avRefresh'),
-    auto: $('avAuto')
+/* app.js — „dobry” frontend pod Twój backend */
+(() => {
+  const cfg = {
+    // Ustaw raz ręcznie, jeśli chcesz inny adres:
+    baseURL: localStorage.getItem("pf.api") || "http://127.0.0.1:8000",
   };
 
-  // ── state ─────────────────────────────────────────────────────────────────
-  let _raw=[], _index={}, _posterByPlexId={}, _badgeTimer=null;
-
-  // ── endpoint detection: prefer /sync/available ────────────────────────────
-  async function detectAvailableEndpoint(){
-    const cached = localStorage.getItem('pf_available_ep_v2');
-    if(cached){ try{ return JSON.parse(cached);}catch{} }
-
-    // 1) “merged” payloady (results + progress)
-    const merged = ['/sync/available','/available','/library/available','/library'];
-    for(const u of merged){
-      const j = await tryJson(u,'GET');
-      if(j && Array.isArray(j.results)){
-        const ep = {u, mode:'merged'};
-        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
-        return ep;
-      }
+  // ───────────────────────────────────────────────────────────────────────────
+  // Utilities
+  // ───────────────────────────────────────────────────────────────────────────
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === "class") n.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(n.style, v);
+      else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
     }
+    for (const k of kids) n.append(k);
+    return n;
+  };
+  const fmtPct = (x) => `${Math.round(Math.max(0, Math.min(1, +x || 0)) * 100)}%`;
 
-    // 2) stare /me/available (films/series)
-    const splitCand = ['/me/available'];
-    for(const u of splitCand){
-      const j = await tryJson(u,'GET');
-      if(j && (Array.isArray(j.films) || Array.isArray(j.series))){
-        const ep = {u, mode:'split'};
-        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
-        return ep;
-      }
+  const tokens = {
+    get access()  { return localStorage.getItem("pf.access") || ""; },
+    get refresh() { return localStorage.getItem("pf.refresh") || ""; },
+    set(pair) {
+      if (!pair) return;
+      if (pair.access_token)  localStorage.setItem("pf.access",  pair.access_token);
+      if (pair.refresh_token) localStorage.setItem("pf.refresh", pair.refresh_token);
+    },
+    clear() {
+      localStorage.removeItem("pf.access");
+      localStorage.removeItem("pf.refresh");
     }
+  };
 
-    // 3) para endpoints (movies|series)
-    const pairs = [
-      ['/me/movies','/me/series'],
-      ['/available/movies','/available/series'],
-      ['/library/movies','/library/series'],
-      ['/library/movies','/library/shows'],
-    ];
-    for(const [m,s] of pairs){
-      const jm = await tryJson(m,'GET');
-      const js = await tryJson(s,'GET');
-      if((Array.isArray(jm)&&jm.length) || (Array.isArray(js)&&js.length)){
-        const ep = {u:`${m}|${s}`, mode:'pair'};
-        localStorage.setItem('pf_available_ep_v2', JSON.stringify(ep));
-        return ep;
-      }
+  async function api(path, opts = {}) {
+    const url = path.startsWith("http") ? path : cfg.baseURL + path;
+    const headers = new Headers(opts.headers || {});
+    headers.set("Accept", "application/json");
+    if (!(opts.body instanceof FormData)) headers.set("Content-Type", "application/json");
+    const token = tokens.access;
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(url, { ...opts, headers, credentials: "omit" });
+
+    // 401 → spróbuj odświeżyć albo zrób dev-login
+    if (res.status === 401) {
+      const ok = await tryRefreshOrDevLogin();
+      if (!ok) throw new Error("Auth failed");
+      return api(path, opts);
     }
-
-    // default
-    return {u:'/sync/available', mode:'merged'};
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`${res.status} ${res.statusText} — ${text}`);
+    }
+    const ct = res.headers.get("content-type") || "";
+    return ct.includes("application/json") ? res.json() : res.text();
   }
 
-  // ── kanonizacja jednego itemu (obsługuje merged/split) ────────────────────
-  function canon(r){
-    const title  = _first(r, ['display_title','title','name'],'—');
-    const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
-    const kindRaw = (_first(r,['kind','type','mtype','media_type'],'')||'').toLowerCase();
-    const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
-    const kind = isSeries ? 'series' : 'movie';
-    const year = _first(r,['year','release_year','y'], null);
-
-    // position/duration (ms lub s)
-    let pos = null, dur = null;
-    if (r.position_ms != null) pos = _num(r.position_ms)/1000;
-    else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
-    else if (r.watched_seconds != null) pos = _num(r.watched_seconds);
-    else pos = _num(_first(r,['position','watched_seconds','pos'],0));
-
-    if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
-    else if (r.total_ms != null) dur = _num(r.total_ms)/1000;
-    else if (r.runtime_ms != null) dur = _num(r.runtime_ms)/1000;
-    else dur = _num(_first(r,['duration','runtime','total_seconds'],0));
-
-    // progress
-    let prog = null;
-    const rawProg = _first(r,['progress','ratio'], null);
-    const rawPerc = _first(r,['percent'], null);
-    if (rawProg != null && rawProg !== '') {
-      let v = Number(String(rawProg).replace(',','.'));
-      if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;
-    } else if (rawPerc != null && rawPerc !== '') {
-      const s = String(rawPerc).trim().replace('%','').replace(',','.');
-      const v = parseFloat(s);
-      if (isFinite(v)) prog = v/100;
+  async function tryRefreshOrDevLogin() {
+    // refresh jeśli mamy refresh_token
+    if (tokens.refresh) {
+      try {
+        const data = await api("/auth/refresh", {
+          method: "POST",
+          body: JSON.stringify({ refresh_token: tokens.refresh }),
+          headers: { "Content-Type": "application/json" },
+        });
+        tokens.set(data);
+        return true;
+      } catch (_) { /* fallthrough */ }
     }
-    if (prog == null) {
-      if (isFinite(pos) && isFinite(dur) && dur > 0) prog = Math.max(0, Math.min(1, pos/dur));
-      else prog = 0;
-    } else {
-      prog = Math.max(0, Math.min(1, prog));
-    }
+    // dev-login tylko lokalnie
+    try {
+      const data = await fetch(cfg.baseURL + "/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ auto_create: true })
+      }).then(r => r.json());
+      if (data && data.access_token) { tokens.set(data); return true; }
+    } catch (_) { /* ignore */ }
+    return false;
+  }
 
-    const season     = _num(_first(r,['season','s'], null), null);
-    const episode    = _num(_first(r,['episode','e'], null), null);
-    const updated_at = _first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
-
-    // ID – preferuj plex ratingKey; inaczej stabilne b64
-    let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash','path'], null);
-    let id;
-    if(idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
-    else {
-      const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'') + '|' + (idCand||'');
-      id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
-    }
-
-    const size_bytes = _num(_first(r,['size_bytes','filesize','size'],0));
-    const deleteAt   = _parseDeleteAt(_first(r, ['deleteAt','delete_at'], null));
-    const favorite   = _bool(_first(r, ['favorite'], false));
-
-    return {
-      id, title, poster, kind, year,
-      duration: isFinite(dur) ? dur : 0,
-      position: isFinite(pos) ? pos : 0,
-      progress: prog,
-      season, episode, updated_at, size_bytes,
-      deleteAt, favorite
+  // ───────────────────────────────────────────────────────────────────────────
+  // Data layer
+  // ───────────────────────────────────────────────────────────────────────────
+  function canonItem(x, kind = "") {
+    const g = (obj, ...keys) => {
+      for (const k of keys) {
+        const v = (obj && obj[k]) || (obj && obj.meta && obj.meta[k]);
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return "";
     };
+    const id   = g(x, "id", "path", "plex_id", "ratingKey");
+    const title= g(x, "display_title", "title", "name");
+    const img  = g(x, "image_url", "poster", "poster_url", "thumb", "cover");
+    const prog = typeof x.progress === "number" ? x.progress
+               : typeof x.percent === "number" ? x.percent / 100
+               : 0;
+    const watched_seconds = +x.watched_seconds || 0;
+    const duration = +x.duration || 0;
+    return { id, display_title: title, image_url: img, progress: prog, watched_seconds, duration, kind: x.kind || kind };
   }
 
-  // ── UI bits ────────────────────────────────────────────────────────────────
-  const epLabel = it => (it.kind!=='series')?'':`S${(it.season!=null?String(it.season).padStart(2,'0'):'--')}E${(it.episode!=null?String(it.episode).padStart(2,'0'):'--')}`;
-  const bytes = n=>{n=Number(n||0);const u=['B','KiB','MiB','GiB','TiB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(n<10?2:1)} ${u[i]}`;}
-  const ttl  = ms=>{if(ms<=0)return'do usunięcia';const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);if(d>=2)return`za ${d} dni`;if(d===1)return'za 1 dzień';if(h>=1)return`za ${h} h`;return`za ${m} min`;};
-  const cls  = ms=> (ms<=0?'danger':((ms/86400000)<=1?'warn':'ok'));
+  async function loadAvailable() {
+    // Preferowane: /sync/available
+    try {
+      const v2 = await api("/sync/available");
+      if (v2 && Array.isArray(v2.results)) return v2.results.map(i => canonItem(i, i.kind));
+    } catch (e) {
+      console.warn("sync/available failed:", e);
+    }
+    // Fallback: /me/available + merge z /me/progress/raw
+    const [av, pr] = await Promise.all([
+      api("/me/available").catch(() => ({ films: [], series: [] })),
+      api("/me/progress/raw").catch(() => ({}))
+    ]);
+    const progById = {};
+    for (const [k, v] of Object.entries(pr || {})) {
+      const id = (v && (v.id || k)) || k;
+      progById[id] = v || {};
+    }
+    const out = [];
+    for (const f of (av.films || [])) {
+      const base = canonItem(f, "movie");
+      const p = progById[base.id] || {};
+      out.push(mergeProgress(base, p));
+    }
+    for (const s of (av.series || [])) {
+      const base = canonItem(s, "series");
+      const p = progById[base.id] || {};
+      out.push(mergeProgress(base, p));
+    }
+    return out;
+  }
 
-  function render(list){
-    if(_badgeTimer){ clearInterval(_badgeTimer); _badgeTimer=null; }
-    if(!Array.isArray(list)||!list.length){
-      DOM.grid && (DOM.grid.innerHTML='');
-      DOM.info && (DOM.info.textContent='Brak pozycji.');
+  function mergeProgress(item, p) {
+    const r = { ...item };
+    const ms = (k) => (p && typeof p[k] !== "undefined") ? +p[k] : null;
+    const num = (k) => (p && typeof p[k] === "number") ? +p[k] : null;
+    const str = (k) => (p && typeof p[k] === "string") ? p[k].trim() : "";
+
+    const pos_ms = ms("position_ms") ?? ms("watched_ms") ?? ms("view_offset_ms");
+    const dur_ms = ms("duration_ms") ?? ms("total_ms") ?? ms("runtime_ms");
+    if (pos_ms != null) r.watched_seconds = Math.max(0, pos_ms / 1000);
+    if (dur_ms != null) r.duration = Math.max(0, dur_ms / 1000);
+
+    if (num("progress") != null) r.progress = p.progress > 1.01 ? p.progress / 100 : p.progress;
+    else if (num("ratio") != null) r.progress = p.ratio;
+    else if (str("percent")) {
+      const v = parseFloat(str("percent").replace("%",""));
+      if (!isNaN(v)) r.progress = v / 100;
+    } else if ((r.duration || 0) > 0) {
+      r.progress = Math.max(0, Math.min(1, (r.watched_seconds || 0) / r.duration));
+    }
+    if (str("image_url") || str("thumb") || str("poster_url") || str("poster")) {
+      r.image_url = str("image_url") || str("thumb") || str("poster_url") || str("poster");
+    }
+    r.progress = Math.max(0, Math.min(1, +r.progress || 0));
+    return r;
+  }
+
+  async function seedDemo() {
+    const demo = {
+      available: {
+        films: [
+          { id: "54123", display_title: "Demo Movie (2021)", image_url: "https://via.placeholder.com/300x450?text=Demo+Movie", year: 2021 },
+        ],
+        series: [
+          { id: "77701", display_title: "Demo Show — S01E01", image_url: "https://via.placeholder.com/300x450?text=Demo+Show", season: 1, episode: 1 }
+        ]
+      },
+      progress: {
+        "54123": { id:"54123", position_ms: 120_000, duration_ms: 3_600_000, image_url:"https://via.placeholder.com/300x450?text=Demo+Movie" },
+        "77701": { id:"77701", position_ms: 35_000,  duration_ms: 2_700_000, image_url:"https://via.placeholder.com/300x450?text=Demo+Show" }
+      }
+    };
+    await api("/sync/upload", { method: "POST", body: JSON.stringify(demo) });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // UI
+  // ───────────────────────────────────────────────────────────────────────────
+  function ensureScaffold() {
+    if ($("#pf-app")) return $("#pf-app");
+    const root = el("div", { id: "pf-app", style: { fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'" }});
+    const header = el("div", { class: "pf-header", style: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px" } },
+      el("h1", { style: { fontSize: "20px", margin: 0 } }, "Piotrflix — Biblioteka"),
+      el("span", { id: "pf-upd", style: { marginLeft: "auto", fontSize: "12px", opacity: .7 } }, "")
+    );
+    const controls = el("div", { style: { display: "flex", gap: "8px", padding: "0 16px 12px" } },
+      el("button", { id: "pf-reload", class: "pf-btn" }, "⟳ Odśwież"),
+      el("button", { id: "pf-seed", class: "pf-btn" }, "★ Załaduj demo, jeśli pusto")
+    );
+    const grid = el("div", { id: "pf-grid", style: {
+      display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+      gap: "16px", padding: "0 16px 24px"
+    }});
+    const note = el("div", { id: "pf-note", style: { padding: "0 16px 12px", fontSize: "14px", opacity: .8 } });
+
+    document.body.append(root);
+    root.append(header, controls, note, grid);
+
+    // Handlers (bez błędów, jeśli elementów nie ma)
+    $("#pf-reload")?.addEventListener("click", () => hydrate());
+    $("#pf-seed")?.addEventListener("click", async () => {
+      $("#pf-seed").disabled = true;
+      try {
+        await seedDemo();
+        await hydrate();
+      } finally {
+        $("#pf-seed").disabled = false;
+      }
+    });
+    return root;
+  }
+
+  function render(items, updated_at = null) {
+    ensureScaffold();
+    const grid = $("#pf-grid"); grid.innerHTML = "";
+    $("#pf-upd").textContent = updated_at ? `zaktualizowano: ${new Date(updated_at).toLocaleString()}` : "";
+
+    if (!items.length) {
+      $("#pf-note").innerHTML =
+        `Brak pozycji. Wyślij snapshot na <code>/sync/upload</code> lub kliknij „Załaduj demo”.`;
       return;
     }
-    const q=(DOM.q?.value||'').toLowerCase();
-    const k=DOM.kind?.value||'all';
-    const s=DOM.sort?.value||'recent';
+    $("#pf-note").textContent = "";
 
-    _index={};
-    let items=list.map(r=>{const c=canon(r); _index[c.id]=r; return c;});
-    if(k!=='all') items=items.filter(x=>x.kind===k);
-    if(q) items=items.filter(x=>(x.title||'').toLowerCase().includes(q));
-
-    // mapy plakatów po ratingKey (dla sesji CAST)
-    _posterByPlexId={};
-    for(const raw of list){
-      const pid=[raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key].find(v=>v!=null&&/^\d+$/.test(String(v)));
-      if(pid){ const c=canon(raw); if(c.poster) _posterByPlexId[String(pid)]=c.poster; }
-    }
-
-    if(s==='title') items.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
-    else if(s==='progress') items.sort((a,b)=>(b.progress||0)-(a.progress||0));
-    else items.sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
-
-    DOM.grid && (DOM.grid.innerHTML = items.map(it=>{
-      const pct=Math.max(0,Math.min(100,Math.round((it.progress||0)*100)));
-      const year=it.year?` (${it.year})`:'';
-      const ep=epLabel(it);
-      const meta=`${it.kind}${ep? ' · '+ep:''}${it.size_bytes?' · '+bytes(it.size_bytes):''}`;
-      const dd=it.deleteAt?(it.deleteAt-Date.now()):null;
-      const badge=(it.deleteAt && !it.favorite)?`<div class="del-badge ${cls(dd)}" data-delete-at="${it.deleteAt}">${ttl(dd)}</div>`:'';
-      const tip=/^\d+$/.test(String(it.id))?`Cast ratingKey=${it.id}`:`Wpisz ratingKey przy starcie`;
-      return `<div class="av-card">
-        <div class="poster">
-          <img src="${it.poster||''}" alt="">
-          ${badge}
-          <div class="vprog"><span style="width:${pct}%;"></span></div>
-        </div>
-        <div class="body">
-          <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
-          <div class="meta">${meta}${it.deleteAt?` · usunie: ${new Date(it.deleteAt).toLocaleString()}`:''}</div>
-          <div class="tiny">Postęp: ${pct}% ${it.duration?`· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min`:''}</div>
-          <div class="actions">
-            <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
-          </div>
-        </div>
-      </div>`;
-    }).join(''));
-
-    DOM.info && (DOM.info.textContent = `Pozycji: ${items.length}`);
-
-    _badgeTimer = setInterval(()=>{
-      document.querySelectorAll('.del-badge[data-delete-at]').forEach(el=>{
-        const ts=Number(el.getAttribute('data-delete-at')); if(!isFinite(ts)) return;
-        const diff=ts-Date.now(); el.textContent=ttl(diff);
-        el.classList.remove('ok','warn','danger'); el.classList.add(cls(diff));
+    for (const it of items) {
+      const img = el("img", {
+        src: it.image_url || "https://via.placeholder.com/300x450?text=Poster",
+        alt: it.display_title || "",
+        style: { width: "100%", height: "270px", objectFit: "cover", borderRadius: "10px" }
       });
-    },30000);
-  }
-
-  // ── loader ────────────────────────────────────────────────────────────────
-  async function load(){
-    if(DOM.info) DOM.info.textContent = 'Ładuję…';
-    if(DOM.grid) DOM.grid.innerHTML = '';
-    const ep = await detectAvailableEndpoint();
-    console.info('[Dostępne] endpoint:', ep);
-
-    try{
-      if(ep.mode==='merged'){
-        const j = await tryJson(ep.u,'GET');            // {results, updated_at, error_hint?}
-        _raw = Array.isArray(j?.results) ? j.results : [];
-        if (j?.error_hint && DOM.info) DOM.info.textContent = `Pozycji: ${_raw.length} · hint: ${j.error_hint}`;
-        else if (DOM.info) DOM.info.textContent = `Pozycji: ${_raw.length}`;
-      }else if(ep.mode==='pair'){
-        const [m,s]=ep.u.split('|');
-        const jm = await tryJson(m,'GET') || [];
-        const js = await tryJson(s,'GET') || [];
-        _raw = [].concat(Array.isArray(jm)?jm:(jm?.items||[]), Array.isArray(js)?js:(js?.items||[]));
-      }else{ // split
-        const j = await tryJson(ep.u,'GET') || {};
-        const films  = Array.isArray(j?.films)  ? j.films  : [];
-        const series = Array.isArray(j?.series) ? j.series : [];
-        _raw = films.concat(series);
-      }
-
-      console.log('[Dostępne] items:', _raw.length, _raw);
-      render(_raw);
-      return _raw; // pozwala await/then w DevTools
-    }catch(e){
-      if(DOM.info) DOM.info.innerHTML = `<span class="err">${e.message||e}</span>`;
-      console.error('[Dostępne] error:', e);
-      _raw=[]; render(_raw);
-      return _raw;
+      const title = el("div", { style: { marginTop: "8px", fontWeight: 600, fontSize: "14px", lineHeight: "1.2" } },
+        it.display_title || it.title || "(bez tytułu)"
+      );
+      const progWrap = el("div", { style: { marginTop: "6px", height: "6px", background: "#e5e7eb", borderRadius: "999px", overflow: "hidden" } },
+        el("div", { style: { width: fmtPct(it.progress || 0), height: "100%", background: "#60a5fa" } })
+      );
+      const meta = el("div", { style: { fontSize: "12px", opacity: .75, marginTop: "4px" } },
+        `${it.kind || ""} ${it.duration ? "· " + Math.round(it.duration / 60) + " min" : ""}`
+      );
+      const card = el("div", { class: "pf-card", style: { borderRadius: "12px", background: "#111827", color: "#f9fafb", padding: "12px", boxShadow: "0 2px 8px rgba(0,0,0,.25)" } },
+        img, title, progWrap, meta
+      );
+      grid.append(card);
     }
   }
 
-  // ── CAST: metoda wywoływana z kart ────────────────────────────────────────
-  window.castFromAvailable = async (canonId)=>{
-    const raw = _index[canonId] || {};
-    let itemId = [raw?.plex_id,raw?.ratingKey,raw?.plex_rating_key,raw?.id]
-      .find(v=>v!=null && /^\d+$/.test(String(v)));
-    if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
-    if(!itemId) itemId = prompt('Podaj Plex ratingKey (item_id):','');
-    if(!itemId || !/^\d+$/.test(String(itemId))) { alert('Nieprawidłowy item_id.'); return; }
-    if (typeof window.castStart === 'function') await window.castStart(itemId);
-  };
+  // ───────────────────────────────────────────────────────────────────────────
+  // Boot
+  // ───────────────────────────────────────────────────────────────────────────
+  async function hydrate() {
+    ensureScaffold();
+    try {
+      if (!tokens.access) await tryRefreshOrDevLogin();
+      const data = await api("/sync/available").catch(() => null);
+      if (data && Array.isArray(data.results)) {
+        render(data.results.map(i => canonItem(i, i.kind)), data.updated_at);
+      } else {
+        // fallback path (stare API)
+        const items = await loadAvailable();
+        render(items, null);
+      }
+      console.log("[Dostępne] items:", $("#pf-grid").children.length);
+    } catch (e) {
+      console.error(e);
+      $("#pf-note").innerHTML = `<span style="color:#ef4444">Błąd: ${String(e.message || e)}</span>`;
+    }
+  }
 
-  // ── export + podpięcie guzików ────────────────────────────────────────────
-  window.piotrflixAvailable = {
-    endpoint: detectAvailableEndpoint,
-    reload:   load,
-    get last(){ return _raw; }
-  };
-
-  if (DOM.btn)  DOM.btn.onclick = load;
-  if (DOM.auto) DOM.auto.onclick = function(){
-    if(this._t){ clearInterval(this._t); this._t=null; this.textContent='Auto: OFF'; }
-    else { this._t=setInterval(load,10000); this.textContent='Auto: ON'; load(); }
-  };
-  DOM.q    && DOM.q.addEventListener('input', ()=>render(_raw));
-  DOM.kind && DOM.kind.addEventListener('change', ()=>render(_raw));
-  DOM.sort && DOM.sort.addEventListener('change', ()=>render(_raw));
-
-  ready(load);
+  // start
+  document.addEventListener("DOMContentLoaded", hydrate);
+  // wystaw kilka helperów w konsoli
+  window.piotrflix = { api, hydrate, loadAvailable, seedDemo, tokens, cfg };
 })();
