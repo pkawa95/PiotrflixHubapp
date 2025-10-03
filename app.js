@@ -1018,73 +1018,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* =====================  DOSTĘPNE — JS z bootstrapem tokenu  ===================== */
+/* =====================  DOSTĘPNE — zgodne z authFetch/API  ===================== */
 (function(){
   const $ = id => document.getElementById(id);
 
-  /* ---------- TOKEN BOOTSTRAP ---------- */
-  const TOKEN_KEY = "pf_token";
-  function saveToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); }
-  function getToken(){
-    return localStorage.getItem(TOKEN_KEY)
-        || sessionStorage.getItem(TOKEN_KEY)
-        || localStorage.getItem("access_token")
-        || sessionStorage.getItem("access_token")
-        || localStorage.getItem("token")
-        || sessionStorage.getItem("token")
-        || readCookie(TOKEN_KEY)
-        || readCookie("access_token")
-        || (typeof window.pfToken === "string" ? window.pfToken : "");
-  }
-  function readCookie(name){
-    const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g,"\\$1") + "=([^;]*)"));
-    return m ? decodeURIComponent(m[1]) : "";
-  }
-  // z URL: ?token=… / ?access_token=… (także z hash #token=…)
-  (function bootstrapFromURL(){
-    const qs = new URLSearchParams(location.search);
-    const hs = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
-    const cand = qs.get("token") || qs.get("access_token") || hs.get("token") || hs.get("access_token");
-    if (cand && typeof cand === "string") {
-      saveToken(cand);
-      // wyczyść URL z tokenu
-      try{
-        const cleanUrl = location.origin + location.pathname; history.replaceState(null,"",cleanUrl);
-      }catch(_) {}
-    }
-  })();
-  // fallback z innych miejsc do pf_token
-  (function bootstrapFromStorage(){
-    if (!localStorage.getItem(TOKEN_KEY)) {
-      const t = getToken();
-      if (t) saveToken(t);
-    }
-  })();
-  // helpers w konsoli
-  window.pfSetToken = function(t){ saveToken(String(t||"").trim()); console.info("[pf] token ustawiony"); };
-  window.pfGetToken = function(){ return localStorage.getItem(TOKEN_KEY) || ""; };
+  // --- spójna baza API + auth jak w innych modułach
+  const API =
+    document.getElementById("auth-screen")?.dataset.apiBase ||
+    localStorage.getItem("pf_base") || "";
+  const joinUrl = (b, p) => `${(b||"").replace(/\/+$/,"")}/${String(p||"").replace(/^\/+/,"")}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
 
-  /* ---------- API ---------- */
-  const BASE_URL = localStorage.getItem("pf_base") || "https://api.pkportfolio.pl";
-  function token(){ return localStorage.getItem(TOKEN_KEY) || ""; }
-
-  async function api(path, opt = {}){
-    const headers = opt.headers || {};
-    if (!headers["Content-Type"] && opt.body && typeof opt.body !== "string"){
-      headers["Content-Type"] = "application/json";
+  // ujednolicone wywołanie API przez authFetch (obsługuje token + auto-refresh)
+  async function apiJson(path, opt = {}) {
+    const headers = new Headers(opt.headers || {});
+    // jeśli podajemy body jako obiekt -> JSON
+    if (!headers.has("Content-Type") && opt.body && typeof opt.body === "object" && !(opt.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
     }
-    const t = token();
-    if (t) headers["Authorization"] = "Bearer " + t;
-    const url = path.startsWith("http") ? path : (BASE_URL + path);
-    const res = await fetch(url, { ...opt, headers });
+    const init = { ...opt, headers };
+    if (headers.get("Content-Type") === "application/json" && init.body && typeof init.body === "object") {
+      init.body = JSON.stringify(init.body);
+    }
+
+    const res = await window.authFetch(joinUrl(API, path), init);
     const txt = await res.text().catch(()=> "");
-    if (!res.ok){
-      throw new Error(`${res.status} ${res.statusText}${txt?` – ${txt}`:""}`);
+    if (!res.ok) {
+      let msg = txt;
+      try { const j = JSON.parse(txt); msg = j.message || j.error || msg; } catch {}
+      throw new Error(`${res.status} ${msg}`);
     }
     try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  /* ---------- UI refs (null-guardy) ---------- */
+  /* ---------- UI refs (guardy) ---------- */
   const tabMovies = $("av-tab-movies");
   const tabSeries = $("av-tab-series");
   const listEl    = $("av-list");
@@ -1188,19 +1155,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ---------- Load available ---------- */
   async function loadAvailable(){
-    if (!token()){
+    if (!tokenOk()){
       if (emptyEl){
         setShow(emptyEl, true);
-        setText(emptyEl, "Brak tokenu. Ustaw go: pfSetToken('TWÓJ_JWT') i odśwież.");
+        setText(emptyEl, "Musisz być zalogowany (brak tokenu).");
       }
       if (listEl) setHTML(listEl, "");
-      console.warn("[available] brak pf_token w localStorage");
       return;
     }
     if (emptyEl){ setShow(emptyEl, true); setText(emptyEl, "Ładuję listę…"); }
     if (listEl) setHTML(listEl, "");
     try{
-      const j = await api("/me/available", { method:"GET" });
+      const j = await apiJson("/me/available", { method:"GET" });
       if (Array.isArray(j)){
         RAW.films  = j.filter(x => (x.kind||x.type||"").toLowerCase()!=="series");
         RAW.series = j.filter(x => (x.kind||x.type||"").toLowerCase()==="series");
@@ -1224,151 +1190,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabMovies) tabMovies.addEventListener("click", ()=> setTab("movies"));
   if (tabSeries) tabSeries.addEventListener("click", ()=> setTab("series"));
 
-/* ===================== PIOTRFLIX — AUTH & API (drop-in) ===================== */
-/*  Działa z Twoim obecnym zapisem tokenu w sessionStorage/localStorage.
-    Eksportuje: window.getAuthToken, window.pfSetToken, window.pfGetToken,
-                window.authFetch, window.api
-*/
-(function () {
-  const TOKEN_KEY    = "pf_token";
-  const BASE_KEY     = "pf_base";
-  const DEFAULT_BASE = "https://api.pkportfolio.pl";
-
-  function getApiBase() {
-    const ds = document.getElementById("auth-screen")?.dataset?.apiBase;
-    return (ds || localStorage.getItem(BASE_KEY) || DEFAULT_BASE).replace(/\/+$/,"");
-  }
-  function readCookie(name){
-    const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g,"\\$1") + "=([^;]*)"));
-    return m ? decodeURIComponent(m[1]) : "";
-  }
-  function getStoredToken() {
-    return (
-      sessionStorage.getItem(TOKEN_KEY) ||
-      localStorage.getItem(TOKEN_KEY)  ||
-      sessionStorage.getItem("access_token") ||
-      localStorage.getItem("access_token") ||
-      sessionStorage.getItem("token") ||
-      localStorage.getItem("token") ||
-      readCookie(TOKEN_KEY) ||
-      readCookie("access_token") ||
-      (typeof window.pfToken === "string" ? window.pfToken : "") ||
-      ""
-    );
-  }
-  function setTokenSession(t){ if (t) sessionStorage.setItem(TOKEN_KEY, t); }
-  function setTokenLocal(t){ if (t) localStorage.setItem(TOKEN_KEY, t); }
-
-  window.pfSetToken   = (t)=>{ const v=String(t||"").trim(); if(!v) return; setTokenSession(v); try{ setTokenLocal(v);}catch{} console.info("[pf] token ustawiony."); };
-  window.pfGetToken   = ()=> getStoredToken();
-  window.getAuthToken = ()=> getStoredToken();
-
-  function addTokenQuery(urlStr, token) {
-    if (!token) return urlStr;
-    try { const u = new URL(urlStr, location.href); u.searchParams.set("access_token", token); return u.toString(); }
-    catch { return urlStr; }
-  }
-
-  async function authFetch(input, init = {}) {
-    const token  = getStoredToken();
-    const hdrs   = new Headers(init.headers || {});
-    if (token) hdrs.set("Authorization", `Bearer ${token}`);
-    if (init.body && typeof init.body === "object" && !(init.body instanceof FormData)) {
-      hdrs.set("Content-Type", "application/json");
-      init = { ...init, body: JSON.stringify(init.body) };
-    }
-    const withQuery = typeof input === "string" ? addTokenQuery(input, token) : input;
-    return fetch(withQuery, { ...init, headers: hdrs });
-  }
-  window.authFetch = authFetch;
-
-  async function api(path, opt = {}) {
-    const base = getApiBase();
-    const url  = path.startsWith("http") ? path : `${base}/${String(path).replace(/^\/+/,"")}`;
-    const init = { ...opt };
-    const h    = new Headers(init.headers || {});
-    if (init.body && typeof init.body === "object" && !(init.body instanceof FormData)) {
-      h.set("Content-Type", "application/json");
-      init.body = JSON.stringify(init.body);
-    }
-    init.headers = h;
-
-    const res   = await authFetch(url, init);
-    const ctype = res.headers.get("content-type") || "";
-    const text  = await res.text().catch(()=> "");
-    if (!res.ok) {
-      let msg = text; try { const j = JSON.parse(text); msg = j.message || j.error || text; } catch {}
-      throw new Error(`${res.status} ${res.statusText}${msg?` – ${msg}`:""}`);
-    }
-    if (ctype.includes("application/json")) { try { return JSON.parse(text); } catch { return {}; } }
-    return text;
-  }
-  window.api = api;
-
-  // Bootstrap z ?token=… (opcjonalnie)
-  (function bootstrapFromURL(){
-    try {
-      const qs = new URLSearchParams(location.search);
-      const hs = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
-      const cand = qs.get("token") || qs.get("access_token") || hs.get("token") || hs.get("access_token");
-      if (cand) {
-        sessionStorage.setItem(TOKEN_KEY, cand);
-        try { history.replaceState(null,"",location.origin + location.pathname); } catch {}
-      }
-    } catch {}
-  })();
-})();
-
-/* ===================== PIOTRFLIX — CAST (modal + player) ===================== */
-/*  Wymaga elementów:
-      #cast-modal (dialog lub div), #cast-device (select), #cast-start, #cast-close, #cast-info
-      #av-player (kontener odtwarzacza) + #pl-poster #pl-title #pl-seek #pl-time #pl-pct #pl-play #pl-stop #pl-seek-back #pl-seek-fwd
-    Używa window.api z bloku powyżej oraz Twojego tokenu z sessionStorage/localStorage.
-*/
-(function(){
-  // --- krótkie utilki dla UI
-  const $       = (id)=> document.getElementById(id);
-  const setText = (el, t)=>{ if(el) el.textContent = t; };
-  const fmtTime = (sec)=>{ sec=Math.max(0,Math.floor(Number(sec)||0)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
-                           return (h? String(h).padStart(2,"0")+":" : "") + String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); };
-
-  // --- referencje DOM (bezpiecznie, jeśli czegoś brak – po prostu nic nie robi)
-  const dlg      = $("cast-modal");
-  const castSel  = $("cast-device");
-  const castStart= $("cast-start");
-  const castClose= $("cast-close");
-  const castInfo = $("cast-info");
-
-  const playerBox= $("av-player");
-  const plPoster = $("pl-poster");
-  const plTitle  = $("pl-title");
-  const plSeek   = $("pl-seek");
-  const plTime   = $("pl-time");
-  const plPct    = $("pl-pct");
-  const plPlay   = $("pl-play");
-  const plStop   = $("pl-stop");
-  const plBack   = $("pl-seek-back");
-  const plFwd    = $("pl-seek-fwd");
-
-  // --- stan
-  let selectedItem    = null; // { id, title, poster } – ustawiaj gdy klikasz „Cast ▶” przy pozycji
-  let currentClientId = localStorage.getItem("pf_cast_client") || "";
-  let statusTimer     = null;
-
-  // Udostępnij helper do ustawiania elementu do castu
-  window.pfSetCastItem = function(item){
-    selectedItem = item && typeof item==="object" ? {
-      id: String(item.id||""),
-      title: String(item.title||""),
-      poster: String(item.poster||"")
-    } : null;
-  };
-
-  /* ---------- Cast (modal + player) – skrót (bez zmian funkcjonalnych) ---------- */
+  /* ---------- Cast (modal + player) – bez zmian logiki, ale przez apiJson ---------- */
   function openCastModal(){
     if (castInfo) setText(castInfo, "Ładuję urządzenia…");
     if (castSel) castSel.innerHTML = "";
-    api("/cast/players",{method:"GET"})
+    apiJson("/cast/players",{method:"GET"})
       .then(j=>{
         const list = Array.isArray(j?.devices) ? j.devices : [];
         if (!castSel) return;
@@ -1397,7 +1223,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!selectedItem || !/^\d+$/.test(String(selectedItem.id||""))){ if (castInfo) setText(castInfo,"Brak ratingKey."); return; }
     try{
       if (castInfo) setText(castInfo, "Startuję…");
-      await api("/cast/start",{method:"POST", body: { item_id:String(selectedItem.id), client_id:client, client_name: castSel.options[castSel.selectedIndex]?.text||"" }});
+      await apiJson("/cast/start",{method:"POST", body: { item_id:String(selectedItem.id), client_id:client, client_name: castSel.options[castSel.selectedIndex]?.text||"" }});
       if (castInfo) setText(castInfo, "OK");
       closeCastModal(); showPlayer(selectedItem); startStatusLoop();
     }catch(e2){ if (castInfo) setText(castInfo, e2.message||String(e2)); }
@@ -1427,29 +1253,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function startStatusLoop(){ stopStatusLoop(); statusTimer = setInterval(async ()=>{ try{
       const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : "";
-      const j = await api("/cast/status"+qs,{method:"GET"}); updatePlayerFromStatus(j);
+      const j = await apiJson("/cast/status"+qs,{method:"GET"}); updatePlayerFromStatus(j);
     }catch(_){} }, 1500); }
   function stopStatusLoop(){ if (statusTimer){ clearInterval(statusTimer); statusTimer=null; } }
   if (plSeek) plSeek.addEventListener("input", async ()=>{ if(!currentClientId) return; const seekMs = Math.round(Number(plSeek.value||"0")*1000);
-    try{ await api("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: seekMs }}); }catch(_){}
+    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: seekMs }}); }catch(_){}
   });
   if (plPlay) plPlay.addEventListener("click", async ()=>{ if(!currentClientId) return;
-    try{ await api("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"play" }}); }catch(_){}
-    try{ await api("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"pause" }}); }catch(_){}
+    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"play" }}); }catch(_){}
+    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"pause" }}); }catch(_){}
   });
   if (plStop) plStop.addEventListener("click", async ()=>{ if(!currentClientId) return;
-    try{ await api("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"stop" }}); }catch(_){}
+    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"stop" }}); }catch(_){}
     stopStatusLoop();
   });
   if (plBack) plBack.addEventListener("click", ()=> nudgeSeek(-10));
   if (plFwd)  plFwd.addEventListener("click", ()=> nudgeSeek(+30));
   async function nudgeSeek(delta){
     if(!currentClientId) return; const now = Number(plSeek?.value||"0"); const target = Math.max(0, now+delta);
-    try{ await api("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: Math.round(target*1000) }}); }catch(_){}
+    try{ await apiJson("/cast/cmd",{method:"POST", body: { client_id: currentClientId, cmd:"seek", seek_ms: Math.round(target*1000) }}); }catch(_){}
   }
 
-  // Eksportuj otwieranie modala abyś mógł podpiąć przycisk: onclick="openCastModal()"
-  window.openCastModal = openCastModal;
-
-  // (brak boot – podpinaj pfSetCastItem(...) i openCastModal() z własnego UI)
-})();})
+  /* ---------- Boot ---------- */
+  function boot(){ loadAvailable(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
