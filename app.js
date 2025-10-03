@@ -1018,266 +1018,264 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-// ───────────── AVAILABLE (library) ─────────────
-function _first(obj, keys, dflt=''){
-  for(const k of keys){ if(obj && obj[k]!=null && obj[k]!== '') return obj[k]; }
-  return dflt;
-}
-function _num(x, d=0){ const n=Number(String(x).replace(',','.')); return isFinite(n)?n:d; }
-function _bool(x){ return !!(x===true || x==='1' || x===1 || String(x).toLowerCase()==='true'); }
+/* ===================== DOSTĘPNE v2 — zgodne z HTML (av2-*) ===================== */
+(function(){
+  const section = document.getElementById('section-available');
+  if (!section) return;
 
-function _parseDeleteAt(val){
-  if(val==null || val==='') return null;
-  if(typeof val === 'number'){ const n = Number(val); if(!isFinite(n)) return null; return n < 1e12 ? Math.round(n*1000) : Math.round(n); }
-  const s = String(val).trim();
-  if(!s) return null;
-  const asNum = Number(s.replace(',','.'));
-  if(isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum*1000) : Math.round(asNum);
-  const t = Date.parse(s);
-  return isNaN(t) ? null : t;
-}
+  // API przez authFetch (masz to już z auth)
+  const API = document.getElementById("auth-screen")?.dataset.apiBase || localStorage.getItem("pf_base") || "";
+  const joinUrl = (b,p)=>`${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
 
-function _canonAvailableItem(r){
-  const title  = _first(r, ['display_title','title','name'],'—');
-  const poster = _first(r, ['image_url','poster','poster_url','thumb','cover','cover_url'],'');
-
-  // rodzaj
-  const kindRaw = (_first(r, ['kind','type','mtype','media_type'],'')||'').toLowerCase();
-  const isSeries = kindRaw==='series' || _bool(r.is_series) || !!r.season || !!r.episode;
-  const kind = isSeries ? 'series' : 'movie';
-
-  const year = _first(r,['year','release_year','y'], null);
-
-  // czas
-  let pos, dur;
-  if (r.position_ms != null) pos = _num(r.position_ms)/1000;
-  else if (r.watched_ms != null) pos = _num(r.watched_ms)/1000;
-  else if (r.view_offset_ms != null) pos = _num(r.view_offset_ms)/1000;
-  else pos = _num(_first(r,['watched_seconds','position','last_position','pos'],0));
-
-  if (r.duration_ms != null) dur = _num(r.duration_ms)/1000;
-  else if (r.total_ms != null) dur = _num(r.total_ms)/1000;
-  else if (r.runtime_ms != null) dur = _num(r.runtime_ms)/1000;
-  else dur = _num(_first(r,['duration','runtime','total_seconds','duration_sec'],0));
-
-  // progress
-  let prog = null;
-  const rawProg = _first(r,['progress','ratio'], null);
-  const rawPerc = _first(r,['percent'], null);
-  if (rawProg != null && rawProg !== '') {
-    let v = Number(String(rawProg).replace(',','.'));
-    if (isFinite(v)) prog = (v > 1.01) ? (v/100) : v;
-  } else if (rawPerc != null && rawPerc !== '') {
-    const s = String(rawPerc).trim().replace('%','').replace(',','.');
-    const v = parseFloat(s);
-    if (isFinite(v)) prog = v/100;
-  }
-  if (prog == null) prog = (isFinite(pos)&&isFinite(dur)&&dur>0) ? Math.max(0,Math.min(1,pos/dur)) : 0;
-
-  const season     = _num(_first(r,['season','s'], null), null);
-  const episode    = _num(_first(r,['episode','e'], null), null);
-  const updated_at = _first(r,['updated_at','mtime','added_at','ts','last_update','watchedAt'], null);
-
-  // ID – preferuj plex_id/ratingKey; inaczej stabilne b64
-  let idCand = _first(r, ['plex_id','ratingKey','plex_rating_key','id','item_id','video_id','hash'], null);
-  let id;
-  if(idCand && /^\d+$/.test(String(idCand))) id = String(idCand);
-  else {
-    const basis = (title||'') + '|' + (year||'') + '|' + (season??'') + '|' + (episode??'');
-    id = btoa(unescape(encodeURIComponent(basis))).replace(/=+$/,'');
+  async function apiJson(path, opt={}) {
+    const headers = new Headers(opt.headers || {});
+    if (!headers.has("Content-Type") && opt.body && typeof opt.body === "object" && !(opt.body instanceof FormData)) {
+      headers.set("Content-Type","application/json");
+    }
+    const init = { ...opt, headers };
+    if (headers.get("Content-Type")==="application/json" && init.body && typeof init.body === "object") {
+      init.body = JSON.stringify(init.body);
+    }
+    const res = await window.authFetch(joinUrl(API, path), init);
+    const txt = await res.text().catch(()=> "");
+    if (!res.ok) {
+      try { const j = JSON.parse(txt); throw new Error(j.message || j.error || `${res.status}`); }
+      catch { throw new Error(txt || `HTTP ${res.status}`); }
+    }
+    try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  // DELETE: różne pola + days_left/ttl_days
-  const now = Date.now();
-  let deleteAt = _parseDeleteAt(
-    _first(r, [
-      'deleteAt','delete_at','expires_at','expire_at',
-      'expiration','expiration_ms','expiration_ts','expire_ts'
-    ], null)
-  );
-  const daysHint = Number(_first(r, ['days_left','ttl_days'], null));
-  if(!deleteAt && isFinite(daysHint)) deleteAt = now + Math.max(0,daysHint)*86400000;
+  // UI refs — wszystko po sekcji (żeby nie kolidować)
+  const tabsHost = section.querySelector('#av2-tabs');
+  const tabMovies = section.querySelector('#av2-tab-movies');
+  const tabSeries = section.querySelector('#av2-tab-series');
+  const infoEl    = section.querySelector('#av2-info');
+  const listEl    = section.querySelector('#av2-list');
 
-  return {
-    id, title, poster, kind, year,
-    duration: isFinite(dur) ? dur : 0,
-    position: isFinite(pos) ? pos : 0,
-    progress: Math.max(0,Math.min(1,prog)),
-    season, episode, updated_at,
-    deleteAt
+  const playerBox = section.querySelector('#av2-player');
+  const plPoster  = section.querySelector('#av2-pl-poster');
+  const plSeek    = section.querySelector('#av2-pl-seek');
+  const plTime    = section.querySelector('#av2-pl-time');
+  const plPct     = section.querySelector('#av2-pl-pct');
+  const btnPlay   = section.querySelector('#av2-btn-play');
+  const btnPause  = section.querySelector('#av2-btn-pause');
+  const btnStop   = section.querySelector('#av2-btn-stop');
+
+  const dlg       = section.querySelector('#av2-cast-modal');
+  const castSel   = section.querySelector('#av2-device');
+  const castForm  = section.querySelector('#av2-cast-form');
+  const castStart = section.querySelector('#av2-cast-start');
+
+  // helpers
+  const setText = (el,t)=>{ if(el) el.textContent=t; };
+  const setHTML = (el,h)=>{ if(el) el.innerHTML=h; };
+  const clamp01 = x => Math.max(0, Math.min(1, Number(x)||0));
+  const fmtTime = (sec)=>{ sec=Math.max(0,Math.floor(Number(sec)||0));
+    const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+    return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   };
-}
+  const esc = s => String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[m]));
 
-function _episodeLabel(it){
-  if(it.kind!=='series') return '';
-  const s = it.season!=null ? String(it.season).padStart(2,'0') : '--';
-  const e = it.episode!=null ? String(it.episode).padStart(2,'0') : '--';
-  return `S${s}E${e}`;
-}
-function fmtBytes(n){
-  n = Number(n||0);
-  const u = ['B','KiB','MiB','GiB','TiB'];
-  let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; }
-  return `${n.toFixed(n<10?2:1)} ${u[i]}`;
-}
-function fmtDateShort(ms){
-  if(!ms) return '';
-  const d = new Date(ms);
-  return d.toLocaleDateString('pl-PL', {year:'numeric',month:'2-digit',day:'2-digit'});
-}
-function fmtTTL(diffMs){
-  if(diffMs<=0) return 'dziś';
-  const s = Math.floor(diffMs/1000);
-  const d = Math.floor(s/86400);
-  const h = Math.floor((s%86400)/3600);
-  const m = Math.floor((s%3600)/60);
-  if(d>=2) return `za ${d} dni`;
-  if(d===1) return `za 1 dzień`;
-  if(h>=1) return `za ${h} h`;
-  return `za ${m} min`;
-}
-function delClass(diffMs){
-  if(diffMs<=0) return 'danger';
-  const d = diffMs/86400000;
-  if(d<=3) return 'warn';
-  return 'ok';
-}
+  // state
+  let RAW = { films:[], series:[] };
+  let activeKind = 'movies';
+  let selected = null;
+  let currentClientId = localStorage.getItem('pf_cast_client') || '';
+  let statusTimer = null;
 
-// pick plex ratingKey from raw (dla sesji -> plakat fallback)
-function pickPlexId(raw){
-  const cand = [raw?.plex_id, raw?.ratingKey, raw?.plex_rating_key, raw?.id].find(v => v!=null && String(v).trim()!=='');
-  if(!cand) return null;
-  const s = String(cand).trim();
-  return /^\d+$/.test(s) ? s : null;
-}
-
-function renderAvailable(list){
-  if(delTimer){ clearInterval(delTimer); delTimer=null; }
-  if(!Array.isArray(list) || !list.length){
-    availableGrid.innerHTML = '';
-    avInfo.textContent = 'Brak danych w cache / brak endpointu.';
-    return;
+  // canon
+  function canon(r){
+    const title  = r.display_title || r.title || r.name || '—';
+    const poster = r.image_url || r.poster || r.poster_url || r.thumb || '';
+    const isSeries = (r.kind||r.type||'').toLowerCase()==='series' || !!r.season || !!r.episode;
+    const kind   = isSeries ? 'series' : 'movie';
+    const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0))/1000;
+    const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0))/1000;
+    let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
+    prog = clamp01(prog>1.01 ? prog/100 : prog);
+    const id  = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
+    return { id, title, poster, kind, pos, dur, prog,
+      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null };
   }
-  const q = (avQuery.value||'').toLowerCase();
-  const k = avKind.value||'all';
-  const sort = avSort.value||'recent';
+  const ep = it => it.kind==='series' ? `S${String(it.season??'--').padStart(2,'0')}E${String(it.episode??'--').padStart(2,'0')}` : '';
 
-  _availableIndex = {};
-  let items = list.map(r=>{ const c=_canonAvailableItem(r); _availableIndex[c.id]=r; return c; });
-  if(k!=='all') items = items.filter(x=>x.kind===k);
-  if(q) items = items.filter(x=> (x.title||'').toLowerCase().includes(q));
+  // render
+  function render(){
+    const arrRaw = (activeKind==='movies')
+      ? (Array.isArray(RAW.films)? RAW.films : (Array.isArray(RAW.movies)? RAW.movies: []))
+      : (Array.isArray(RAW.series)? RAW.series : []);
+    const arr = arrRaw.map(canon);
 
-  // plakat per ratingKey (fallback do sesji cast)
-  _posterByPlexId = {};
-  for (const raw of list) {
-    const pid = pickPlexId(raw);
-    if (!pid) continue;
-    const c = _canonAvailableItem(raw);
-    if (c.poster) _posterByPlexId[String(pid)] = c.poster;
-  }
+    if (!arr.length){
+      setHTML(listEl, '');
+      setText(infoEl, 'Brak pozycji do wyświetlenia.');
+      return;
+    }
+    setText(infoEl, `Pozycji: ${arr.length}`);
 
-  if(sort==='title') items.sort((a,b)=> (a.title||'').localeCompare(b.title||'')); 
-  else if(sort==='progress') items.sort((a,b)=> (b.progress||0) - (a.progress||0));
-  else items.sort((a,b)=> String(b.updated_at||'').localeCompare(String(a.updated_at||'')));
-
-  availableGrid.innerHTML = items.map(it=>{
-    const pct = Math.max(0, Math.min(100, Math.round((it.progress||0)*100)));
-    const year = it.year ? ` (${it.year})` : '';
-    const ep = _episodeLabel(it);
-    const metaLeft = `${it.kind}${ep? ' · '+ep:''}`;
-
-    const hasDel = !!it.deleteAt;
-    const diff = hasDel ? (it.deleteAt - Date.now()) : null;
-    const badgeTxt = hasDel ? fmtTTL(diff) : '';
-    const badgeCls = hasDel ? delClass(diff) : 'ok';
-    const delDate  = hasDel ? fmtDateShort(it.deleteAt) : '';
-
-    // guziczek cast
-    const canAutoId = /^\d+$/.test(String(it.id));
-    const tip = canAutoId ? `Cast ratingKey=${it.id}` : `Wpisz ratingKey przy starcie`;
-
-    return `
-      <div class="av-card hover-lift" title="${(it.title||'').replace(/"/g,'&quot;')}">
+    const html = arr.map(it=>{
+      const pct = Math.round((it.prog||0)*100);
+      const year = it.year? ` (${it.year})` : '';
+      const sub = it.kind + (it.kind==='series' && it.season!=null && it.episode!=null ? ` · ${ep(it)}`:'');
+      return `
+      <article class="av-card">
         <div class="poster">
-          <img src="${it.poster||''}" alt="">
+          <img class="av-poster" src="${esc(it.poster)}" alt="">
           <div class="vprog"><span style="width:${pct}%;"></span></div>
         </div>
         <div class="body">
-          <div class="title-row">
-            <div class="title">${(it.title||'—').replace(/</g,'&lt;')}${year}</div>
-            ${hasDel ? `<span class="exp-badge ${badgeCls}" data-delete-at="${it.deleteAt}">${badgeTxt}</span>` : ''}
-          </div>
-          <div class="meta">
-            <span class="meta-left">${metaLeft}</span>
-            ${hasDel ? `<span class="expires-right ${badgeCls==='warn'?'is-warn':badgeCls==='danger'?'is-danger':''}">usunie się ${delDate}</span>` : '<span></span>'}
-          </div>
-          <div class="tiny">Postęp: ${pct}% ${it.duration? `· ${Math.round((it.position||0)/60)} / ${Math.round((it.duration||0)/60)} min` : ''}</div>
+          <div class="title">${esc(it.title)}${year}</div>
+          <div class="meta">${sub}</div>
+          <div class="tiny">Postęp: ${pct}% ${it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:''}</div>
           <div class="actions">
-            <button class="green" title="${tip}" onclick="castFromAvailable('${it.id}')">Cast ▶</button>
+            <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
         </div>
-      </div>`;
-  }).join('');
+      </article>`;
+    }).join('');
+    setHTML(listEl, html);
 
-  avInfo.textContent = `Pozycji: ${items.length}`;
-
-  // auto-odświeżanie kapsułek co 30 s (bez re-renderu)
-  const refreshBadges = ()=>{
-    document.querySelectorAll('.exp-badge[data-delete-at]').forEach(el=>{
-      const ts = Number(el.getAttribute('data-delete-at')||'');
-      if(!isFinite(ts)) return;
-      const diff = ts - Date.now();
-      el.textContent = fmtTTL(diff);
-      el.classList.remove('ok','warn','danger');
-      el.classList.add(delClass(diff));
-      // podbij też kolor daty pod spodem
-      const card = el.closest('.av-card');
-      const dateEl = card?.querySelector('.expires-right');
-      if(dateEl){
-        dateEl.classList.toggle('is-warn', delClass(diff)==='warn');
-        dateEl.classList.toggle('is-danger', delClass(diff)==='danger');
-      }
+    // podłącz Cast do wygenerowanych kart
+    listEl.querySelectorAll('.btn--cast').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        selected = {
+          id: b.getAttribute('data-id') || '',
+          title: b.getAttribute('data-title') || '',
+          poster: b.getAttribute('data-poster') || ''
+        };
+        openCastModal();
+      });
     });
+  }
+
+  // load
+  async function loadAvailable(){
+    if (!tokenOk()){
+      setText(infoEl, 'Musisz być zalogowany (brak tokenu).');
+      setHTML(listEl, '');
+      return;
+    }
+    setText(infoEl, 'Ładuję listę…');
+    setHTML(listEl, '');
+    try{
+      const j = await apiJson('/me/available', {method:'GET'});
+      if (Array.isArray(j)){
+        RAW.films  = j.filter(x => (x.kind||x.type||'').toLowerCase()!=='series');
+        RAW.series = j.filter(x => (x.kind||x.type||'').toLowerCase()==='series');
+      } else {
+        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies)? j.movies: []);
+        RAW.series = Array.isArray(j?.series) ? j.series : [];
+      }
+      render();
+    }catch(e){
+      setText(infoEl, `Błąd: ${e.message||e}`);
+    }
+  }
+
+  // tabs
+  function setTab(kind){
+    activeKind = (kind==='series')?'series':'movies';
+    tabMovies?.classList.toggle('is-active', activeKind==='movies');
+    tabSeries?.classList.toggle('is-active', activeKind==='series');
+    render();
+  }
+  tabsHost?.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-av2-tab]');
+    if (!t) return;
+    const k = t.getAttribute('data-av2-tab');
+    if (k==='movies' || k==='series'){ e.preventDefault(); setTab(k); }
+  });
+
+  // CAST
+  function openCastModal(){
+    // wczytaj listę klientów
+    if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
+    apiJson('/cast/players',{method:'GET'}).then(j=>{
+      const list = Array.isArray(j?.devices) ? j.devices : [];
+      if (!list.length){ castSel.innerHTML = `<option value="">(brak klientów)</option>`; }
+      else {
+        castSel.innerHTML = `<option value="">— wybierz —</option>` + list.map(d=>`<option value="${d.id}">${esc(d.name||d.product||'Plex')} — ${esc(d.platform||'')}</option>`).join('');
+        const prev = localStorage.getItem('pf_cast_client') || '';
+        if (prev && list.some(x=>String(x.id)===String(prev))) castSel.value = prev;
+      }
+    }).catch(_=>{ castSel.innerHTML = `<option value="">(błąd)</option>`; });
+
+    if (typeof dlg?.showModal === 'function') dlg.showModal(); else dlg?.setAttribute('open','');
+  }
+
+  castSel?.addEventListener('change', ()=> {
+    currentClientId = castSel.value || '';
+    if (currentClientId) localStorage.setItem('pf_cast_client', currentClientId);
+  });
+
+  castStart?.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    const cid = castSel?.value || '';
+    if (!cid){ return; }
+    if (!selected || !/^\d+$/.test(String(selected.id||''))){ return; }
+    try{
+      await apiJson('/cast/start', {method:'POST', body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||'' }});
+      // pokaż player
+      playerBox.hidden = false;
+      if (plPoster) plPoster.src = selected.poster || '';
+      startStatusLoop();
+    }catch(_){}
+    finally { dlg?.close?.(); }
+  });
+
+  function updateFromStatus(st){
+    const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
+    const sess = sessions.find(s=> String(s.client_id||'')===String(currentClientId)) || sessions[0];
+    if (!sess) return;
+    const dur = Number(sess.duration_ms||0)/1000;
+    const pos = Number(sess.view_offset_ms||0)/1000;
+    const pct = dur>0 ? Math.round(pos/dur*100) : 0;
+    if (plSeek){ plSeek.max = dur>0 ? String(dur) : '100'; plSeek.value = String(pos||0); }
+    if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
+    if (plPct)  setText(plPct, `${pct}%`);
+  }
+  function startStatusLoop(){
+    stopStatusLoop();
+    statusTimer = setInterval(async ()=>{
+      try{
+        const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : '';
+        const j = await apiJson('/cast/status'+qs, {method:'GET'});
+        updateFromStatus(j);
+      }catch(_){}
+    }, 1500);
+  }
+  function stopStatusLoop(){ if (statusTimer){ clearInterval(statusTimer); statusTimer=null; } }
+
+  plSeek?.addEventListener('input', async ()=>{
+    if (!currentClientId) return;
+    const seekMs = Math.round(Number(plSeek.value||'0')*1000);
+    try{ await apiJson('/cast/cmd', {method:'POST', body:{ client_id: currentClientId, cmd:'seek', seek_ms: seekMs }}); }catch(_){}
+  });
+  btnPlay?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'play' }}); }catch(_){}
+  });
+  btnPause?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'pause' }}); }catch(_){}
+  });
+  btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
+    stopStatusLoop();
+  });
+
+  // boot
+  function boot(){
+    setTab('movies');
+    loadAvailable();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  // opcjonalnie: integracja z dolną nawigacją
+  window.showSection = window.showSection || function(){};
+  const prevShow = window.showSection;
+  window.showSection = function(name){
+    try{ prevShow && prevShow(name); }catch(_){}
+    if (name === 'available') { loadAvailable(); }
   };
-  delTimer = setInterval(refreshBadges, 30000);
-}
-
-async function loadAvailable(){
-  avInfo.textContent = 'Ładuję...';
-  availableGrid.innerHTML = '';
-  try{
-    // BACKEND: zwraca { films: [...], series: [...] }
-    const j = await api('/me/available', {method:'GET'});
-    const films  = Array.isArray(j?.films)  ? j.films  : [];
-    const series = Array.isArray(j?.series) ? j.series : [];
-    const data   = films.concat(series);
-    _availableRaw = data;
-    renderAvailable(_availableRaw);
-  }catch(e){
-    avInfo.innerHTML = `<span class="err">${e.message||e}</span>`;
-  }
-}
-
-avRefreshBtn.onclick = loadAvailable;
-avAutoBtn.onclick = ()=>{
-  if(avAutoTimer){ clearInterval(avAutoTimer); avAutoTimer=null; avAutoBtn.textContent='Auto: OFF'; }
-  else{ avAutoTimer=setInterval(loadAvailable, 10000); avAutoBtn.textContent='Auto: ON'; loadAvailable(); }
-};
-avQuery.addEventListener('input', ()=>renderAvailable(_availableRaw));
-avKind.addEventListener('change', ()=>renderAvailable(_availableRaw));
-avSort.addEventListener('change', ()=>renderAvailable(_availableRaw));
-
-// Cast z available
-window.castFromAvailable = async (canonId)=>{
-  const raw = _availableIndex[canonId] || {};
-  let itemId = pickPlexId(raw);
-  if(!itemId && /^\d+$/.test(String(canonId))) itemId = String(canonId);
-  if(!itemId){
-    itemId = prompt('Brak plex_id w pozycji. Podaj Plex ratingKey (item_id):', '');
-  }
-  if(!itemId || !/^\d+$/.test(String(itemId))){
-    alert('Nieprawidłowy item_id (ratingKey).');
-    return;
-  }
-  await castStart(itemId);
-};
+})();
