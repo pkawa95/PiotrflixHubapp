@@ -2576,13 +2576,14 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 /* rządek kapsułek pod paskiem postępu */
 .av-card .del-row{
   margin-top: 6px;
-  display: inline-flex;
-  gap: 6px;
-  justify-content: flex-end;
+  display: flex;                 /* flex zamiast inline-flex */
+  justify-content: flex-end;     /* prawa strona */
   align-items: center;
+  gap: 6px;
   width: 100%;
 }
 
+/* kapsuła */
 .del-badge{
   padding: 4px 10px;
   font-size: 12px;
@@ -2591,22 +2592,24 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   white-space: nowrap;
   color: #fff;
 }
+
+/* data obok kapsuły */
 .del-date{
   font-size: 11px;
-  opacity: .85;
+  opacity: .9;
   padding: 3px 8px;
   border-radius: 8px;
   background: rgba(0,0,0,.45);
   white-space: nowrap;
 }
 
-/* kolory TTL (spójne z tym co masz w JS) */
+/* kolory TTL – dopasowane do klas z JS */
 .del-row.ok .del-badge{
   background: linear-gradient(135deg,#28a745,#218838);
 }
 .del-row.warn .del-badge{
   background: linear-gradient(135deg,#ffc107,#e0a800);
-  color:#0b1220;
+  color:#111;
 }
 .del-row.danger .del-badge{
   background: linear-gradient(135deg,#dc3545,#a71d2a);
