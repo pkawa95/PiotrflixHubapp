@@ -1062,6 +1062,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playerBox = section.querySelector("#av2-player");
   const plPoster  = section.querySelector("#av2-pl-poster");
+  const plTitle   = section.querySelector("#av2-pl-title"); // tytuł w playerze
   const plSeek    = section.querySelector("#av2-pl-seek");
   const plTime    = section.querySelector("#av2-pl-time");
   const plPct     = section.querySelector("#av2-pl-pct");
@@ -1136,6 +1137,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let statusTimer = null;
   let badgeTimer  = null;
 
+  // Global visibility across "karty" (sekcje/zakładki i inne karty przeglądarki)
+  let globalPortal = null;                // kontener w <body> dla playera (portal)
+  let globalMountedParent = null;         // gdzie przywrócić po wyłączeniu
+  let globalMountedNextSibling = null;    // sąsiad w DOM
+  let autoDetectTimer = null;             // watcher aktywnej sesji
+  const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,ts}
+  const LS_SIGNAL_KEY = "pf_cast_signal"; // ping do pozostałych kart
+
   // ---- canon map ----
   function canon(r) {
     const title = r.display_title || r.title || r.name || "—";
@@ -1195,7 +1204,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
 
-      // footer wewnątrz karty
       const delFooter = showDel ? `
         <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
           <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
@@ -1301,6 +1309,80 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // ---- GLOBAL PLAYER (widoczny wszędzie gdy aktywny) ----
+  function ensurePortal() {
+    if (globalPortal) return globalPortal;
+    const el = document.createElement("div");
+    el.id = "pf-player-portal";
+    Object.assign(el.style, {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "min(960px, 96vw)",
+      bottom: "8px",
+      zIndex: "9999",
+      pointerEvents: "none", // kontener nie łapie klików
+    });
+    document.body.appendChild(el);
+    globalPortal = el;
+    return el;
+  }
+
+  function measureBottomBarsHeight() {
+    const candidates = document.querySelectorAll(
+      'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
+    );
+    let h = 0;
+    candidates.forEach(el => {
+      const cs = getComputedStyle(el);
+      const pos = cs.position;
+      if (pos === "fixed" || pos === "sticky") {
+        const r = el.getBoundingClientRect();
+        if (r.bottom >= window.innerHeight - 2) {
+          h = Math.max(h, Math.ceil(r.height));
+        }
+      }
+    });
+    const root = getComputedStyle(document.documentElement);
+    const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
+    return h + (isFinite(safe) ? safe : 0);
+  }
+
+  function mountGlobalPlayer() {
+    if (!playerBox) return;
+    if (!globalMountedParent) {
+      globalMountedParent = playerBox.parentNode;
+      globalMountedNextSibling = playerBox.nextSibling;
+    }
+    const portal = ensurePortal();
+    playerBox.hidden = false;
+    playerBox.style.pointerEvents = "auto"; // same klikalne
+    portal.style.pointerEvents = "none";
+    portal.appendChild(playerBox);
+    placePortal();
+    window.addEventListener("resize", placePortal);
+    window.addEventListener("orientationchange", placePortal);
+  }
+
+  function unmountGlobalPlayer() {
+    if (!playerBox || !globalMountedParent) return;
+    window.removeEventListener("resize", placePortal);
+    window.removeEventListener("orientationchange", placePortal);
+    if (globalMountedNextSibling) {
+      globalMountedParent.insertBefore(playerBox, globalMountedNextSibling);
+    } else {
+      globalMountedParent.appendChild(playerBox);
+    }
+    playerBox.hidden = true;
+  }
+
+  function placePortal() {
+    if (!globalPortal) return;
+    const pad = 8;
+    const barH = measureBottomBarsHeight();
+    globalPortal.style.bottom = `${barH + pad}px`;
+  }
+
   // ---- CAST + floating player ----
   function openCastModal() {
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
@@ -1341,82 +1423,23 @@ document.addEventListener("DOMContentLoaded", () => {
         body: { item_id: String(selected.id), client_id: cid,
                 client_name: castSel.options[castSel.selectedIndex]?.text || "" },
       });
-      if (playerBox) {
-        playerBox.hidden = false;
-        makePlayerFloating();
-        startStatusLoop();
-      }
+      // Globalny widok playera + sygnał do innych kart
+      currentClientId = cid;
+      localStorage.setItem("pf_cast_client", currentClientId);
+      mountGlobalPlayer();
+      startStatusLoop();
       if (plPoster) plPoster.src = selected.poster || "";
+      if (plTitle)  plTitle.textContent = selected.title || "";
+      publishCastSignal({
+        client_id: currentClientId,
+        title: selected?.title || "",
+        poster: selected?.poster || "",
+        ts: Date.now()
+      });
     } catch (_) {} finally { dlg?.close?.(); }
   });
 
-  // Floating player helpers
-  function measureBottomBarsHeight() {
-    // znajdź przyklejone/dolne nawigacje/paski
-    const candidates = document.querySelectorAll(
-      'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
-    );
-    let h = 0;
-    candidates.forEach(el => {
-      const cs = getComputedStyle(el);
-      const pos = cs.position;
-      if (pos === "fixed" || pos === "sticky") {
-        const r = el.getBoundingClientRect();
-        if (r.bottom >= window.innerHeight - 2) {
-          h = Math.max(h, Math.ceil(r.height));
-        }
-      }
-    });
-    // ewentualny bezpieczny margines (CSS var) jeśli używasz safe-area
-    const root = getComputedStyle(document.documentElement);
-    const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
-    return h + (isFinite(safe) ? safe : 0);
-  }
-
-  function makePlayerFloating() {
-    if (!playerBox) return;
-    const pad = 8; // odstęp od menu
-    const barH = measureBottomBarsHeight();
-
-    // styl „floating”
-    Object.assign(playerBox.style, {
-      position: "fixed",
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "min(960px, 96vw)",
-      bottom: `${barH + pad}px`,
-      zIndex: "9999",
-      boxShadow: "0 10px 30px rgba(0,0,0,.45)",
-      borderRadius: "14px",
-      overflow: "hidden",
-    });
-
-    // dopasowuj przy zmianie rozmiaru
-    const place = () => {
-      const bh = measureBottomBarsHeight();
-      playerBox.style.bottom = `${bh + pad}px`;
-    };
-    window.addEventListener("resize", place);
-    window.addEventListener("orientationchange", place);
-
-    // zapisz, żeby móc odczepić przy stopie
-    playerBox._placeHandler = place;
-  }
-
-  function clearFloatingPlayer() {
-    if (!playerBox) return;
-    // usuwamy nasłuchy
-    if (playerBox._placeHandler) {
-      window.removeEventListener("resize", playerBox._placeHandler);
-      window.removeEventListener("orientationchange", playerBox._placeHandler);
-      delete playerBox._placeHandler;
-    }
-    // chowamy i czyścimy style
-    playerBox.hidden = true;
-    ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow"]
-      .forEach(k => playerBox.style[k] = "");
-  }
-
+  // ---- status / player updates ----
   function fmtTime(sec) {
     sec = Math.max(0, Math.floor(Number(sec) || 0));
     const h = Math.floor(sec / 3600);
@@ -1424,11 +1447,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const s = sec % 60;
     return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
+
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
+    if (!sessions.length) {
+      // brak sesji: ukryj player i wyczyść flagę
+      stopStatusLoop();
+      clearActiveFlag();
+      unmountGlobalPlayer();
+      return;
+    }
+
+    // jeżeli nie mamy client_id, spróbuj wziąć pierwszy z sesji
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
-    if (!sess) return;
+    if (!currentClientId && sess?.client_id) {
+      currentClientId = String(sess.client_id);
+      localStorage.setItem("pf_cast_client", currentClientId);
+    }
+
+    // Pokaż player, jeśli coś gra (auto-show na „sygnał” z PMS)
+    mountGlobalPlayer();
+
+    // tytuł i plakat
+    const nowTitle = String(sess.title || "") || (selected?.title || "");
+    if (plTitle && nowTitle) plTitle.textContent = nowTitle;
+    if (plPoster && sess.thumb) plPoster.src = sess.thumb;
+
+    // progress
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
@@ -1438,7 +1484,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
+
+    // zapisz aktywną sesję (dla innych kart)
+    setActiveFlag({
+      client_id: currentClientId,
+      title: nowTitle,
+      poster: plPoster?.src || "",
+      ts: Date.now()
+    });
   }
+
   function startStatusLoop() {
     stopStatusLoop();
     statusTimer = setInterval(async () => {
@@ -1456,6 +1511,92 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ---- auto-detect aktywnej sesji (auto-show) ----
+  async function pollActiveOnce() {
+    try {
+      const j = await apiJson("/cast/status", { method: "GET" });
+      const sessions = Array.isArray(j?.sessions) ? j.sessions : [];
+      if (sessions.length) {
+        // auto-podpięcie pod aktywnego klienta (preferuj zapamiętany)
+        const saved = localStorage.getItem("pf_cast_client") || "";
+        const sess = (saved && sessions.find(s => String(s.client_id) === String(saved))) || sessions[0];
+
+        currentClientId = String(sess.client_id || saved || "");
+        if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
+
+        // ustaw podgląd
+        if (plPoster && sess.thumb) plPoster.src = sess.thumb;
+        if (plTitle && (sess.title || "")) plTitle.textContent = String(sess.title || "");
+
+        // pokaż player globalnie i zacznij odpytywać częściej
+        mountGlobalPlayer();
+        startStatusLoop();
+
+        // ustaw flagę aktywności
+        setActiveFlag({
+          client_id: currentClientId,
+          title: String(sess.title || ""),
+          poster: plPoster?.src || "",
+          ts: Date.now()
+        });
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function startAutoDetect() {
+    stopAutoDetect();
+    // co 5s sprawdzaj czy PMS raportuje jakąś sesję (jeśli nie ma aktywnego loopa)
+    autoDetectTimer = setInterval(async () => {
+      if (statusTimer) return; // już mamy częsty loop
+      await pollActiveOnce();
+    }, 5000);
+  }
+  function stopAutoDetect() {
+    if (autoDetectTimer) {
+      clearInterval(autoDetectTimer);
+      autoDetectTimer = null;
+    }
+  }
+
+  // ---- sygnały między kartami (localStorage) ----
+  function setActiveFlag(obj) {
+    try { localStorage.setItem(LS_ACTIVE_KEY, JSON.stringify(obj || {})); } catch {}
+  }
+  function clearActiveFlag() {
+    try { localStorage.removeItem(LS_ACTIVE_KEY); } catch {}
+  }
+  function publishCastSignal(payload) {
+    // storage event odpali się w innych kartach
+    try {
+      localStorage.setItem(LS_ACTIVE_KEY, JSON.stringify(payload || {}));
+      localStorage.setItem(LS_SIGNAL_KEY, String(Date.now()) + ":" + Math.random().toString(36).slice(2));
+    } catch {}
+  }
+  window.addEventListener("storage", (e) => {
+    if (e.key === LS_ACTIVE_KEY) {
+      // inna karta zaktualizowała dane playera -> pokaż player
+      try {
+        const data = JSON.parse(e.newValue || "{}");
+        if (data && (data.client_id || data.title || data.poster)) {
+          if (data.client_id) {
+            currentClientId = String(data.client_id);
+            localStorage.setItem("pf_cast_client", currentClientId);
+          }
+          if (plTitle && data.title) plTitle.textContent = data.title;
+          if (plPoster && data.poster) plPoster.src = data.poster;
+          mountGlobalPlayer();
+          if (!statusTimer) startStatusLoop();
+        }
+      } catch {}
+    } else if (e.key === LS_SIGNAL_KEY) {
+      // ping: spróbuj pobrać bieżący status i się zsynchronizować
+      if (!statusTimer) pollActiveOnce();
+    }
+  });
+
+  // ---- CONTROLS ----
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
@@ -1493,14 +1634,27 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     } catch (_) {}
     stopStatusLoop();
-    clearFloatingPlayer();
+    clearActiveFlag();
+    unmountGlobalPlayer();
   });
 
   // ---- boot ----
-  function boot() {
+  async function boot() {
     if (playerBox) playerBox.hidden = true; // domyślnie ukryty
     setTab("movies");
     loadAvailable();
+
+    // auto-show: jeśli PMS już gra, pokaż player na starcie
+    await pollActiveOnce();
+    // oraz uruchom łagodny watcher
+    startAutoDetect();
+
+    // kiedy wracamy do karty — szybki sync
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && !statusTimer) {
+        pollActiveOnce();
+      }
+    });
   }
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", boot);
