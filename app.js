@@ -1153,8 +1153,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastPosterSrc = "";
   let lastPosterBlob = "";
   let currentItemKey = "";
-  let posterRetryTimer = null;
-  let posterRetryLeft = 0;
 
   let IDX = { byId: new Map(), byNormTitle: new Map() };
 
@@ -1221,40 +1219,50 @@ document.addEventListener("DOMContentLoaded", () => {
     ).trim();
   }
 
-  async function setPosterBlobFromUrlOnce(url) {
-    const u = String(url || "").trim();
-    if (!u || lastPosterSrc) return false;
+  // --- CORS-safe ustawienie obrazu ---
+  function isCrossOrigin(url) {
     try {
-      const res = await window.authFetch(u);
-      if (!res.ok) throw new Error(res.status);
-      const blob = await res.blob();
-      const ct = (res.headers.get("Content-Type") || "").toLowerCase();
-      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i))
-        throw new Error("not-image");
-      const objUrl = URL.createObjectURL(blob);
-      await new Promise((ok, err) => {
-        const i = new Image();
-        i.onload = ok; i.onerror = err; i.src = objUrl;
-      });
-      if (plPoster) {
-        if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
-        plPoster.src = objUrl;
-        lastPosterBlob = objUrl;
-        lastPosterSrc = u;
-      }
-      return true;
-    } catch { return false; }
-  }
-
-  async function setPosterOnce(url) {
-    if (lastPosterSrc) return;
-    await setPosterBlobFromUrlOnce(url);
+      const target = new URL(url, location.href);
+      const apiOrigin = API ? new URL(API, location.href).origin : location.origin;
+      return target.origin !== location.origin && target.origin !== apiOrigin;
+    } catch { return true; }
   }
 
   function resetPosterForNewItem() {
     lastPosterSrc = "";
     if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
     lastPosterBlob = "";
+  }
+
+  async function setPosterOnce(url) {
+    const u = String(url || "").trim();
+    if (!u || lastPosterSrc || !plPoster) return;
+
+    // Cross-origin: ustaw src bezpośrednio — żadnych Authorization
+    if (isCrossOrigin(u)) {
+      plPoster.crossOrigin = "anonymous";
+      plPoster.src = u;
+      lastPosterSrc = u;
+      lastPosterBlob = "";
+      return;
+    }
+
+    // Same-origin: pobierz bez credów i bez auth nagłówków
+    try {
+      const res = await fetch(u, { mode: "cors", credentials: "omit" });
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      plPoster.src = objUrl;
+      if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
+      lastPosterBlob = objUrl;
+      lastPosterSrc = u;
+    } catch {
+      // fallback – ustaw src bezpośrednio
+      plPoster.src = u;
+      lastPosterSrc = u;
+      lastPosterBlob = "";
+    }
   }
 
   async function ensurePosterForActiveSession(sess, fallbackUrl) {
@@ -1264,9 +1272,9 @@ document.addEventListener("DOMContentLoaded", () => {
       resetPosterForNewItem();
     }
 
-    // 1️⃣ Najpierw preferuj image_url z Cast/Status
+    // 1️⃣ preferuj image_url z Cast/Status
     let candidate = bestThumbFromSession(sess) || String(fallbackUrl || "");
-    // 2️⃣ Jeśli brak → zapytaj lokalny indeks lub bazę
+    // 2️⃣ jeśli brak → spróbuj z indeksu/bazy
     if (!candidate) {
       const guessed = await posterFromDB({
         id: newKey,
@@ -1274,7 +1282,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (guessed) candidate = guessed;
     }
-    // 3️⃣ Ustaw
     if (candidate) await setPosterOnce(candidate);
   }
 
@@ -1468,7 +1475,7 @@ document.addEventListener("DOMContentLoaded", () => {
         RAW.films = Array.isArray(j?.films) ? j.films : Array.isArray(j?.movies) ? j.movies : [];
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
-      rebuildIndex(); // ⬅️ WAŻNE: indeks do szybkiego lookupu plakatów
+      rebuildIndex(); // ⬅️ indeks do szybkiego lookupu plakatów
       render();
     } catch (e) {
       setText(infoEl, `Błąd: ${e.message || e}`);
@@ -1746,7 +1753,6 @@ document.addEventListener("DOMContentLoaded", () => {
           ts: Date.now()
         });
 
-        if (!lastPosterSrc) startPosterRetryIfNeeded?.();
         return true;
       }
     } catch (_) {}
@@ -1855,7 +1861,7 @@ document.addEventListener("DOMContentLoaded", () => {
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
     const found = await pollActiveOnce();
-    if (!lastPosterSrc && found) startPosterRetryIfNeeded?.();
+    // brak retry – teraz i tak nie używamy auth przy obrazkach
 
     startAutoDetect();
 
