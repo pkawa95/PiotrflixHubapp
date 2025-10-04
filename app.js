@@ -1034,12 +1034,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function apiJson(path, opt = {}) {
     const headers = new Headers(opt.headers || {});
-    if (
-      !headers.has("Content-Type") &&
-      opt.body &&
-      typeof opt.body === "object" &&
-      !(opt.body instanceof FormData)
-    ) {
+    if (!headers.has("Content-Type") && opt.body && typeof opt.body === "object" && !(opt.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }
     const init = { ...opt, headers };
@@ -1049,12 +1044,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await window.authFetch(joinUrl(API, path), init);
     const txt = await res.text().catch(() => "");
     if (!res.ok) {
-      try {
-        const j = JSON.parse(txt);
-        throw new Error(j.message || j.error || `${res.status}`);
-      } catch {
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
+      try { const j = JSON.parse(txt); throw new Error(j.message || j.error || `${res.status}`); }
+      catch { throw new Error(txt || `HTTP ${res.status}`); }
     }
     try { return JSON.parse(txt); } catch { return txt; }
   }
@@ -1083,65 +1074,42 @@ document.addEventListener("DOMContentLoaded", () => {
   const setText = (el, t) => { if (el) el.textContent = t; };
   const setHTML = (el, h) => { if (el) el.innerHTML = h; };
   const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
-  const esc = (s) =>
-    String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
 
   const parseDeleteAt = (val) => {
     if (val == null || val === "") return null;
     if (typeof val === "number") {
-      const n = Number(val);
-      if (!isFinite(n)) return null;
+      const n = Number(val); if (!isFinite(n)) return null;
       return n < 1e12 ? Math.round(n * 1000) : Math.round(n);
     }
-    const s = String(val).trim();
-    if (!s) return null;
-    const asNum = Number(s.replace(",", "."));
-    if (isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum * 1000) : Math.round(asNum);
-    const t = Date.parse(s);
-    return isNaN(t) ? null : t;
+    const s = String(val).trim(); if (!s) return null;
+    const asNum = Number(s.replace(",", ".")); if (isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum * 1000) : Math.round(asNum);
+    const t = Date.parse(s); return isNaN(t) ? null : t;
   };
 
-  // Format daty PL, ale z bezpiecznym fallbackiem
   const fmtDateShort = (ms) => {
     if (!ms) return "";
     try {
-      return new Date(ms).toLocaleString("pl-PL", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return new Date(ms).toLocaleString();
-    }
+      return new Date(ms).toLocaleString("pl-PL",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+    } catch { return new Date(ms).toLocaleString(); }
   };
 
-  // ---- DEL BADGE ----
-  const TTL = {
-    okDays: 3, // >3 dni → ok
-    warnMinDays: 1, // 1–3 dni → warn
-  };
-
-  // „usunie się za …”
+  // ---- kolory TTL (dla delClass – używane tylko do wstępnego stanu) ----
+  const TTL = { okDays: 3, warnMinDays: 1 };
   const fmtTTL = (diffMs) => {
     if (diffMs <= 0) return "do usunięcia";
-    const s = Math.floor(diffMs / 1000);
-    const d = Math.floor(s / 86400);
-    const h = Math.floor((s % 86400) / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    if (d >= 2) return `usunie się za ${d} dni`;
-    if (d === 1) return `usunie się za 1 dzień`;
-    if (h >= 1) return `usunie się za ${h} h`;
+    const s = Math.floor(diffMs/1000);
+    const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
+    if (d>=2) return `usunie się za ${d} dni`;
+    if (d===1) return `usunie się za 1 dzień`;
+    if (h>=1) return `usunie się za ${h} h`;
     return `usunie się za ${m} min`;
   };
-
-  // klasa koloru (dla .del-row – nie używana przez setDelState)
   const delClass = (diffMs) => {
     if (diffMs <= 0) return "danger";
-    const d = diffMs / 86400000;
+    const d = diffMs/86400000;
     if (d < TTL.warnMinDays) return "danger";
-    if (d <= TTL.okDays) return "warn";
+    if (d <= TTL.okDays)    return "warn";
     return "ok";
   };
 
@@ -1157,38 +1125,53 @@ document.addEventListener("DOMContentLoaded", () => {
   function canon(r) {
     const title = r.display_title || r.title || r.name || "—";
     const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-    const isSeries =
-      (r.kind || r.type || "").toLowerCase() === "series" ||
-      !!r.season ||
-      !!r.episode;
+    const isSeries = (r.kind||r.type||"").toLowerCase()==="series" || !!r.season || !!r.episode;
     const kind = isSeries ? "series" : "movie";
-    const pos =
-      (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
-    const dur =
-      (r.duration_ms ?? r.total_ms ?? 1000 * (r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
-    let prog = r.progress ?? r.ratio ?? (dur > 0 ? pos / dur : 0);
-    prog = clamp01(prog > 1.01 ? prog / 100 : prog);
-    const id =
-      (String(r.plex_id || r.ratingKey || "").match(/^\d+$/)
-        ? String(r.plex_id || r.ratingKey)
-        : String(r.id || ""));
-
+    const pos = (r.position_ms ?? r.view_offset_ms ?? 1000*(r.position ?? r.watched_seconds ?? 0))/1000;
+    const dur = (r.duration_ms ?? r.total_ms ?? 1000*(r.duration ?? r.runtime ?? r.total_seconds ?? 0))/1000;
+    let prog = r.progress ?? r.ratio ?? (dur>0 ? pos/dur : 0);
+    prog = clamp01(prog>1.01 ? prog/100 : prog);
+    const id = (String(r.plex_id||r.ratingKey||"").match(/^\d+$/) ? String(r.plex_id||r.ratingKey) : String(r.id||""));
     const delAt = parseDeleteAt(r.deleteAt ?? r.delete_at ?? null);
     const favorite = !!r.favorite;
 
-    return {
-      id, title, poster, kind, pos, dur, prog,
-      season: r.season ?? null,
-      episode: r.episode ?? null,
-      year: r.year || r.release_year || null,
-      deleteAt: delAt,
-      favorite: favorite === true,
-    };
+    return { id, title, poster, kind, pos, dur, prog,
+      season:r.season??null, episode:r.episode??null, year:r.year||r.release_year||null,
+      deleteAt: delAt, favorite: favorite===true };
   }
-  const ep = (it) =>
-    it.kind === "series"
-      ? `S${String(it.season ?? "--").padStart(2, "0")}E${String(it.episode ?? "--").padStart(2, "0")}`
-      : "";
+  const ep = (it)=> it.kind==="series" ? `S${String(it.season??"--").padStart(2,"0")}E${String(it.episode??"--").padStart(2,"0")}` : "";
+
+  // ---- layout helper (mobile: kapsułki pod posterem; desktop: prawy top) ----
+  function layoutBadgesByViewport(){
+    const mobile = window.matchMedia('(max-width: 768px)').matches;
+    document.querySelectorAll('#section-available .av-card').forEach(card=>{
+      const body   = card.querySelector('.body');
+      const poster = card.querySelector('.poster');
+      const row    = card.querySelector('.del-row');
+      if(!row || !poster || !body) return;
+
+      if (mobile) {
+        if (row.parentElement !== card) card.insertBefore(row, body);
+        if (poster.nextElementSibling !== row) card.insertBefore(row, body);
+        row.classList.add('is-mobile');
+        row.style.position = 'static';
+        row.style.marginTop = '6px';
+        row.style.alignItems = 'flex-start';
+      } else {
+        if (row.parentElement !== body) {
+          const anchor = body.querySelector('.av-progress-wrap');
+          if (anchor && anchor.nextSibling) body.insertBefore(row, anchor.nextSibling);
+          else body.appendChild(row);
+        }
+        row.classList.remove('is-mobile');
+        row.style.position = 'absolute';
+        row.style.top = '8px';
+        row.style.right = '8px';
+        row.style.marginTop = '0';
+        row.style.alignItems = 'center';
+      }
+    });
+  }
 
   // ---- render ----
   function render() {
@@ -1198,21 +1181,16 @@ document.addEventListener("DOMContentLoaded", () => {
         : (Array.isArray(RAW.series) ? RAW.series : []);
     const arr = arrRaw.map(canon);
 
-    if (!arr.length) {
-      setHTML(listEl, "");
-      setText(infoEl, "Brak pozycji do wyświetlenia.");
-      return;
-    }
+    if (!arr.length) { setHTML(listEl,""); setText(infoEl,"Brak pozycji do wyświetlenia."); return; }
     setText(infoEl, `Pozycji: ${arr.length}`);
 
-    if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
+    if (badgeTimer) { clearInterval(badgeTimer); badgeTimer=null; }
 
-    const html = arr.map(it => {
-      const pct  = Math.round((it.prog || 0) * 100);
+    const html = arr.map(it=>{
+      const pct  = Math.round((it.prog||0)*100);
       const year = it.year ? ` (${it.year})` : "";
-      const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
+      const sub  = (it.kind==="series" && it.season!=null && it.episode!=null) ? ep(it) : "";
 
-      // kapsuły pod paskiem postępu (nie absolutnie)
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
       const delRow  = showDel ? `
@@ -1229,17 +1207,17 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="body">
             <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
-            ${sub ? `<div class="meta">${sub}</div>` : ""}
+            ${sub?`<div class="meta">${sub}</div>`:""}
             <div class="av-progress-wrap">
               <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
                 <span class="av-bar" style="width:${pct}%;"></span>
               </div>
             </div>
 
-            ${delRow}  <!-- 🔑 kapsuły tu, pod paskiem, wyrównane do prawej -->
+            ${delRow}
 
             <div class="tiny">${pct}% ${
-              it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
+              it.dur?`· ${Math.round((it.pos||0)/60)} / ${Math.round((it.dur||0)/60)} min`:""
             }</div>
             <div class="actions">
               <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
@@ -1250,31 +1228,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setHTML(listEl, html);
 
-    // ✅ USTAWIENIE KOLORÓW OD RAZU PO RENDERZE
-    listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
-      const ts = Number(row.getAttribute("data-delete-at") || "");
-      if (!isFinite(ts)) return;
-      setDelState(row, ts - Date.now()); // kolory i klasy kapsuły
-      const badge = row.querySelector(".del-badge");
-      if (badge) badge.textContent = fmtTTL(ts - Date.now()); // na wszelki wypadek tekst
-    });
-
-    // auto-refresh kapsuł co 20 s (aktualizuje tekst i kolor)
-    const refreshBadges = () => {
-      listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
-        const ts = Number(row.getAttribute("data-delete-at") || "");
+    // kolory kapsułki (inline) + odświeżanie
+    const applyColors = () => {
+      listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row=>{
+        const ts = Number(row.getAttribute("data-delete-at")||"");
         if (!isFinite(ts)) return;
         const diff = ts - Date.now();
-        setDelState(row, diff); // ✅ kolor i klasy
+        setDelState(row, diff);
         const badge = row.querySelector(".del-badge");
-        if (badge) badge.textContent = fmtTTL(diff); // ✅ tekst
+        if (badge) badge.textContent = fmtTTL(diff);
       });
     };
-    badgeTimer = setInterval(refreshBadges, 20000);
+    applyColors();
+
+    if (badgeTimer) clearInterval(badgeTimer);
+    badgeTimer = setInterval(applyColors, 20000);
+
+    // mobile/desktop relayout
+    layoutBadgesByViewport();
 
     // Cast handlers
-    listEl.querySelectorAll(".btn--cast").forEach(b => {
-      b.addEventListener("click", () => {
+    listEl.querySelectorAll(".btn--cast").forEach(b=>{
+      b.addEventListener("click", ()=>{
         selected = {
           id: b.getAttribute("data-id") || "",
           title: b.getAttribute("data-title") || "",
@@ -1285,273 +1260,176 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-
   // ---- load ----
   async function loadAvailable() {
-    if (!tokenOk()) {
-      setText(infoEl, "Musisz być zalogowany (brak tokenu).");
-      setHTML(listEl, "");
-      return;
-    }
-    setText(infoEl, "Ładuję listę…");
-    setHTML(listEl, "");
-    try {
-      const j = await apiJson("/me/available", { method: "GET" });
+    if (!tokenOk()) { setText(infoEl,"Musisz być zalogowany (brak tokenu)."); setHTML(listEl,""); return; }
+    setText(infoEl,"Ładuję listę…"); setHTML(listEl,"");
+    try{
+      const j = await apiJson("/me/available",{method:"GET"});
       if (Array.isArray(j)) {
-        RAW.films = j.filter(
-          (x) => (x.kind || x.type || "").toLowerCase() !== "series"
-        );
-        RAW.series = j.filter(
-          (x) => (x.kind || x.type || "").toLowerCase() === "series"
-        );
+        RAW.films  = j.filter(x => (x.kind||x.type||"").toLowerCase()!=="series");
+        RAW.series = j.filter(x => (x.kind||x.type||"").toLowerCase()==="series");
       } else {
-        RAW.films = Array.isArray(j?.films)
-          ? j.films
-          : Array.isArray(j?.movies)
-          ? j.movies
-          : [];
+        RAW.films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies)? j.movies: []);
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
       render();
-    } catch (e) {
-      setText(infoEl, `Błąd: ${e.message || e}`);
-    }
+    }catch(e){ setText(infoEl, `Błąd: ${e.message||e}`); }
   }
 
   // ---- tabs ----
-  function setTab(kind) {
-    activeKind = kind === "series" ? "series" : "movies";
-    tabMovies?.classList.toggle("is-active", activeKind === "movies");
-    tabSeries?.classList.toggle("is-active", activeKind === "series");
+  function setTab(kind){
+    activeKind = (kind==="series") ? "series" : "movies";
+    tabMovies?.classList.toggle("is-active", activeKind==="movies");
+    tabSeries?.classList.toggle("is-active", activeKind==="series");
     render();
   }
-  tabsHost?.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-av2-tab]");
-    if (!t) return;
+  tabsHost?.addEventListener("click",(e)=>{
+    const t = e.target.closest("[data-av2-tab]"); if(!t) return;
     const k = t.getAttribute("data-av2-tab");
-    if (k === "movies" || k === "series") {
-      e.preventDefault();
-      setTab(k);
-    }
+    if (k==="movies" || k==="series"){ e.preventDefault(); setTab(k); }
   });
 
   // ---- CAST ----
-  function openCastModal() {
+  function openCastModal(){
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
-    apiJson("/cast/players", { method: "GET" })
-      .then((j) => {
-        const list = Array.isArray(j?.devices) ? j.devices : [];
-        if (!list.length) {
-          castSel.innerHTML = `<option value="">(brak klientów)</option>`;
-        } else {
-          castSel.innerHTML =
-            `<option value="">— wybierz —</option>` +
-            list
-              .map(
-                (d) =>
-                  `<option value="${d.id}">${esc(d.name || d.product || "Plex")} — ${esc(d.platform || "")}</option>`
-              )
-              .join("");
-          const prev = localStorage.getItem("pf_cast_client") || "";
-          if (prev && list.some((x) => String(x.id) === String(prev)))
-            castSel.value = prev;
-        }
-      })
-      .catch(() => {
-        castSel.innerHTML = `<option value="">(błąd)</option>`;
-      });
+    apiJson("/cast/players",{method:"GET"}).then(j=>{
+      const list = Array.isArray(j?.devices) ? j.devices : [];
+      if(!list.length){ castSel.innerHTML = `<option value="">(brak klientów)</option>`; }
+      else{
+        castSel.innerHTML = `<option value="">— wybierz —</option>` + list.map(d=>`<option value="${d.id}">${esc(d.name||d.product||"Plex")} — ${esc(d.platform||"")}</option>`).join("");
+        const prev = localStorage.getItem("pf_cast_client") || "";
+        if (prev && list.some(x=>String(x.id)===String(prev))) castSel.value = prev;
+      }
+    }).catch(_=>{ castSel.innerHTML = `<option value="">(błąd)</option>`; });
 
-    if (typeof dlg?.showModal === "function") dlg.showModal();
-    else dlg?.setAttribute("open", "");
+    if (typeof dlg?.showModal === "function") dlg.showModal(); else dlg?.setAttribute('open','');
   }
 
-  castSel?.addEventListener("change", () => {
+  castSel?.addEventListener("change", ()=>{
     currentClientId = castSel.value || "";
     if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
   });
 
-  castStart?.addEventListener("click", async (e) => {
+  castStart?.addEventListener("click", async (e)=>{
     e.preventDefault();
-    const cid = castSel?.value || "";
-    if (!cid) return;
-    if (!selected || !/^\d+$/.test(String(selected.id || ""))) return;
-    try {
-      await apiJson("/cast/start", {
-        method: "POST",
-        body: {
-          item_id: String(selected.id),
-          client_id: cid,
-          client_name: castSel.options[castSel.selectedIndex]?.text || "",
-        },
-      });
+    const cid = castSel?.value || ""; if (!cid) return;
+    if (!selected || !/^\d+$/.test(String(selected.id||""))) return;
+    try{
+      await apiJson("/cast/start",{method:"POST", body:{ item_id:String(selected.id), client_id:cid, client_name: castSel.options[castSel.selectedIndex]?.text||"" }});
       if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || "";
       startStatusLoop();
-    } catch (_) {
-      /* opcjonalnie toast */
-    } finally {
-      dlg?.close?.();
-    }
+    }catch(_){ } finally { dlg?.close?.(); }
   });
 
-  function fmtTime(sec) {
-    sec = Math.max(0, Math.floor(Number(sec) || 0));
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  function fmtTime(sec){
+    sec=Math.max(0,Math.floor(Number(sec)||0));
+    const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+    return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   }
 
-  function updateFromStatus(st) {
+  function updateFromStatus(st){
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
-    const sess =
-      sessions.find((s) => String(s.client_id || "") === String(currentClientId)) ||
-      sessions[0];
+    const sess = sessions.find(s=> String(s.client_id||'')===String(currentClientId)) || sessions[0];
     if (!sess) return;
-    const dur = Number(sess.duration_ms || 0) / 1000;
-    const pos = Number(sess.view_offset_ms || 0) / 1000;
-    const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) {
-      plSeek.max = dur > 0 ? String(dur) : "100";
-      plSeek.value = String(pos || 0);
-    }
+    const dur = Number(sess.duration_ms||0)/1000;
+    const pos = Number(sess.view_offset_ms||0)/1000;
+    const pct = dur>0 ? Math.round(pos/dur*100) : 0;
+    if (plSeek){ plSeek.max = dur>0 ? String(dur) : '100'; plSeek.value = String(pos||0); }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
-    if (plPct) setText(plPct, `${pct}%`);
+    if (plPct)  setText(plPct, `${pct}%`);
   }
-  function startStatusLoop() {
+  function startStatusLoop(){
     stopStatusLoop();
-    statusTimer = setInterval(async () => {
-      try {
-        const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : "";
-        const j = await apiJson("/cast/status" + qs, { method: "GET" });
+    statusTimer = setInterval(async ()=>{
+      try{
+        const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : '';
+        const j = await apiJson('/cast/status'+qs, {method:'GET'});
         updateFromStatus(j);
-      } catch (_) {}
+      }catch(_){}
     }, 1500);
   }
-  function stopStatusLoop() {
-    if (statusTimer) {
-      clearInterval(statusTimer);
-      statusTimer = null;
-    }
-  }
+  function stopStatusLoop(){ if(statusTimer){ clearInterval(statusTimer); statusTimer=null; } }
 
-  plSeek?.addEventListener("input", async () => {
+  plSeek?.addEventListener('input', async ()=>{
     if (!currentClientId) return;
-    const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs },
-      });
-    } catch (_) {}
+    const seekMs = Math.round(Number(plSeek.value||'0')*1000);
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'seek', seek_ms: seekMs }}); }catch(_){}
   });
-  btnPlay?.addEventListener("click", async () => {
-    if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "play" },
-      });
-    } catch (_) {}
-  });
-  btnPause?.addEventListener("click", async () => {
-    if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "pause" },
-      });
-    } catch (_) {}
-  });
-  btnStop?.addEventListener("click", async () => {
-    if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "stop" },
-      });
-    } catch (_) {}
-    stopStatusLoop();
-    if (playerBox) playerBox.hidden = true;
-  });
+  btnPlay?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'play' }}); }catch(_){} });
+  btnPause?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'pause' }}); }catch(_){} });
+  btnStop?.addEventListener('click', async ()=>{ if(!currentClientId) return;
+    try{ await apiJson('/cast/cmd',{method:'POST', body:{ client_id: currentClientId, cmd:'stop' }}); }catch(_){}
+    stopStatusLoop(); if (playerBox) playerBox.hidden = true; });
 
   // ---- boot ----
-  function boot() {
-    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
-    setTab("movies");
-    loadAvailable();
-  }
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", boot);
-  else boot();
+  function boot(){ if (playerBox) playerBox.hidden = true; setTab('movies'); loadAvailable(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  // ---- integracja z dolną nawigacją (opcjonalnie) ----
-  window.showSection = window.showSection || function () {};
+  // ---- integracja z dolną nawigacją ----
+  window.showSection = window.showSection || function(){};
   const prevShow = window.showSection;
-  window.showSection = function (name) {
-    try {
-      prevShow && prevShow(name);
-    } catch (_) {}
-    if (name === "available") {
-      loadAvailable();
-    }
+  window.showSection = function(name){
+    try{ prevShow && prevShow(name); }catch(_){}
+    if (name === 'available') { loadAvailable(); }
   };
+
+  // relayout przy zmianie szerokości
+  window.addEventListener('resize', layoutBadgesByViewport);
+
 })();
 
 /* ===================== Standalone kolorowanie kapsułki ===================== */
-/* ✅ Nie korzysta z delClass ani innych rzeczy z IIFE – bezpieczna globalnie. */
+/* Nie zależy od wnętrza IIFE. Ustawia kolory inline, więc nic tego nie nadpisze. */
 function setDelState(row, diffMs){
   var state;
-  if (diffMs <= 0) {
-    state = 'danger';
-  } else {
-    var d = diffMs / 86400000; // ms -> dni
+  if (diffMs <= 0) state = 'danger';
+  else {
+    var d = diffMs / 86400000;
     if (d < 1) state = 'danger';
     else if (d <= 3) state = 'warn';
     else state = 'ok';
   }
 
-  // klasa + data-state na wierszu
   row.classList.remove('ok','warn','danger');
   row.classList.add(state);
   row.dataset.state = state;
 
-  // kapsuła (badge)
   var badge = row.querySelector('.del-badge');
   if (badge){
     badge.classList.remove('ok','warn','danger');
     badge.classList.add(state);
 
-    // 🔒 tła inline – nic tego nie przebije
     if (state === 'ok'){
       badge.style.background = 'linear-gradient(135deg,#28a745,#218838)';
       badge.style.color = '#ffffff';
     } else if (state === 'warn'){
       badge.style.background = 'linear-gradient(135deg,#ffc107,#e0a800)';
       badge.style.color = '#111111';
-    } else { // danger
+    } else {
       badge.style.background = 'linear-gradient(135deg,#dc3545,#a71d2a)';
       badge.style.color = '#ffffff';
     }
-
-    // trochę oddechu
     badge.style.padding = '2px 8px';
     badge.style.borderRadius = '999px';
     badge.style.fontWeight = '600';
     badge.style.lineHeight = '1.1';
     badge.style.display = 'inline-block';
+    badge.style.whiteSpace = 'nowrap';
   }
 
-  // del-date – lekko przyciemniamy tło, jasny tekst
   var date = row.querySelector('.del-date');
   if (date){
     date.style.background = 'rgba(0,0,0,.45)';
     date.style.color = 'rgba(255,255,255,.85)';
     date.style.padding = '2px 6px';
     date.style.borderRadius = '6px';
+    date.style.whiteSpace = 'nowrap';
   }
 
-  // wyrównanie wiersza do prawej (gdyby CSS nie zadziałał)
   row.style.display = 'flex';
   row.style.gap = '8px';
   row.style.justifyContent = 'flex-end';

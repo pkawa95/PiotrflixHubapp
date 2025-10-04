@@ -2676,11 +2676,8 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   white-space: nowrap;
 }
 
-/* --- domyślnie: desktop --- */
-#section-available .av-card {
-  position: relative;
-}
-
+/* ===== DESKTOP – bez zmian: kapsułki w prawym górnym rogu ===== */
+#section-available .av-card { position: relative; }
 #section-available .av-card .del-row {
   position: absolute;
   top: 8px;
@@ -2691,15 +2688,52 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   z-index: 2;
 }
 
-/* --- mobile: kapsułki pod 100% --- */
+/* ===== MOBILE – poster lewo, tytuł/pasek/% + Cast po prawej,
+   a kapsułki POD POSTEREM (lewa kolumna) ===== */
 @media (max-width: 768px) {
-  #section-available .av-card .del-row {
-    position: static;      /* wraca do normalnego flow */
-    margin-top: 4px;       /* odstęp pod 100% */
-    justify-content: flex-end; /* wyrównanie do prawej */
+  /* rozkład karty na 2 kolumny: poster | treść */
+  #section-available .av-card {
+    display: grid;
+    grid-template-columns: 96px 1fr; /* szer. postera dopasuj do siebie */
+    column-gap: 12px;
+    align-items: start;
   }
 
-  #section-available .av-card .tiny {
-    margin-bottom: 4px; /* żeby kapsułki nie kleiły się do % */
+  #section-available .av-card .poster {
+    grid-column: 1;
+    grid-row: 1 / span 4; /* poster zajmuje swój słupek */
   }
+
+  #section-available .av-card .body {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+  }
+
+  /* kapsułki – po przeniesieniu w JS są rodzeństwem poster/body */
+  #section-available .av-card .del-row.is-mobile {
+    position: static;       /* normalny flow */
+    grid-column: 1;         /* lewa kolumna (pod posterem) */
+    grid-row: 5;            /* zaraz POD posterem */
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column; /* jedna pod drugą */
+    gap: 6px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  /* tytuł → pasek → % po prawej kolumnie */
+  #section-available .av-card .title { margin-bottom: 6px; }
+  #section-available .av-card .av-progress-wrap { margin-top: 4px; }
+  #section-available .av-card .tiny { margin-top: 6px; }
+
+  /* Cast po prawej stronie treści */
+  #section-available .av-card .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+
+  /* wyłącz desktopowe pozycjonowanie kapsułek */
+  #section-available .av-card .del-row { top: auto; right: auto; }
 }
