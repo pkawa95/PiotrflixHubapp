@@ -1136,7 +1136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `usunie się za ${m} min`;
   };
 
-  // klasa koloru
+  // klasa koloru (dla .del-row – nie używana przez setDelState)
   const delClass = (diffMs) => {
     if (diffMs <= 0) return "danger";
     const d = diffMs / 86400000;
@@ -1191,91 +1191,99 @@ document.addEventListener("DOMContentLoaded", () => {
       : "";
 
   // ---- render ----
-function render() {
-  const arrRaw =
-    activeKind === "movies"
-      ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies) ? RAW.movies : []))
-      : (Array.isArray(RAW.series) ? RAW.series : []);
-  const arr = arrRaw.map(canon);
+  function render() {
+    const arrRaw =
+      activeKind === "movies"
+        ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies) ? RAW.movies : []))
+        : (Array.isArray(RAW.series) ? RAW.series : []);
+    const arr = arrRaw.map(canon);
 
-  if (!arr.length) {
-    setHTML(listEl, "");
-    setText(infoEl, "Brak pozycji do wyświetlenia.");
-    return;
-  }
-  setText(infoEl, `Pozycji: ${arr.length}`);
+    if (!arr.length) {
+      setHTML(listEl, "");
+      setText(infoEl, "Brak pozycji do wyświetlenia.");
+      return;
+    }
+    setText(infoEl, `Pozycji: ${arr.length}`);
 
-  if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
+    if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
 
-  const html = arr.map(it => {
-    const pct  = Math.round((it.prog || 0) * 100);
-    const year = it.year ? ` (${it.year})` : "";
-    const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
+    const html = arr.map(it => {
+      const pct  = Math.round((it.prog || 0) * 100);
+      const year = it.year ? ` (${it.year})` : "";
+      const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
 
-    // kapsuły pod paskiem postępu (nie absolutnie)
-    const showDel = !!(it.deleteAt && !it.favorite);
-    const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
-    const delRow  = showDel ? `
-      <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}">
-        <span class="del-badge">${fmtTTL(diff)}</span>
-        <span class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>
-      </div>` : "";
+      // kapsuły pod paskiem postępu (nie absolutnie)
+      const showDel = !!(it.deleteAt && !it.favorite);
+      const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
+      const delRow  = showDel ? `
+        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}">
+          <span class="del-badge">${fmtTTL(diff)}</span>
+          <span class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>
+        </div>` : "";
 
-    return `
-      <article class="av-card">
-        <div class="poster" style="position:relative">
-          <img class="av-poster" src="${esc(it.poster)}" alt="">
-          <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
-        </div>
-        <div class="body">
-          <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
-          ${sub ? `<div class="meta">${sub}</div>` : ""}
-          <div class="av-progress-wrap">
-            <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-              <span class="av-bar" style="width:${pct}%;"></span>
+      return `
+        <article class="av-card">
+          <div class="poster" style="position:relative">
+            <img class="av-poster" src="${esc(it.poster)}" alt="">
+            <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
+          </div>
+          <div class="body">
+            <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
+            ${sub ? `<div class="meta">${sub}</div>` : ""}
+            <div class="av-progress-wrap">
+              <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+                <span class="av-bar" style="width:${pct}%;"></span>
+              </div>
+            </div>
+
+            ${delRow}  <!-- 🔑 kapsuły tu, pod paskiem, wyrównane do prawej -->
+
+            <div class="tiny">${pct}% ${
+              it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
+            }</div>
+            <div class="actions">
+              <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
             </div>
           </div>
+        </article>`;
+    }).join("");
 
-          ${delRow}  <!-- 🔑 kapsuły tu, pod paskiem, wyrównane do prawej -->
+    setHTML(listEl, html);
 
-          <div class="tiny">${pct}% ${
-            it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
-          }</div>
-          <div class="actions">
-            <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
-          </div>
-        </div>
-      </article>`;
-  }).join("");
-
-  setHTML(listEl, html);
-
-  // auto-refresh kapsuł co 20 s (aktualizuje tekst i klasę)
-  const refreshBadges = () => {
-    listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
+    // ✅ USTAWIENIE KOLORÓW OD RAZU PO RENDERZE
+    listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
       const ts = Number(row.getAttribute("data-delete-at") || "");
       if (!isFinite(ts)) return;
-      const diff = ts - Date.now();
-      row.classList.remove("ok", "warn", "danger");
-      row.classList.add(delClass(diff));
+      setDelState(row, ts - Date.now()); // kolory i klasy kapsuły
       const badge = row.querySelector(".del-badge");
-      if (badge) badge.textContent = fmtTTL(diff);
+      if (badge) badge.textContent = fmtTTL(ts - Date.now()); // na wszelki wypadek tekst
     });
-  };
-  badgeTimer = setInterval(refreshBadges, 20000);
 
-  // Cast handlers
-  listEl.querySelectorAll(".btn--cast").forEach(b => {
-    b.addEventListener("click", () => {
-      selected = {
-        id: b.getAttribute("data-id") || "",
-        title: b.getAttribute("data-title") || "",
-        poster: b.getAttribute("data-poster") || "",
-      };
-      openCastModal();
+    // auto-refresh kapsuł co 20 s (aktualizuje tekst i kolor)
+    const refreshBadges = () => {
+      listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
+        const ts = Number(row.getAttribute("data-delete-at") || "");
+        if (!isFinite(ts)) return;
+        const diff = ts - Date.now();
+        setDelState(row, diff); // ✅ kolor i klasy
+        const badge = row.querySelector(".del-badge");
+        if (badge) badge.textContent = fmtTTL(diff); // ✅ tekst
+      });
+    };
+    badgeTimer = setInterval(refreshBadges, 20000);
+
+    // Cast handlers
+    listEl.querySelectorAll(".btn--cast").forEach(b => {
+      b.addEventListener("click", () => {
+        selected = {
+          id: b.getAttribute("data-id") || "",
+          title: b.getAttribute("data-title") || "",
+          poster: b.getAttribute("data-poster") || "",
+        };
+        openCastModal();
+      });
     });
-  });
-}
+  }
 
 
   // ---- load ----
@@ -1490,8 +1498,18 @@ function render() {
   };
 })();
 
+/* ===================== Standalone kolorowanie kapsułki ===================== */
+/* ✅ Nie korzysta z delClass ani innych rzeczy z IIFE – bezpieczna globalnie. */
 function setDelState(row, diffMs){
-  const state = delClass(diffMs); // 'ok' | 'warn' | 'danger'
+  var state;
+  if (diffMs <= 0) {
+    state = 'danger';
+  } else {
+    var d = diffMs / 86400000; // ms -> dni
+    if (d < 1) state = 'danger';
+    else if (d <= 3) state = 'warn';
+    else state = 'ok';
+  }
 
   // klasa + data-state na wierszu
   row.classList.remove('ok','warn','danger');
@@ -1499,12 +1517,12 @@ function setDelState(row, diffMs){
   row.dataset.state = state;
 
   // kapsuła (badge)
-  const badge = row.querySelector('.del-badge');
+  var badge = row.querySelector('.del-badge');
   if (badge){
     badge.classList.remove('ok','warn','danger');
     badge.classList.add(state);
 
-    // defensywnie nadpisujemy tło inline (żeby nic tego nie przebiło)
+    // 🔒 tła inline – nic tego nie przebije
     if (state === 'ok'){
       badge.style.background = 'linear-gradient(135deg,#28a745,#218838)';
       badge.style.color = '#ffffff';
@@ -1515,11 +1533,27 @@ function setDelState(row, diffMs){
       badge.style.background = 'linear-gradient(135deg,#dc3545,#a71d2a)';
       badge.style.color = '#ffffff';
     }
+
+    // trochę oddechu
+    badge.style.padding = '2px 8px';
+    badge.style.borderRadius = '999px';
+    badge.style.fontWeight = '600';
+    badge.style.lineHeight = '1.1';
+    badge.style.display = 'inline-block';
   }
 
-  // del-date – lekko przyciemniamy tło, ale nie zmieniamy koloru tekstu
-  const date = row.querySelector('.del-date');
+  // del-date – lekko przyciemniamy tło, jasny tekst
+  var date = row.querySelector('.del-date');
   if (date){
     date.style.background = 'rgba(0,0,0,.45)';
+    date.style.color = 'rgba(255,255,255,.85)';
+    date.style.padding = '2px 6px';
+    date.style.borderRadius = '6px';
   }
+
+  // wyrównanie wiersza do prawej (gdyby CSS nie zadziałał)
+  row.style.display = 'flex';
+  row.style.gap = '8px';
+  row.style.justifyContent = 'flex-end';
+  row.style.alignItems = 'center';
 }
