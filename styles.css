@@ -2586,6 +2586,9 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-text: #fff;
   --del-text-warn: #111;
   --del-date-bg: rgba(0,0,0,.30);
+
+  /* fallback gdy mask nie zadziała (kolor tła strony pod kartą) */
+  --page-bg: #0b0f14;
 }
 
 /* KARTA */
@@ -2594,19 +2597,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   overflow: hidden;
   position: relative;
   z-index: 2;           
-  background: #111;     /* tło karty */
-}
-
-/* 🔑 MASKA – zasłania belkę pod spodem */
-.av-card::after{
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px; /* minimalnie wchodzi na belkę */
-  height: 20px; /* wysokość maski = wartość margin-top belki */
-  background: #111; /* tło takie samo jak karta */
-  z-index: 3; /* nad belką, pod treścią */
+  background: #111;
 }
 
 /* BELKA POD KARTĄ */
@@ -2617,7 +2608,8 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   width: 100%;
   height: var(--del-height);
 
-  margin-top: -20px;    /* 🔑 wsuwa się pod kartę */
+  /* 🔑 wsuń pod kartę */
+  margin-top: -20px;
   margin-bottom: 20px;
 
   /* tylko dolne rogi zaokrąglone */
@@ -2636,6 +2628,27 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
   overflow: hidden;
+
+  /* 🔥 WKLĘSŁE ROGI NA GÓRZE (mask) */
+  /* WebKit/Chromium */
+  -webkit-mask:
+    radial-gradient(circle at left top,    transparent var(--card-radius), #000 0) top left,
+    radial-gradient(circle at right top,   transparent var(--card-radius), #000 0) top right,
+    linear-gradient(#000 0 0);
+  -webkit-mask-size: var(--card-radius) var(--card-radius),
+                     var(--card-radius) var(--card-radius),
+                     100% 100%;
+  -webkit-mask-repeat: no-repeat;
+
+  /* Firefox/standards */
+  mask:
+    radial-gradient(circle at left top,    transparent var(--card-radius), #000 0) top left,
+    radial-gradient(circle at right top,   transparent var(--card-radius), #000 0) top right,
+    linear-gradient(#000 0 0);
+  mask-size: var(--card-radius) var(--card-radius),
+             var(--card-radius) var(--card-radius),
+             100% 100%;
+  mask-repeat: no-repeat;
 }
 
 /* kolory stanów */
@@ -2660,5 +2673,28 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   background: var(--del-date-bg);
   color: currentColor;
   white-space: nowrap;
+}
+
+/* ✅ Fallback dla bardzo starych przeglądarek bez mask:
+   dorysuj „wycięcia” pseudo-elementami w kolorze tła strony.
+   Zadziała gorzej niż mask, ale usunie przebicia. */
+@supports not ((mask: paint(dummy)) or (-webkit-mask: paint(dummy))){
+  .del-row::before,
+  .del-row::after{
+    content:"";
+    position:absolute;
+    top:0;
+    width: var(--card-radius);
+    height: var(--card-radius);
+    background: var(--page-bg);
+  }
+  .del-row::before{
+    left: 0;
+    border-top-right-radius: var(--card-radius);
+  }
+  .del-row::after{
+    right: 0;
+    border-top-left-radius: var(--card-radius);
+  }
 }
 
