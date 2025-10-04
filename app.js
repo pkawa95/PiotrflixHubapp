@@ -1101,7 +1101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(t) ? null : t;
   };
 
-  // Format daty PL, ale z bezpiecznym fallbackiem
+  // Format daty PL, z bezpiecznym fallbackiem
   const fmtDateShort = (ms) => {
     if (!ms) return "";
     try {
@@ -1119,8 +1119,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- DEL BADGE ----
   const TTL = {
-    okDays: 3, // >3 dni → ok
-    warnMinDays: 1, // 1–3 dni → warn
+    okDays: 3,     // >3 dni → ok
+    warnMinDays: 1 // 1–3 dni → warn
   };
 
   // „usunie się za …”
@@ -1136,7 +1136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `usunie się za ${m} min`;
   };
 
-  // klasa koloru (dla .del-row – nie używana przez setDelState)
+  // klasa koloru
   const delClass = (diffMs) => {
     if (diffMs <= 0) return "danger";
     const d = diffMs / 86400000;
@@ -1212,13 +1212,17 @@ document.addEventListener("DOMContentLoaded", () => {
       const year = it.year ? ` (${it.year})` : "";
       const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
 
-      // kapsuły pod paskiem postępu (nie absolutnie)
+      // PODBUDÓWKA (belka pod kartą) – tylko gdy nie ulubiony i jest deleteAt
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
       const delRow  = showDel ? `
-        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}">
-          <span class="del-badge">${fmtTTL(diff)}</span>
-          <span class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>
+        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
+          <div class="del-row__left">
+            <span class="del-badge">${fmtTTL(diff)}</span>
+          </div>
+          <div class="del-row__right">
+            <span class="del-date" title="Planowana data usunięcia">${fmtDateShort(it.deleteAt)}</span>
+          </div>
         </div>` : "";
 
       return `
@@ -1236,8 +1240,6 @@ document.addEventListener("DOMContentLoaded", () => {
               </div>
             </div>
 
-            ${delRow}  <!-- 🔑 kapsuły tu, pod paskiem, wyrównane do prawej -->
-
             <div class="tiny">${pct}% ${
               it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
             }</div>
@@ -1245,29 +1247,31 @@ document.addEventListener("DOMContentLoaded", () => {
               <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
             </div>
           </div>
+
+          ${delRow} <!-- 🔑 belka z info o usunięciu POD całą kartą -->
         </article>`;
     }).join("");
 
     setHTML(listEl, html);
 
-    // ✅ USTAWIENIE KOLORÓW OD RAZU PO RENDERZE
+    // USTAWIENIE KOLORÓW OD RAZU PO RENDERZE
     listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
       const ts = Number(row.getAttribute("data-delete-at") || "");
       if (!isFinite(ts)) return;
-      setDelState(row, ts - Date.now()); // kolory i klasy kapsuły
+      setDelState(row, ts - Date.now());
       const badge = row.querySelector(".del-badge");
-      if (badge) badge.textContent = fmtTTL(ts - Date.now()); // na wszelki wypadek tekst
+      if (badge) badge.textContent = fmtTTL(ts - Date.now());
     });
 
-    // auto-refresh kapsuł co 20 s (aktualizuje tekst i kolor)
+    // auto-refresh co 20 s
     const refreshBadges = () => {
       listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
         const ts = Number(row.getAttribute("data-delete-at") || "");
         if (!isFinite(ts)) return;
         const diff = ts - Date.now();
-        setDelState(row, diff); // ✅ kolor i klasy
+        setDelState(row, diff);
         const badge = row.querySelector(".del-badge");
-        if (badge) badge.textContent = fmtTTL(diff); // ✅ tekst
+        if (badge) badge.textContent = fmtTTL(diff);
       });
     };
     badgeTimer = setInterval(refreshBadges, 20000);
@@ -1284,7 +1288,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   }
-
 
   // ---- load ----
   async function loadAvailable() {
@@ -1498,8 +1501,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 })();
 
-/* ===================== Standalone kolorowanie kapsułki ===================== */
-/* ✅ Nie korzysta z delClass ani innych rzeczy z IIFE – bezpieczna globalnie. */
+/* ===================== Standalone kolorowanie belki ===================== */
 function setDelState(row, diffMs){
   var state;
   if (diffMs <= 0) {
@@ -1511,50 +1513,14 @@ function setDelState(row, diffMs){
     else state = 'ok';
   }
 
-  // klasa + data-state na wierszu
   row.classList.remove('ok','warn','danger');
   row.classList.add(state);
   row.dataset.state = state;
 
-  // kapsuła (badge)
+  // badge (po lewej)
   var badge = row.querySelector('.del-badge');
   if (badge){
     badge.classList.remove('ok','warn','danger');
     badge.classList.add(state);
-
-    // 🔒 tła inline – nic tego nie przebije
-    if (state === 'ok'){
-      badge.style.background = 'linear-gradient(135deg,#28a745,#218838)';
-      badge.style.color = '#ffffff';
-    } else if (state === 'warn'){
-      badge.style.background = 'linear-gradient(135deg,#ffc107,#e0a800)';
-      badge.style.color = '#111111';
-    } else { // danger
-      badge.style.background = 'linear-gradient(135deg,#dc3545,#a71d2a)';
-      badge.style.color = '#ffffff';
-    }
-
-    // trochę oddechu
-    badge.style.padding = '2px 8px';
-    badge.style.borderRadius = '999px';
-    badge.style.fontWeight = '600';
-    badge.style.lineHeight = '1.1';
-    badge.style.display = 'inline-block';
   }
-
-  // del-date – lekko przyciemniamy tło, jasny tekst
-  var date = row.querySelector('.del-date');
-  if (date){
-    date.style.background = 'rgba(0,0,0,.45)';
-    date.style.color = 'rgba(255,255,255,.85)';
-    date.style.padding = '2px 6px';
-    date.style.borderRadius = '6px';
-  }
-
-  // wyrównanie wiersza do prawej (gdyby CSS nie zadziałał)
-  row.style.display = 'flex';
-  row.style.gap = '8px';
-  row.style.justifyContent = 'flex-end';
-  row.style.alignItems = 'center';
 }
-

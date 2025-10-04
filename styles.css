@@ -2573,167 +2573,81 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* ====== AV2: kapsuły „usunie się …” pod paskiem postępu ====== */
+/* Kolory stanów */
+:root{
+  --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
+  --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
+  --del-danger-bg:linear-gradient(135deg,#dc3545,#a71d2a);
 
-/* Odrobina oddechu pod paskiem */
-#section-available .av-card .av-progress-wrap {
-  margin-bottom: .35rem;
+  --del-surface:  rgba(255,255,255,0.04);  /* tło belki */
+  --del-border:   rgba(255,255,255,0.08);
+  --del-text:     rgba(255,255,255,0.9);
+  --del-muted:    rgba(255,255,255,0.7);
 }
 
-/* Wiersz z kapsułami – pod paskiem, wyrównany do PRAWEJ */
-#section-available .av-card .del-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: .5rem;
-  margin-top: .25rem;
-  width: 100%;
+/* Karta – zakładam, że .av-card już istnieje; belka idzie POD .body */
+.av-card{
+  display: grid;
+  grid-template-rows: auto auto; /* body, a pod spodem belka */
+  border-radius: 12px;
+  overflow: hidden; /* żeby belka spinała krawędzie */
 }
 
-/* Kapsuły */
-#section-available .av-card .del-badge,
-#section-available .av-card .del-date {
-  display: inline-flex;
+/* BELKA – „podbudówka” z lewej badge, po prawej data */
+.av-card > .del-row{
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  white-space: nowrap;
-  height: 28px;
-  padding: 0 .6rem;
-  border-radius: 9999px;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--del-surface);
+  border-top: 1px solid var(--del-border);
+  backdrop-filter: blur(2px);
+}
+
+.del-row__left{
+  min-width: 0;
+}
+
+.del-row__right{
+  justify-self: end;
+}
+
+/* Badge z tekstem „usunie się za…” */
+.del-badge{
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
   font-size: 12px;
   line-height: 1;
-  letter-spacing: .1px;
-  box-shadow: 0 6px 16px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.06);
-}
-
-/* Kolory bazowe (fallback – JS i tak nadpisze tło inline) */
-#section-available .av-card .del-badge.ok     { background: linear-gradient(135deg,#28a745,#218838); color:#fff; }
-#section-available .av-card .del-badge.warn   { background: linear-gradient(135deg,#ffc107,#e0a800); color:#111; }
-#section-available .av-card .del-badge.danger { background: linear-gradient(135deg,#dc3545,#a71d2a); color:#fff; }
-
-/* Sub-kapsuła z datą – zawsze lekko przyciemniona */
-#section-available .av-card .del-date {
-  background: rgba(0,0,0,.45);
-  color: rgba(255,255,255,.85);
-  border: 1px solid rgba(255,255,255,.06);
-}
-
-/* Niech napis w tytule nie wypycha kapsuł – skracamy elegancko */
-#section-available .av-card .title {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #fff; /* nadpisane w warn, jeśli chcesz ciemny tekst */
   white-space: nowrap;
 }
 
-/* Lepszy odstęp w sekcji z cyframi pod paskiem */
-#section-available .av-card .tiny {
-  margin-top: .4rem;
+/* Data po prawej */
+.del-date{
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--del-text);
+  background: rgba(0,0,0,.35);
 }
 
-/* ====== Responsive ====== */
-@media (max-width: 680px) {
-  /* Zmniejszamy kapsuły i pozwalamy im wejść w dwie linie, ale nadal trzymają się prawej */
-  #section-available .av-card .del-row {
-    gap: .4rem;
-    margin-top: .2rem;
-    flex-wrap: wrap;
+/* Stany kolorów dla badge */
+.del-row.ok .del-badge{    background: var(--del-ok-bg);   color:#fff; }
+.del-row.warn .del-badge{  background: var(--del-warn-bg); color:#111; }
+.del-row.danger .del-badge{background: var(--del-danger-bg); color:#fff; }
+
+/* Drobne responsywne dopieszczenie */
+@media (max-width: 520px){
+  .av-card > .del-row{
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
-  #section-available .av-card .del-badge,
-  #section-available .av-card .del-date {
-    height: 26px;
-    padding: 0 .5rem;
-    font-size: 11px;
+  .del-row__right{
+    justify-self: start;
+    opacity: .9;
   }
-  /* del-date może zjechać niżej, niech ma minimalną szerokość żeby nie „skakało” */
-  #section-available .av-card .del-date { min-width: 150px; text-align: center; }
-}
-
-/* (opcjonalnie) del-row może płynnie wjeżdżać */
-#section-available .av-card .del-row { transition: color .2s ease, background-color .2s ease; }
-
-/* --- kapsuły w prawym górnym rogu karty --- */
-#section-available .av-card {
-  position: relative; /* potrzebne, żeby absolutne pozycjonowanie działało */
-}
-
-#section-available .av-card .del-row {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-
-  /* opcjonalnie cień dla czytelności */
-  z-index: 2;
-}
-
-#section-available .av-card .del-badge,
-#section-available .av-card .del-date {
-  border-radius: 14px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-
-/* ===== DESKTOP – bez zmian: kapsułki w prawym górnym rogu ===== */
-#section-available .av-card { position: relative; }
-#section-available .av-card .del-row {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  z-index: 2;
-}
-
-/* ===== MOBILE – poster lewo, tytuł/pasek/% + Cast po prawej,
-   a kapsułki POD POSTEREM (lewa kolumna) ===== */
-@media (max-width: 768px) {
-  /* rozkład karty na 2 kolumny: poster | treść */
-  #section-available .av-card {
-    display: grid;
-    grid-template-columns: 96px 1fr; /* szer. postera dopasuj do siebie */
-    column-gap: 12px;
-    align-items: start;
-  }
-
-  #section-available .av-card .poster {
-    grid-column: 1;
-    grid-row: 1 / span 4; /* poster zajmuje swój słupek */
-  }
-
-  #section-available .av-card .body {
-    grid-column: 2;
-    grid-row: 1 / span 4;
-  }
-
-  /* kapsułki – po przeniesieniu w JS są rodzeństwem poster/body */
-  #section-available .av-card .del-row.is-mobile {
-    position: static;       /* normalny flow */
-    grid-column: 1;         /* lewa kolumna (pod posterem) */
-    grid-row: 5;            /* zaraz POD posterem */
-    margin-top: 6px;
-    display: flex;
-    flex-direction: column; /* jedna pod drugą */
-    gap: 6px;
-    align-items: flex-start;
-    justify-content: flex-start;
-  }
-
-  /* tytuł → pasek → % po prawej kolumnie */
-  #section-available .av-card .title { margin-bottom: 6px; }
-  #section-available .av-card .av-progress-wrap { margin-top: 4px; }
-  #section-available .av-card .tiny { margin-top: 6px; }
-
-  /* Cast po prawej stronie treści */
-  #section-available .av-card .actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 8px;
-  }
-
-  /* wyłącz desktopowe pozycjonowanie kapsułek */
-  #section-available .av-card .del-row { top: auto; right: auto; }
 }
