@@ -1236,44 +1236,131 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === DROP-IN: zamień swoją funkcję setPosterOnce na tę wersję ===
 async function setPosterOnce(url) {
-  const u = String(url || "").trim();
-  if (!u || lastPosterSrc || !plPoster) return;
+  const u0 = String(url || "").trim();
+  if (!u0 || lastPosterSrc || !plPoster) return;
+
+  // token do anulowania poprzednich wywołań
+  const localRun = {};
+  setPosterOnce._token = localRun;
 
   // posprzątaj poprzedni blob, jeśli był
-  if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} lastPosterBlob = ""; }
-
-  // jeśli zewnętrzny host (np. TMDB) – ustaw bezpośrednio (bez autoryzacji)
-  if (isCrossOrigin(u)) {
-    plPoster.crossOrigin = "anonymous";
-    plPoster.referrerPolicy = "no-referrer"; // na wszelki wypadek
-    plPoster.src = u;
-    lastPosterSrc = u;
+  if (lastPosterBlob) {
+    try { URL.revokeObjectURL(lastPosterBlob); } catch {}
     lastPosterBlob = "";
-    try { await (plPoster.decode?.() || Promise.resolve()); } catch {}
-    return;
   }
 
-  // jeśli ten sam origin – spróbuj jako Blob bez credów
+  // util: timeout dla ładowania
+  function withTimeout(p, ms = 5000) {
+    return new Promise((resolve, reject) => {
+      let t = setTimeout(() => reject(new Error("timeout")), ms);
+      p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+    });
+  }
+
+  // util: sprawdza czy URL jest cross-origin względem strony i (opcjonalnie) API
+  function isCross(targetUrl) {
+    try {
+      const target = new URL(targetUrl, location.href);
+      const apiOrigin = API ? new URL(API, location.href).origin : location.origin;
+      return target.origin !== location.origin && target.origin !== apiOrigin;
+    } catch { return true; }
+  }
+
+  // buduje listę kandydatów dla TMDB (różne rozmiary) + retry z cachebusterem
+  function tmdbCandidates(u) {
+    try {
+      const url = new URL(u, location.href);
+      if (!/image\.tmdb\.org$/i.test(url.hostname) || !/\/t\/p\//.test(url.pathname)) return [u];
+
+      // path: /t/p/<size>/<file>.jpg
+      const parts = url.pathname.split("/").filter(Boolean);
+      const idx = parts.indexOf("p");
+      if (idx < 0 || idx + 1 >= parts.length) return [u];
+
+      const sizeInUrl = parts[idx + 1];
+      const rest = parts.slice(idx + 2).join("/");
+
+      const sizes = [sizeInUrl, "original", "w780", "w500", "w342"];
+      const uniq = Array.from(new Set(sizes));
+
+      const base = `${url.protocol}//${url.host}/t/p`;
+      const q = url.search || "";
+      const cand = [];
+      for (const s of uniq) {
+        const baseUrl = `${base}/${s}/${rest}${q}`;
+        cand.push(baseUrl);                 // bez cachebuster
+        cand.push(`${baseUrl}${q ? "&" : "?"}_cb=${Date.now()}`); // z cachebusterem
+      }
+      return cand;
+    } catch { return [u]; }
+  }
+
+  // próba pre-loadu obrazu (bez podmiany widocznego <img>) – sukces => zwraca finalny URL
+  async function tryPreload(src) {
+    // Jeżeli to samo-origin – możemy spróbować pobrać jako blob (lepsza stabilność)
+    if (!isCross(src)) {
+      try {
+        const res = await withTimeout(fetch(src, { mode: "cors", credentials: "omit" }), 7000);
+        if (!res.ok) throw new Error("bad status " + res.status);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        return { ok: true, src: url, blobUrl: url, orig: src };
+      } catch (_) { /* spadamy niżej do "Image" */ }
+    }
+
+    // cross-origin lub fallback – ładujemy do tymczasowego Image
+    await withTimeout(new Promise((resolve, reject) => {
+      const probe = new Image();
+      probe.decoding = "async";
+      probe.loading = "eager";
+      probe.crossOrigin = "anonymous";
+      probe.referrerPolicy = "no-referrer";
+      probe.onload = () => resolve();
+      probe.onerror = () => reject(new Error("img error"));
+      probe.src = src;
+    }), 7000);
+
+    return { ok: true, src, blobUrl: "", orig: src };
+  }
+
+  // zbuduj listę kandydatów (TMDB → różne rozmiary), na końcu oryginał jeśli spoza TMDB
+  const candidates = tmdbCandidates(u0);
+
+  // spróbuj po kolei
+  for (let i = 0; i < candidates.length; i++) {
+    const cand = candidates[i];
+    try {
+      const r = await tryPreload(cand);
+      // jeśli w międzyczasie inny setPosterOnce wystartował – przerwij
+      if (setPosterOnce._token !== localRun) return;
+
+      // ustaw właściwy <img>
+      plPoster.crossOrigin = "anonymous";
+      plPoster.referrerPolicy = "no-referrer";
+      plPoster.src = r.src;
+
+      // utrwal stan (blobUrl jeżeli jest, inaczej clear)
+      if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} }
+      lastPosterBlob = r.blobUrl || "";
+      lastPosterSrc  = r.orig || cand;
+
+      try { await (plPoster.decode?.() || Promise.resolve()); } catch {}
+      return; // sukces, kończymy
+    } catch (_e) {
+      // spróbuj następnego kandydata
+    }
+  }
+
+  // jeśli nic się nie udało – ostatnia próba: ustaw bezpośrednio oryginał
   try {
-    const res = await fetch(u, { mode: "cors", credentials: "omit" });
-    if (!res.ok) throw new Error(String(res.status));
-    const blob = await res.blob();
-    const objUrl = URL.createObjectURL(blob);
-    plPoster.src = objUrl;
-    lastPosterBlob = objUrl;
-    lastPosterSrc = u;
-    try { await (plPoster.decode?.() || Promise.resolve()); } catch {}
-  } catch {
-    // awaryjnie ustaw bezpośrednio
+    if (setPosterOnce._token !== localRun) return;
     plPoster.crossOrigin = "anonymous";
     plPoster.referrerPolicy = "no-referrer";
-    plPoster.src = u;
-    lastPosterSrc = u;
+    plPoster.src = u0;
+    lastPosterSrc = u0;
     lastPosterBlob = "";
-  }
+  } catch {}
 }
-
-
   async function ensurePosterForActiveSession(sess, fallbackUrl) {
     const newKey = String(sess?.item_id || sess?.ratingKey || "");
     if (newKey && newKey !== currentItemKey) {
