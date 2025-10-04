@@ -1191,54 +1191,38 @@ document.addEventListener("DOMContentLoaded", () => {
       : "";
 
   // ---- render ----
-  function render() {
-    const arrRaw =
-      activeKind === "movies"
-        ? Array.isArray(RAW.films)
-          ? RAW.films
-          : Array.isArray(RAW.movies)
-          ? RAW.movies
-          : []
-        : Array.isArray(RAW.series)
-        ? RAW.series
-        : [];
-    const arr = arrRaw.map(canon);
+function render() {
+  const arrRaw =
+    activeKind === "movies"
+      ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies) ? RAW.movies : []))
+      : (Array.isArray(RAW.series) ? RAW.series : []);
+  const arr = arrRaw.map(canon);
 
-    if (!arr.length) {
-      setHTML(listEl, "");
-      setText(infoEl, "Brak pozycji do wyświetlenia.");
-      return;
-    }
-    setText(infoEl, `Pozycji: ${arr.length}`);
+  if (!arr.length) {
+    setHTML(listEl, "");
+    setText(infoEl, "Brak pozycji do wyświetlenia.");
+    return;
+  }
+  setText(infoEl, `Pozycji: ${arr.length}`);
 
-    if (badgeTimer) {
-      clearInterval(badgeTimer);
-      badgeTimer = null;
-    }
+  if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
 
-    const html = arr
-      .map((it) => {
-        const pct = Math.round((it.prog || 0) * 100);
-        const year = it.year ? ` (${it.year})` : "";
-        const sub =
-          it.kind === "series" && it.season != null && it.episode != null
-            ? ep(it)
-            : "";
+  const html = arr.map(it => {
+    const pct  = Math.round((it.prog || 0) * 100);
+    const year = it.year ? ` (${it.year})` : "";
+    const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
 
-        // DEL BOX (kapsuła + data), ukryj dla ulubionych
-        const showDel = !!(it.deleteAt && !it.favorite);
-        const diff = showDel ? it.deleteAt - Date.now() : 0;
-        const delBox = showDel
-          ? `
-        <div class="del-box ${delClass(diff)}" data-delete-at="${it.deleteAt}">
-          <div class="del-badge">${fmtTTL(diff)}</div>
-          <div class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</div>
-        </div>`
-          : "";
+    // kapsuły pod paskiem postępu (nie absolutnie)
+    const showDel = !!(it.deleteAt && !it.favorite);
+    const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
+    const delRow  = showDel ? `
+      <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}">
+        <span class="del-badge">${fmtTTL(diff)}</span>
+        <span class="del-date">usunie: ${fmtDateShort(it.deleteAt)}</span>
+      </div>` : "";
 
-        return `
+    return `
       <article class="av-card">
-        ${delBox}
         <div class="poster" style="position:relative">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
           <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
@@ -1251,44 +1235,48 @@ document.addEventListener("DOMContentLoaded", () => {
               <span class="av-bar" style="width:${pct}%;"></span>
             </div>
           </div>
+
+          ${delRow}  <!-- 🔑 kapsuły tu, pod paskiem, wyrównane do prawej -->
+
           <div class="tiny">${pct}% ${
-            it.dur ? `· ${Math.round((it.pos || 0) / 60)} / ${Math.round((it.dur || 0) / 60)} min` : ""
+            it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
           }</div>
           <div class="actions">
             <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
           </div>
         </div>
       </article>`;
-      })
-      .join("");
-    setHTML(listEl, html);
+  }).join("");
 
-    // Auto-refresh kapsuł co 20 s
-    const refreshBadges = () => {
-      listEl.querySelectorAll(".del-box[data-delete-at]").forEach((box) => {
-        const ts = Number(box.getAttribute("data-delete-at") || "");
-        if (!isFinite(ts)) return;
-        const diff = ts - Date.now();
-        box.classList.remove("ok", "warn", "danger");
-        box.classList.add(delClass(diff));
-        const badge = box.querySelector(".del-badge");
-        if (badge) badge.textContent = fmtTTL(diff);
-      });
-    };
-    badgeTimer = setInterval(refreshBadges, 20000);
+  setHTML(listEl, html);
 
-    // Cast handlers
-    listEl.querySelectorAll(".btn--cast").forEach((b) => {
-      b.addEventListener("click", () => {
-        selected = {
-          id: b.getAttribute("data-id") || "",
-          title: b.getAttribute("data-title") || "",
-          poster: b.getAttribute("data-poster") || "",
-        };
-        openCastModal();
-      });
+  // auto-refresh kapsuł co 20 s (aktualizuje tekst i klasę)
+  const refreshBadges = () => {
+    listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
+      const ts = Number(row.getAttribute("data-delete-at") || "");
+      if (!isFinite(ts)) return;
+      const diff = ts - Date.now();
+      row.classList.remove("ok", "warn", "danger");
+      row.classList.add(delClass(diff));
+      const badge = row.querySelector(".del-badge");
+      if (badge) badge.textContent = fmtTTL(diff);
     });
-  }
+  };
+  badgeTimer = setInterval(refreshBadges, 20000);
+
+  // Cast handlers
+  listEl.querySelectorAll(".btn--cast").forEach(b => {
+    b.addEventListener("click", () => {
+      selected = {
+        id: b.getAttribute("data-id") || "",
+        title: b.getAttribute("data-title") || "",
+        poster: b.getAttribute("data-poster") || "",
+      };
+      openCastModal();
+    });
+  });
+}
+
 
   // ---- load ----
   async function loadAvailable() {
