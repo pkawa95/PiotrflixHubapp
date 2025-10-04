@@ -2573,11 +2573,10 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* --- parametry --- */
 :root{
   --card-radius: 14px;
-  --del-height: 40px;     /* wysokość belki */
-  --del-pad-x: 14px;
+  --del-height: 60px;     /* 🔑 zwiększona wysokość belki */
+  --del-pad-x: 16px;
 
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
   --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
@@ -2588,49 +2587,41 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* KARTA – belka ma prawo „wystawać” poza kartę */
+/* KARTA – bez kombinacji z absolute, belka będzie POD spodem */
 .av-card{
   position: relative;
   border-radius: var(--card-radius);
-  overflow: visible;
+  overflow: hidden;
+  margin-bottom: var(--del-height); /* 🔑 zostawiamy miejsce na belkę */
 }
 
-/* Rezerwujemy dokładnie tyle miejsca, ile ma belka – żeby dotykała karty */
-.av-card.has-del{
-  margin-bottom: var(--del-height);
-}
-
-/* SZUFLADA – przyklejona do spodu karty, pełna szerokość */
-.av-card > .del-row{
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(-1 * var(--del-height));  /* 🔑 dokładnie pod kartą, bez szczeliny */
+/* Belka – pełna szerokość pod spodem karty */
+.av-card + .del-row{
+  width: 100%;
   height: var(--del-height);
+  margin-top: -var(--del-height); /* 🔑 podciągamy ją pod kartę, wygląda jak spód */
+  border-bottom-left-radius: var(--card-radius);
+  border-bottom-right-radius: var(--card-radius);
 
   display: grid;
-  grid-template-columns: 1fr auto;       /* 🔑 zawsze jedna linia, także na mobile */
+  grid-template-columns: 1fr auto; /* jedna linia: lewa + prawa */
   align-items: center;
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
-  border-bottom-left-radius: var(--card-radius);
-  border-bottom-right-radius: var(--card-radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06) inset;
-
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
 }
 
-/* Tła stanów – kolor CAŁEJ belki */
-.av-card > .del-row.ok{    background: var(--del-ok-bg); }
-.av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
-.av-card > .del-row.danger{background: var(--del-danger-bg); }
+/* Stany kolorów */
+.del-row.ok{    background: var(--del-ok-bg); }
+.del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
+.del-row.danger{background: var(--del-danger-bg); }
 
-/* Zawartość – jednowierszowa */
+/* Teksty */
 .del-row__left{
   font-weight: 800;
-  letter-spacing: .2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2638,20 +2629,10 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 .del-row__right{ justify-self: end; }
 .del-date{
   display: inline-block;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 10px;
   font-weight: 600;
   background: var(--del-date-bg);
   color: currentColor;
   white-space: nowrap;
 }
-
-/* Delikatna animacja (opcjonalnie) */
-.av-card > .del-row{
-  transform: translateY(0);
-  opacity: 1;
-  transition: filter .25s ease;
-}
-.av-card:hover > .del-row{ filter: brightness(1.02); }
-
-/* 🔕 Brak media query – układ zawsze „w jednej linii” również na telefonach */
