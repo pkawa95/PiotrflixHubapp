@@ -1489,3 +1489,37 @@ function render() {
     }
   };
 })();
+
+function setDelState(row, diffMs){
+  const state = delClass(diffMs); // 'ok' | 'warn' | 'danger'
+
+  // klasa + data-state na wierszu
+  row.classList.remove('ok','warn','danger');
+  row.classList.add(state);
+  row.dataset.state = state;
+
+  // kapsuła (badge)
+  const badge = row.querySelector('.del-badge');
+  if (badge){
+    badge.classList.remove('ok','warn','danger');
+    badge.classList.add(state);
+
+    // defensywnie nadpisujemy tło inline (żeby nic tego nie przebiło)
+    if (state === 'ok'){
+      badge.style.background = 'linear-gradient(135deg,#28a745,#218838)';
+      badge.style.color = '#ffffff';
+    } else if (state === 'warn'){
+      badge.style.background = 'linear-gradient(135deg,#ffc107,#e0a800)';
+      badge.style.color = '#111111';
+    } else { // danger
+      badge.style.background = 'linear-gradient(135deg,#dc3545,#a71d2a)';
+      badge.style.color = '#ffffff';
+    }
+  }
+
+  // del-date – lekko przyciemniamy tło, ale nie zmieniamy koloru tekstu
+  const date = row.querySelector('.del-date');
+  if (date){
+    date.style.background = 'rgba(0,0,0,.45)';
+  }
+}
