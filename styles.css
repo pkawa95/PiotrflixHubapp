@@ -2805,59 +2805,53 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 }
 
 /* =========================
-   PWA: safe-area + bottom nav + 100vh (z mniejszym paddingiem pod notcha)
+   PWA: safe-area + bottom nav + 100vh
    ========================= */
-:root{
+:root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --vh: 1vh;      /* realne 1% wysokości – JS podmienia */
   --nav-h: 72px;  /* startowa wysokość; JS nadpisze po zmierzeniu */
 }
 
-/* NIE zmieniamy tła — zostaje Twoje! */
 html, body { height: 100%; }
 body, .app, .auth {
   min-height: calc(var(--vh) * 100);
 }
 
-/* Top bary (logo/sticky) – mniejszy margines pod notcha.
-   clamp(min, preferowane, max) – nie rozjedzie się na starszych iPhone’ach */
+/* GÓRNE sticky bary — większy margines od notcha, ale bez przesady */
 .auth__header,
 .tx-stickybar,
 .av2-sticky,
 #av2-header {
-  padding-top: clamp(4px, calc(var(--safe-top) + 2px), 14px);
+  padding-top: clamp(10px, calc(var(--safe-top) + 8px), 24px);
 }
 
-/* Dolna nawigacja zawsze doklejona do dołu */
-.nawigacja{
+/* DOLNA nawigacja zawsze doklejona do dołu */
+.nawigacja {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1000;
 
-  /* delikatny „oddech”, ale mniejszy niż wcześniej */
-  padding-top: 6px;
-  padding-bottom: calc(6px + var(--safe-bottom));
+  padding-top: 8px;
+  padding-bottom: calc(8px + var(--safe-bottom));
 
-  /* zachowaj swoje style wizualne (kolory/blur) w istniejących klasach */
+  /* Twoje tło/menu style zostają takie jak miałeś */
 }
 
-/* Miejsce na treść nad nawigacją, żeby nic nie wjeżdżało pod spód */
+/* TREŚĆ – rezerwacja miejsca nad dolnym menu */
 #content,
 .section,
 #section-torrents,
 #section-search,
 #section-available,
 #section-options {
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 8px);
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
 }
 
-/* Stopka ekranu logowania – też uwzględnia safe-area (jeśli ją masz u dołu) */
+/* Stopka ekranu logowania też ma safe-area */
 .auth__footer {
-  padding-bottom: calc(12px + var(--safe-bottom));
+  padding-bottom: calc(16px + var(--safe-bottom));
 }
-
-/* (opcjonalnie) jeśli masz globalny player doklejony do dołu,
-   możesz mu też dodać safe-area, ale zostawiam zakomentowane:
-#pf-player-portal { bottom: calc(8px + var(--safe-bottom)); }
-*/
