@@ -2575,9 +2575,8 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 
 /* --- parametry --- */
 :root{
-  --card-radius: 14px;    /* zaokrąglenie kart */
+  --card-radius: 14px;
   --del-height: 40px;     /* wysokość belki */
-  --del-offset: 12px;     /* o ile wystaje w dół (i tyle miejsca dodaje karta) */
   --del-pad-x: 14px;
 
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
@@ -2589,49 +2588,46 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* KARTA – musi być position:relative i NIE może ucinać overflow */
+/* KARTA – belka ma prawo „wystawać” poza kartę */
 .av-card{
   position: relative;
   border-radius: var(--card-radius);
-  overflow: visible; /* <- kluczowe, żeby belka była widoczna pod kartą */
+  overflow: visible;
 }
 
-/* Gdy karta ma belkę, dodaj zapas miejsca poniżej */
+/* Rezerwujemy dokładnie tyle miejsca, ile ma belka – żeby dotykała karty */
 .av-card.has-del{
-  margin-bottom: calc(var(--del-height) + var(--del-offset));
+  margin-bottom: var(--del-height);
 }
 
-/* SZUFLADA – pełna szerokość, pod kartą */
+/* SZUFLADA – przyklejona do spodu karty, pełna szerokość */
 .av-card > .del-row{
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(-1 * (var(--del-height) + var(--del-offset)));
+  bottom: calc(-1 * var(--del-height));  /* 🔑 dokładnie pod kartą, bez szczeliny */
   height: var(--del-height);
 
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto;       /* 🔑 zawsze jedna linia, także na mobile */
   align-items: center;
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
   border-bottom-left-radius: var(--card-radius);
   border-bottom-right-radius: var(--card-radius);
-
   box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06) inset;
 
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
-  -webkit-font-smoothing: antialiased;
-  will-change: transform, background, opacity;
 }
 
-/* Kolory stanów – tło całej belki */
+/* Tła stanów – kolor CAŁEJ belki */
 .av-card > .del-row.ok{    background: var(--del-ok-bg); }
 .av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
 .av-card > .del-row.danger{background: var(--del-danger-bg); }
 
-/* Zawartość belki */
+/* Zawartość – jednowierszowa */
 .del-row__left{
   font-weight: 800;
   letter-spacing: .2px;
@@ -2647,26 +2643,15 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   font-weight: 600;
   background: var(--del-date-bg);
   color: currentColor;
+  white-space: nowrap;
 }
 
-/* Delikatna animacja */
+/* Delikatna animacja (opcjonalnie) */
 .av-card > .del-row{
-  transform: translateY(4px);
-  opacity: .98;
-  transition: transform .25s ease, opacity .25s ease;
-}
-.av-card:hover > .del-row{
   transform: translateY(0);
   opacity: 1;
+  transition: filter .25s ease;
 }
+.av-card:hover > .del-row{ filter: brightness(1.02); }
 
-/* Mobile – w jednej kolumnie */
-@media (max-width: 560px){
-  .av-card > .del-row{
-    grid-template-columns: 1fr;
-    height: auto;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-  .del-row__right{ justify-self: start; }
-}
+/* 🔕 Brak media query – układ zawsze „w jednej linii” również na telefonach */
