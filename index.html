@@ -2,39 +2,26 @@
 <html lang="pl" data-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <!-- brak zooma + notch -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PiotrFlix — Logowanie</title>
 
-  <!-- BAZA ŚCIEŻEK DLA GH PAGES -->
+  <!-- USTAWIENIE BAZY DLA ŚCIEŻEK NA GITHUB PAGES (NAZWA REPO!) -->
+  <!-- Jeśli zmienisz nazwę repozytorium, zaktualizuj ten href. -->
   <base href="/PiotrflixHubapp/">
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0b1020">
-  <meta name="application-name" content="PiotrFlix">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="PiotrFlix">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="format-detection" content="telephone=no,email=no,address=no">
-
-  <!-- Ikony w /static -->
-  <link rel="icon" href="static/favicon.ico" sizes="any">
-  <link rel="apple-touch-icon" href="static/apple-touch-icon.png">
-  <link rel="apple-touch-icon" sizes="120x120" href="static/apple-touch-icon-120x120.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="static/apple-touch-icon-152x152.png">
-  <link rel="apple-touch-icon-precomposed" href="static/apple-touch-icon-precomposed.png">
-
-  <!-- CSS -->
+  <!-- Bazowy CSS (działa dzięki <base>) -->
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Preferencja systemowa: dark mode (opcjonalnie do wykorzystania w CSS) -->
   <meta name="color-scheme" content="light dark" />
 </head>
 <body>
 
-  <noscript>Ta aplikacja wymaga JavaScript do logowania i wyświetlania treści.</noscript>
+  <noscript>
+    Ta aplikacja wymaga JavaScript do logowania i wyświetlania treści.
+  </noscript>
 
-  <!-- Przycisk trybu jasny/ciemny -->
+  <!-- Przycisk trybu jasny/ciemny (JS ustawi aria-pressed, data-theme na <html>) -->
   <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" title="Przełącz tryb">
     <span class="visually-hidden">Przełącz tryb jasny/ciemny</span>
   </button>
@@ -48,115 +35,38 @@
     data-login-endpoint="/auth/login"
     data-register-endpoint="/auth/register"
   >
+
+    <!-- Logo u góry, wyśrodkowane -->
     <header class="auth__header">
+      <!-- Dzięki <base> wystarczy podać ścieżkę względem repo -->
       <img src="static/logo.png" alt="PiotrFlix" class="auth__logo" />
     </header>
 
+    <!-- Karta z panelem logowania/rejestracji -->
     <div class="auth__card" data-swipe-area="true" aria-live="polite">
+      <!-- Zakładki: Zaloguj | Zarejestruj -->
       <nav class="auth__tabs" role="tablist" aria-label="Przełączanie paneli">
         <button
-          id="tab-login" class="auth__tab is-active" role="tab"
-          aria-controls="panel-login" aria-selected="true" tabindex="0"
-          data-auth-view="login" type="button">Zaloguj</button>
+          id="tab-login"
+          class="auth__tab is-active"
+          role="tab"
+          aria-controls="panel-login"
+          aria-selected="true"
+          tabindex="0"
+          data-auth-view="login"
+          type="button"
+        >Zaloguj</button>
         <button
-          id="tab-register" class="auth__tab" role="tab"
-          aria-controls="panel-register" aria-selected="false" tabindex="-1"
-          data-auth-view="register" type="button">Zarejestruj</button>
+          id="tab-register"
+          class="auth__tab"
+          role="tab"
+          aria-controls="panel-register"
+          aria-selected="false"
+          tabindex="-1"
+          data-auth-view="register"
+          type="button"
+        >Zarejestruj</button>
       </nav>
-
-      <div class="auth__panels" data-panels-slider="true">
-        <!-- LOGOWANIE -->
-        <section id="panel-login" class="auth__panel" role="tabpanel" aria-labelledby="tab-login" aria-hidden="false" data-view="login">
-          <form id="form-login" class="form" method="post" action="#" novalidate autocomplete="on">
-            <div class="form__row">
-              <label for="login-email" class="form__label">Adres e-mail</label>
-              <input id="login-email" name="email" class="form__input" type="email" inputmode="email" autocomplete="email" required aria-describedby="login-email-error" />
-              <p id="login-email-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row">
-              <label for="login-password" class="form__label">Hasło</label>
-              <input id="login-password" name="password" class="form__input" type="password" autocomplete="current-password" required aria-describedby="login-password-error" />
-              <p id="login-password-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row form__row--inline">
-              <label class="checkbox">
-                <input id="login-remember" name="remember" type="checkbox" />
-                <span>Nie wylogowuj mnie</span>
-              </label>
-            </div>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary" data-action="login-submit">Zaloguj się</button>
-            </div>
-            <p id="login-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
-          </form>
-        </section>
-
-        <!-- REJESTRACJA -->
-        <section id="panel-register" class="auth__panel" role="tabpanel" aria-labelledby="tab-register" aria-hidden="true" data-view="register">
-          <form id="form-register" class="form" method="post" action="#" novalidate autocomplete="on">
-            <div class="form__row">
-              <label for="reg-firstname" class="form__label">Imię</label>
-              <input id="reg-firstname" name="firstname" class="form__input" type="text" autocomplete="given-name" required aria-describedby="reg-firstname-error" />
-              <p id="reg-firstname-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row">
-              <label for="reg-lastname" class="form__label">Nazwisko</label>
-              <input id="reg-lastname" name="lastname" class="form__input" type="text" autocomplete="family-name" required aria-describedby="reg-lastname-error" />
-              <p id="reg-lastname-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row">
-              <label for="reg-email" class="form__label">Adres e-mail</label>
-              <input id="reg-email" name="email" class="form__input" type="email" inputmode="email" autocomplete="email" required aria-describedby="reg-email-error" />
-              <p id="reg-email-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row">
-              <label for="reg-password" class="form__label">Hasło</label>
-              <input id="reg-password" name="password" class="form__input" type="password" autocomplete="new-password" required aria-describedby="reg-password-error" />
-              <p id="reg-password-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__row">
-              <label for="reg-password2" class="form__label">Powtórz hasło</label>
-              <input id="reg-password2" name="password_confirm" class="form__input" type="password" autocomplete="new-password" required aria-describedby="reg-password2-error" />
-              <p id="reg-password2-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary" data-action="register-submit">Utwórz konto</button>
-            </div>
-            <p id="register-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
-          </form>
-        </section>
-      </div>
-
-      <div class="auth__hint" aria-hidden="true">Przesuń w lewo/prawo, aby przełączyć panele</div>
-    </div>
-
-    <footer class="auth__footer">
-      <img src="static/icon.png" alt="" class="auth__footer-icon" />
-      <span>© PiotrFlix 2025</span>
-    </footer>
-  </section>
-
-  <!-- ========================= APLIKACJA (CONTENT) ========================= -->
-  <div id="app" class="app" hidden>
-    <!-- ====== NAWIGACJA ====== -->
-    <nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
-      <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
-        <span class="nawigacja__ico ico--torrents" aria-hidden="true"></span>
-        <span class="nawigacja__label">Torrenty</span>
-      </button>
-      <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
-        <span class="nawigacja__ico ico--search" aria-hidden="true"></span>
-        <span class="nawigacja__label">Wyszukaj</span>
-      </button>
-      <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
-        <span class="nawigacja__ico ico--available" aria-hidden="true"></span>
-        <span class="nawigacja__label">Dostępne</span>
-      </button>
-      <button class="nawigacja__btn" data-section="options" role="tab" aria-controls="section-options" aria-selected="false">
-        <span class="nawigacja__ico ico--options" aria-hidden="true"></span>
-        <span class="nawigacja__label">Opcje</span>
-      </button>
-    </nav>
 
       <!-- Wrapper pod gesty (swipe). JS może robić przesuwany slider. -->
       <div class="auth__panels" data-panels-slider="true">
@@ -541,18 +451,5 @@
 
   <!-- Główny skrypt aplikacji (działa dzięki <base>) -->
   <script src="app.js" defer></script>
-<script>
-  // Dodaj klasę na <html> gdy PWA działa pełnoekranowo/standalone
-  function applyDisplayMode() {
-    const html = document.documentElement;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-      || window.matchMedia('(display-mode: fullscreen)').matches
-      || navigator.standalone; // iOS
-    html.classList.toggle('pwa-standalone', !!isStandalone);
-  }
-  window.addEventListener('load', applyDisplayMode);
-  window.matchMedia('(display-mode: standalone)').addEventListener?.('change', applyDisplayMode);
-  window.matchMedia('(display-mode: fullscreen)').addEventListener?.('change', applyDisplayMode);
-</script>
 </body>
 </html>
