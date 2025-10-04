@@ -2603,7 +2603,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   height: var(--del-height);
 
   /* 🔑 belka zachodzi pod kartę */
-  margin-top: -20px; /* podciągamy do góry, aż „wejdzie” pod kartę */
+  margin-top: -40px; /* podciągamy do góry, aż „wejdzie” pod kartę */
   margin-bottom: 20px;
 
   border-bottom-left-radius: var(--card-radius);
