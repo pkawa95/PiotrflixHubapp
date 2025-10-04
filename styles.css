@@ -2803,3 +2803,69 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
     --del-pad-x: 8px;
   }
 }
+
+/* =========================
+   PWA: safe-area + fixed bottom nav + prawdziwe 100vh
+   ========================= */
+:root{
+  /* iOS/Android safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --vh: 1vh;           /* JS podmieni na realne 1% wysokości okna */
+  --nav-h: 80px;       /* zaktualizuje JS po zmierzeniu nawigacji */
+}
+
+/* niech całe UI ma minimum prawdziwe 100vh z uwzględnieniem paska */
+html, body { height: 100%; }
+body, .app, .auth {
+  min-height: calc(var(--vh) * 100);
+  background-color: #0b0f17; /* cokolwiek masz – zachowaj swój motyw */
+}
+
+/* odstęp od notcha u wszystkich „top barów” (sticky nagłówki) */
+.auth__header,
+.tx-stickybar,
+.av2-sticky,
+#av2-header {
+  padding-top: calc(12px + var(--safe-top));
+}
+
+/* Dolna nawigacja zawsze przyklejona do dołu ekranu */
+.nawigacja{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+
+  /* twój wygląd zachowaj — poniższe to tylko „bezpieczny” padding */
+  padding-top: 8px;
+  padding-bottom: calc(8px + var(--safe-bottom));
+
+  /* jeśli używasz tła ze szkłem, to zostaw to co miałeś;
+     poniżej przykładowe:
+  backdrop-filter: blur(12px);
+  background: rgba(10, 14, 22, 0.75);
+  */
+}
+
+/* Zarezerwuj miejsce na treść nad nawigacją, aby nic pod nią nie wjeżdżało */
+#content,
+.section,
+#section-torrents,
+#section-search,
+#section-available,
+#section-options {
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+}
+
+/* (opcjonalnie) jeżeli masz gdzieś footer na ekranie logowania,
+   też dodaj mu przestrzeń nad bottom-nav gdy appka jest widoczna */
+.auth__footer {
+  padding-bottom: calc(16px + var(--safe-bottom));
+}
+
+/* Jeżeli masz globalny player (portal) albo cokolwiek przyklejonego do dołu,
+   nic nie trzeba zmieniać — ale gdybyś chciał wymusić oddech:
+#pf-player-portal { bottom: calc(8px + var(--safe-bottom)); }
+*/
