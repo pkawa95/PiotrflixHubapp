@@ -1034,27 +1034,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function apiJson(path, opt = {}) {
     const headers = new Headers(opt.headers || {});
-    if (
-      !headers.has("Content-Type") &&
-      opt.body &&
-      typeof opt.body === "object" &&
-      !(opt.body instanceof FormData)
-    ) {
+    if (!headers.has("Content-Type") &&
+        opt.body && typeof opt.body === "object" &&
+        !(opt.body instanceof FormData)) {
       headers.set("Content-Type", "application/json");
     }
     const init = { ...opt, headers };
-    if (headers.get("Content-Type") === "application/json" && init.body && typeof init.body === "object") {
+    if (headers.get("Content-Type") === "application/json" &&
+        init.body && typeof init.body === "object") {
       init.body = JSON.stringify(init.body);
     }
     const res = await window.authFetch(joinUrl(API, path), init);
     const txt = await res.text().catch(() => "");
     if (!res.ok) {
-      try {
-        const j = JSON.parse(txt);
-        throw new Error(j.message || j.error || `${res.status}`);
-      } catch {
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
+      try { const j = JSON.parse(txt); throw new Error(j.message || j.error || `${res.status}`); }
+      catch { throw new Error(txt || `HTTP ${res.status}`); }
     }
     try { return JSON.parse(txt); } catch { return txt; }
   }
@@ -1101,20 +1095,14 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(t) ? null : t;
   };
 
-  // Format daty PL, ale z bezpiecznym fallbackiem
   const fmtDateShort = (ms) => {
     if (!ms) return "";
     try {
       return new Date(ms).toLocaleString("pl-PL", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit",
       });
-    } catch {
-      return new Date(ms).toLocaleString();
-    }
+    } catch { return new Date(ms).toLocaleString(); }
   };
 
   // ---- DEL BAR ----
@@ -1152,9 +1140,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function canon(r) {
     const title = r.display_title || r.title || r.name || "—";
     const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-    const isSeries =
-      (r.kind || r.type || "").toLowerCase() === "series" ||
-      !!r.season || !!r.episode;
+    const isSeries = (r.kind || r.type || "").toLowerCase() === "series" || !!r.season || !!r.episode;
     const kind = isSeries ? "series" : "movie";
     const pos =
       (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
@@ -1208,6 +1194,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
+
+      // 🔑 SZUFLADA – element POZA ".body", pełna szerokość
       const delBar  = showDel ? `
         <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
           <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
@@ -1236,7 +1224,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          ${delBar} <!-- 🔑 SZUFLADA – absolutnie pod kartą -->
+          ${delBar}
         </article>`;
     }).join("");
 
@@ -1314,7 +1302,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---- CAST ----
+  // ---- CAST (bez zmian kluczowych) ----
   function openCastModal() {
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson("/cast/players", { method: "GET" })
@@ -1325,15 +1313,11 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           castSel.innerHTML =
             `<option value="">— wybierz —</option>` +
-            list
-              .map(
-                (d) =>
-                  `<option value="${d.id}">${esc(d.name || d.product || "Plex")} — ${esc(d.platform || "")}</option>`
-              )
-              .join("");
+            list.map((d) =>
+              `<option value="${d.id}">${esc(d.name || d.product || "Plex")} — ${esc(d.platform || "")}</option>`
+            ).join("");
           const prev = localStorage.getItem("pf_cast_client") || "";
-          if (prev && list.some((x) => String(x.id) === String(prev)))
-            castSel.value = prev;
+          if (prev && list.some((x) => String(x.id) === String(prev))) castSel.value = prev;
         }
       })
       .catch(() => { castSel.innerHTML = `<option value="">(błąd)</option>`; });
@@ -1355,11 +1339,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await apiJson("/cast/start", {
         method: "POST",
-        body: {
-          item_id: String(selected.id),
-          client_id: cid,
-          client_name: castSel.options[castSel.selectedIndex]?.text || "",
-        },
+        body: { item_id: String(selected.id), client_id: cid,
+                client_name: castSel.options[castSel.selectedIndex]?.text || "" },
       });
       if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || "";
@@ -1374,7 +1355,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const s = sec % 60;
     return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
-
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     const sess =
@@ -1383,10 +1363,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) {
-      plSeek.max = dur > 0 ? String(dur) : "100";
-      plSeek.value = String(pos || 0);
-    }
+    if (plSeek) { plSeek.max = dur > 0 ? String(dur) : "100"; plSeek.value = String(pos || 0); }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
   }
@@ -1400,19 +1377,12 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (_) {}
     }, 1500);
   }
-  function stopStatusLoop() {
-    if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
-  }
+  function stopStatusLoop() { if (statusTimer) { clearInterval(statusTimer); statusTimer = null; } }
 
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs } }); } catch (_) {}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
@@ -1447,7 +1417,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 })();
 
-/* ===================== Standalone kolorowanie szuflady ===================== */
+/* ===================== Kolorowanie szuflady (tylko klasy) ===================== */
 function setDelState(row, diffMs){
   var state;
   if (diffMs <= 0) state = 'danger';
@@ -1461,4 +1431,3 @@ function setDelState(row, diffMs){
   row.classList.add(state);
   row.dataset.state = state;
 }
-

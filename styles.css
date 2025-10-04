@@ -2573,11 +2573,11 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* Zmienne i bazowe kolory */
+/* --- parametry --- */
 :root{
-  --card-radius: 14px;
-  --del-height: 38px;          /* wysokość belki */
-  --del-gap: 12px;             /* odległość od dołu karty (ujemna) */
+  --card-radius: 14px;    /* zaokrąglenie kart */
+  --del-height: 40px;     /* wysokość belki */
+  --del-offset: 12px;     /* o ile wystaje w dół (i tyle miejsca dodaje karta) */
   --del-pad-x: 14px;
 
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
@@ -2589,25 +2589,24 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* Karta */
+/* KARTA – musi być position:relative i NIE może ucinać overflow */
 .av-card{
   position: relative;
   border-radius: var(--card-radius);
-  overflow: hidden; /* dla ładnych krawędzi samej karty */
-  background: transparent; /* nic nie nadpisujemy */
+  overflow: visible; /* <- kluczowe, żeby belka była widoczna pod kartą */
 }
 
-/* Dajemy miejsce NA DOLE karty, żeby szuflada miała przestrzeń */
+/* Gdy karta ma belkę, dodaj zapas miejsca poniżej */
 .av-card.has-del{
-  margin-bottom: calc(var(--del-height) + 10px);
+  margin-bottom: calc(var(--del-height) + var(--del-offset));
 }
 
-/* SZUFLADA – belka pod kartą */
+/* SZUFLADA – pełna szerokość, pod kartą */
 .av-card > .del-row{
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(-1 * (var(--del-height) + var(--del-gap)));
+  bottom: calc(-1 * (var(--del-height) + var(--del-offset)));
   height: var(--del-height);
 
   display: grid;
@@ -2616,25 +2615,23 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
-  /* zaokrąglenie jak karta – „przedłużenie” spodu */
   border-bottom-left-radius: var(--card-radius);
   border-bottom-right-radius: var(--card-radius);
 
-  /* cieniuje jak element UI */
   box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06) inset;
 
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
   -webkit-font-smoothing: antialiased;
-  will-change: transform, background;
+  will-change: transform, background, opacity;
 }
 
-/* Tła stanów – kolor CAŁEJ belki */
+/* Kolory stanów – tło całej belki */
 .av-card > .del-row.ok{    background: var(--del-ok-bg); }
 .av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
 .av-card > .del-row.danger{background: var(--del-danger-bg); }
 
-/* Zawartość */
+/* Zawartość belki */
 .del-row__left{
   font-weight: 800;
   letter-spacing: .2px;
@@ -2642,9 +2639,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.del-row__right{
-  justify-self: end;
-}
+.del-row__right{ justify-self: end; }
 .del-date{
   display: inline-block;
   padding: 6px 10px;
@@ -2654,7 +2649,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   color: currentColor;
 }
 
-/* Drobna animacja pokazania (opcjonalnie) */
+/* Delikatna animacja */
 .av-card > .del-row{
   transform: translateY(4px);
   opacity: .98;
@@ -2665,7 +2660,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   opacity: 1;
 }
 
-/* Mobile – gdy wąsko, ułóż w 1 kolumnę */
+/* Mobile – w jednej kolumnie */
 @media (max-width: 560px){
   .av-card > .del-row{
     grid-template-columns: 1fr;
@@ -2673,8 +2668,5 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
     padding-top: 8px;
     padding-bottom: 8px;
   }
-  .del-row__right{
-    justify-self: start;
-    opacity: .95;
-  }
+  .del-row__right{ justify-self: start; }
 }
