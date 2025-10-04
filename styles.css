@@ -2572,66 +2572,91 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   /* jeśli chcesz, dodaj lekki bufor dla tytułu, ale nie wpływa na progress */
   #section-available .av-card .title{ padding-right: 140px; }
 }
-:root {
+
+/* ====== USTAWIENIA ====== */
+:root{
   --card-radius: 14px;
-  --del-height: 60px; /* 🔑 wyższa belka */
+
+  /* wysokość i padding belki */
+  --del-height: 60px;     /* 🔑 wysoka podbudówka */
   --del-pad-x: 16px;
 
+  /* kolory stanów */
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
   --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
   --del-danger-bg:linear-gradient(135deg,#dc3545,#a71d2a);
 
+  /* teksty */
   --del-text: #fff;
   --del-text-warn: #111;
   --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* karta dostaje odstęp na fundament */
-.av-card.has-del {
-  margin-bottom: 0;
+/* sama karta — nic nie kombinujemy, tylko upewniamy się że ma promień */
+.av-card{
+  border-radius: var(--card-radius);
 }
 
-/* fundament — nowy wiersz pod kartą */
-.del-row {
+/* ====== BELKA FUNDAMENTU POD KARTĄ ====== */
+.del-row{
   width: 100%;
   height: var(--del-height);
-  margin-top: -1px; /* 🔑 żeby nie było szpary */
+
+  /* brak szczeliny między kartą a belką */
+  margin-top: -1px; /* lekko zachodzi pod dół karty */
+  margin-bottom: 16px; /* odstęp od następnej karty */
+
+  /* tylko dolne rogi zaokrąglone – wygląda jak przedłużenie karty */
   border-bottom-left-radius: var(--card-radius);
   border-bottom-right-radius: var(--card-radius);
 
+  /* układ zawsze JEDNA LINIA: [lewa treść]  [prawa data] */
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
+  /* delikatna kreska oddzielająca od karty i połysk */
+  border-top: 1px solid rgba(255,255,255,.06);
+  box-shadow:
+    0 8px 24px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.04);
+
   color: var(--del-text);
-  font-weight: 700;
   backdrop-filter: blur(1.5px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* stany */
-.del-row.ok     { background: var(--del-ok-bg); }
-.del-row.warn   { background: var(--del-warn-bg); color: var(--del-text-warn); }
-.del-row.danger { background: var(--del-danger-bg); }
+/* stany (kolor całej belki) */
+.del-row.ok{    background: var(--del-ok-bg); }
+.del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
+.del-row.danger{background: var(--del-danger-bg); }
 
-/* teksty */
-.del-row__left {
+/* zawartość */
+.del-row__left{
+  min-width: 0;                /* pozwala działać ellipsis */
   font-weight: 800;
+  letter-spacing: .2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.del-row__right {
+.del-row__right{
   justify-self: end;
 }
-.del-date {
+.del-date{
   display: inline-block;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
   font-weight: 600;
   background: var(--del-date-bg);
   color: currentColor;
   white-space: nowrap;
 }
+
+/* subtelna interakcja */
+.del-row{ transition: filter .2s ease, transform .2s ease; }
+.del-row:hover{ filter: brightness(1.03); }
+
+/* brak media queries – układ zawsze jednowierszowy, też na mobile */
