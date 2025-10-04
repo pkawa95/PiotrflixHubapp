@@ -1195,37 +1195,37 @@ document.addEventListener("DOMContentLoaded", () => {
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
 
-      // 🔑 SZUFLADA – element POZA ".body", pełna szerokość
+      // fundament – jako OSOBNY ELEMENT po karcie
       const delBar  = showDel ? `
-        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-          <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
-          <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
-        </div>` : "";
+<div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
+  <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
+  <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
+</div>` : "";
 
       return `
-        <article class="av-card ${showDel ? "has-del" : ""}">
-          <div class="poster" style="position:relative">
-            <img class="av-poster" src="${esc(it.poster)}" alt="">
-            <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
-          </div>
-          <div class="body">
-            <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
-            ${sub ? `<div class="meta">${sub}</div>` : ""}
-            <div class="av-progress-wrap">
-              <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-                <span class="av-bar" style="width:${pct}%;"></span>
-              </div>
-            </div>
-            <div class="tiny">${pct}% ${
-              it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
-            }</div>
-            <div class="actions">
-              <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
-            </div>
-          </div>
-
-          ${delBar}
-        </article>`;
+<article class="av-card ${showDel ? "has-del" : ""}">
+  <div class="poster" style="position:relative">
+    <img class="av-poster" src="${esc(it.poster)}" alt="">
+    <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
+  </div>
+  <div class="body">
+    <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
+    ${sub ? `<div class="meta">${sub}</div>` : ""}
+    <div class="av-progress-wrap">
+      <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+        <span class="av-bar" style="width:${pct}%;"></span>
+      </div>
+    </div>
+    <div class="tiny">${pct}% ${
+      it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
+    }</div>
+    <div class="actions">
+      <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
+    </div>
+  </div>
+</article>
+${delBar}
+`;
     }).join("");
 
     setHTML(listEl, html);
