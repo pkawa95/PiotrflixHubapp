@@ -2488,3 +2488,66 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .del-date{ font-size: 10px; padding: 3px 7px; }
   #section-available .av-card .title{ padding-right: clamp(96px, 38vw, 160px); }
 }
+
+/* =========================
+   OVERRIDES: del-badge layout
+   ========================= */
+
+/* desktop: niech kapsuła nie jest zbyt szeroka,
+   a tytuł/progress mają miejsce po prawej */
+#section-available .av-card .del-box{
+  top: 8px;
+  right: 10px;
+  max-width: 46%;
+}
+#section-available .av-card .title{
+  /* rezerwa po prawej na kapsułę (gdy jest) */
+  padding-right: clamp(120px, 18vw, 220px);
+}
+#section-available .av-progress-wrap{
+  /* odsuń delikatnie, żeby kapsuła optycznie nie „siedziała” na pasku */
+  margin-right: clamp(90px, 14vw, 180px);
+}
+
+/* mobile: kapsuła w normalnym flow, nad treścią karty (po prawej) */
+@media (max-width:560px){
+  #section-available .av-card{
+    grid-template-columns: 72px 1fr;
+  }
+
+  #section-available .av-card .del-box{
+    position: static !important;      /* wyłącz absolute */
+    grid-column: 1 / -1;              /* pełna szerokość w siatce karty */
+    margin: 2px 0 6px auto;           /* do prawej, z odstępem pod spodem */
+    pointer-events: none;             /* nie blokuje kliknięć na kartę */
+    max-width: 100%;
+  }
+
+  /* drobne zmniejszenie kapsuł na małych ekranach */
+  #section-available .av-card .del-badge{
+    font-size: 11px;
+    padding: 5px 9px;
+    border-radius: 10px;
+  }
+  #section-available .av-card .del-date{
+    font-size: 10px;
+    padding: 3px 7px;
+    border-radius: 8px;
+  }
+
+  /* tytuł już nie musi mieć rezerwy po prawej */
+  #section-available .av-card .title{
+    padding-right: 0;
+  }
+
+  /* pasek bez dodatkowego marginesu po prawej */
+  #section-available .av-progress-wrap{
+    margin-right: 0;
+  }
+}
+
+/* ultra-wąskie (≤360px): jeszcze mniejsze kapsuły */
+@media (max-width:360px){
+  #section-available .av-card .del-badge{ font-size: 10.5px; padding: 4px 8px; }
+  #section-available .av-card .del-date{  font-size: 9.5px;  padding: 2px 6px; }
+}
