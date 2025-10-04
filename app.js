@@ -1834,27 +1834,4 @@ function setDelState(row, diffMs){
 }
 
 
-// ===== PWA helpers: prawdziwe 100vh + wysokość bottom nav =====
-(function(){
-  function setVH(){
-    // realne 100vh (iOS nie liczy paska adresu)
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  }
-  function setNavH(){
-    const nav = document.getElementById('nawigacja');
-    if (!nav) return;
-    const h = nav.getBoundingClientRect().height;
-    document.documentElement.style.setProperty('--nav-h', `${Math.ceil(h)}px`);
-  }
-  const onResize = () => { setVH(); setNavH(); };
 
-  window.addEventListener('resize', onResize, { passive:true });
-  window.addEventListener('orientationchange', () => setTimeout(onResize, 60), { passive:true });
-  document.addEventListener('DOMContentLoaded', () => {
-    setVH();
-    // poczekaj aż fonty / CSS się ułożą, wtedy zmierz dolne menu
-    requestAnimationFrame(() => setNavH());
-    setTimeout(setNavH, 150); // poprawka po ewentualnych animacjach
-  });
-})();

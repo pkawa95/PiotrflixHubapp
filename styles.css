@@ -2805,67 +2805,59 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 }
 
 /* =========================
-   PWA: safe-area + fixed bottom nav + prawdziwe 100vh
+   PWA: safe-area + bottom nav + 100vh (z mniejszym paddingiem pod notcha)
    ========================= */
 :root{
-  /* iOS/Android safe areas */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --vh: 1vh;           /* JS podmieni na realne 1% wysokości okna */
-  --nav-h: 80px;       /* zaktualizuje JS po zmierzeniu nawigacji */
+  --vh: 1vh;      /* realne 1% wysokości – JS podmienia */
+  --nav-h: 72px;  /* startowa wysokość; JS nadpisze po zmierzeniu */
 }
 
-/* niech całe UI ma minimum prawdziwe 100vh z uwzględnieniem paska */
+/* NIE zmieniamy tła — zostaje Twoje! */
 html, body { height: 100%; }
 body, .app, .auth {
   min-height: calc(var(--vh) * 100);
-  background-color: #0b0f17; /* cokolwiek masz – zachowaj swój motyw */
 }
 
-/* odstęp od notcha u wszystkich „top barów” (sticky nagłówki) */
+/* Top bary (logo/sticky) – mniejszy margines pod notcha.
+   clamp(min, preferowane, max) – nie rozjedzie się na starszych iPhone’ach */
 .auth__header,
 .tx-stickybar,
 .av2-sticky,
 #av2-header {
-  padding-top: calc(12px + var(--safe-top));
+  padding-top: clamp(4px, calc(var(--safe-top) + 2px), 14px);
 }
 
-/* Dolna nawigacja zawsze przyklejona do dołu ekranu */
+/* Dolna nawigacja zawsze doklejona do dołu */
 .nawigacja{
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 0; right: 0; bottom: 0;
   z-index: 1000;
 
-  /* twój wygląd zachowaj — poniższe to tylko „bezpieczny” padding */
-  padding-top: 8px;
-  padding-bottom: calc(8px + var(--safe-bottom));
+  /* delikatny „oddech”, ale mniejszy niż wcześniej */
+  padding-top: 6px;
+  padding-bottom: calc(6px + var(--safe-bottom));
 
-  /* jeśli używasz tła ze szkłem, to zostaw to co miałeś;
-     poniżej przykładowe:
-  backdrop-filter: blur(12px);
-  background: rgba(10, 14, 22, 0.75);
-  */
+  /* zachowaj swoje style wizualne (kolory/blur) w istniejących klasach */
 }
 
-/* Zarezerwuj miejsce na treść nad nawigacją, aby nic pod nią nie wjeżdżało */
+/* Miejsce na treść nad nawigacją, żeby nic nie wjeżdżało pod spód */
 #content,
 .section,
 #section-torrents,
 #section-search,
 #section-available,
 #section-options {
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 8px);
 }
 
-/* (opcjonalnie) jeżeli masz gdzieś footer na ekranie logowania,
-   też dodaj mu przestrzeń nad bottom-nav gdy appka jest widoczna */
+/* Stopka ekranu logowania – też uwzględnia safe-area (jeśli ją masz u dołu) */
 .auth__footer {
-  padding-bottom: calc(16px + var(--safe-bottom));
+  padding-bottom: calc(12px + var(--safe-bottom));
 }
 
-/* Jeżeli masz globalny player (portal) albo cokolwiek przyklejonego do dołu,
-   nic nie trzeba zmieniać — ale gdybyś chciał wymusić oddech:
+/* (opcjonalnie) jeśli masz globalny player doklejony do dołu,
+   możesz mu też dodać safe-area, ale zostawiam zakomentowane:
 #pf-player-portal { bottom: calc(8px + var(--safe-bottom)); }
 */
