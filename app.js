@@ -1053,26 +1053,28 @@ document.addEventListener("DOMContentLoaded", () => {
     try { return JSON.parse(txt); } catch { return txt; }
   }
 
-  // ---- UI refs ----
+  // ---- UI refs (lista/tabs w sekcji) ----
   const tabsHost = section.querySelector("#av2-tabs");
   const tabMovies = section.querySelector("#av2-tab-movies");
   const tabSeries = section.querySelector("#av2-tab-series");
   const infoEl = section.querySelector("#av2-info");
   const listEl = section.querySelector("#av2-list");
 
-  const playerBox = section.querySelector("#av2-player");
-  const plPoster  = section.querySelector("#av2-pl-poster");
-  const plSeek    = section.querySelector("#av2-pl-seek");
-  const plTime    = section.querySelector("#av2-pl-time");
-  const plPct     = section.querySelector("#av2-pl-pct");
-  const btnPlay   = section.querySelector("#av2-btn-play");
-  const btnPause  = section.querySelector("#av2-btn-pause");
-  const btnStop   = section.querySelector("#av2-btn-stop");
-  const plTitle   = section.querySelector("#av2-pl-title"); // 🔑 tytuł w playerze (opcjonalny element w DOM)
+  // ---- UI refs (player + modal GLOBALNIE – mogą być poza sekcją) ----
+  const playerBox = document.getElementById("av2-player");
+  const plPoster  = document.getElementById("av2-pl-poster");
+  const plSeek    = document.getElementById("av2-pl-seek");
+  const plTime    = document.getElementById("av2-pl-time");
+  const plPct     = document.getElementById("av2-pl-pct");
+  const btnPlay   = document.getElementById("av2-btn-play");
+  const btnPause  = document.getElementById("av2-btn-pause");
+  const btnStop   = document.getElementById("av2-btn-stop");
+  const plTitle   = document.getElementById("av2-pl-title"); // tytuł w playerze (opcjonalny)
 
-  const dlg = section.querySelector("#av2-cast-modal");
-  const castSel   = section.querySelector("#av2-device");
-  const castStart = section.querySelector("#av2-cast-start");
+  const dlg       = document.getElementById("av2-cast-modal");
+  const castSel   = document.getElementById("av2-device");
+  const castStart = document.getElementById("av2-cast-start");
+  const castCancel= document.getElementById("av2-cast-cancel");
 
   // ---- utils ----
   const setText = (el, t) => { if (el) el.textContent = t; };
@@ -1136,6 +1138,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentClientId = localStorage.getItem("pf_cast_client") || "";
   let statusTimer = null;
   let badgeTimer  = null;
+  let castingInFlight = false;
 
   // ---- canon map ----
   function canon(r) {
@@ -1196,7 +1199,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
 
-      // footer wewnątrz karty
       const delFooter = showDel ? `
         <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
           <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
@@ -1302,26 +1304,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---- dialog helpers (otwieranie/zamykanie zawsze działa) ----
+  // ---- dialog helpers ----
   function openDialog(d){
     if (!d) return;
-    if (typeof d.showModal === "function") d.showModal();
-    else d.setAttribute("open", "");
+    try { (typeof d.showModal === "function") ? d.showModal() : d.setAttribute("open",""); }
+    catch { d.setAttribute("open",""); }
   }
   function closeDialog(d){
     if (!d) return;
-    try {
-      if (typeof d.close === "function") d.close();
-      else d.removeAttribute("open");
-    } catch (_) {
-      d.removeAttribute("open");
-    }
+    try { (typeof d.close === "function") ? d.close() : d.removeAttribute("open"); }
+    catch { d.removeAttribute("open"); }
   }
 
   // ---- CAST + floating player ----
   function openCastModal() {
     if (!dlg) return;
-    if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
+    if (castSel) {
+      castSel.innerHTML = `<option value="">— ładuję… —</option>`;
+      castSel.value = "";
+    }
     apiJson("/cast/players", { method: "GET" })
       .then((j) => {
         const list = Array.isArray(j?.devices) ? j.devices : [];
@@ -1337,34 +1338,29 @@ document.addEventListener("DOMContentLoaded", () => {
           if (prev && list.some((x) => String(x.id) === String(prev))) castSel.value = prev;
         }
       })
-      .catch(() => { castSel.innerHTML = `<option value="">(błąd)</option>`; });
+      .catch(() => { if (castSel) castSel.innerHTML = `<option value="">(błąd)</option>`; });
 
-    // otwórz modal
     openDialog(dlg);
   }
 
-  // ❌ Wyjście / anulowanie modala — działa zawsze (przycisk / tło / Esc)
-  // Delegacja na typowe selektory anulowania + dedykowany #av2-cast-cancel (jeśli istnieje)
+  // Zamknięcie modala zawsze działa (przycisk/tło/Esc)
   if (dlg) {
     dlg.addEventListener("click", (e) => {
       const t = e.target;
-      if (
-        t.matches?.("#av2-cast-cancel, [data-close], [data-dismiss='modal'], .js-cancel, .btn-cancel, .btn-close")
-      ) {
+      if (t === dlg) { // klik w backdrop
+        closeDialog(dlg);
+      }
+      if (t.matches?.("#av2-cast-cancel, [data-close], [data-dismiss='modal'], .js-cancel, .btn-cancel, .btn-close")) {
         e.preventDefault();
         closeDialog(dlg);
       }
-      // klik w tło <dialog> zamyka (gdy klikniemy poza „modal box”)
-      if (t === dlg) {
-        closeDialog(dlg);
-      }
     });
-    // Esc („cancel”) zawsze zamyka
     dlg.addEventListener("cancel", (e) => {
       e.preventDefault();
       closeDialog(dlg);
     });
   }
+  castCancel?.addEventListener("click", (e) => { e.preventDefault(); closeDialog(dlg); });
 
   castSel?.addEventListener("change", () => {
     currentClientId = castSel.value || "";
@@ -1373,32 +1369,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
   castStart?.addEventListener("click", async (e) => {
     e.preventDefault();
+    if (castingInFlight) return;
     const cid = castSel?.value || "";
-    if (!cid) { closeDialog(dlg); return; } // pozwól wyjść jeśli nic nie wybrane
+    // pozwól wyjść jeśli nic nie wybrane
+    if (!cid) { closeDialog(dlg); return; }
     if (!selected || !/^\d+$/.test(String(selected.id || ""))) { closeDialog(dlg); return; }
+
+    castingInFlight = true;
+    castStart?.setAttribute?.("disabled", "true");
+
     try {
       await apiJson("/cast/start", {
         method: "POST",
-        body: { item_id: String(selected.id), client_id: cid,
-                client_name: castSel.options[castSel.selectedIndex]?.text || "" },
+        body: {
+          item_id: String(selected.id),
+          client_id: cid,
+          client_name: castSel.options[castSel.selectedIndex]?.text || ""
+        },
       });
+
+      // pokaż player (GLOBAL REF) i skonfiguruj
       if (playerBox) {
         playerBox.hidden = false;
         makePlayerFloating();
         startStatusLoop();
       }
       if (plPoster) plPoster.src = selected.poster || "";
-      if (plTitle)  setText(plTitle, selected.title || ""); // 🔑 ustaw tytuł w playerze
-    } catch (_) {
-      // opcjonalnie: toast błędu
+      if (plTitle)  setText(plTitle, selected.title || "");
+    } catch (err) {
+      console.warn("cast/start error:", err);
     } finally {
       closeDialog(dlg);
+      castingInFlight = false;
+      castStart?.removeAttribute?.("disabled");
     }
   });
 
   // Floating player helpers
   function measureBottomBarsHeight() {
-    // znajdź przyklejone/dolne nawigacje/paski
     const candidates = document.querySelectorAll(
       'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
     );
@@ -1413,7 +1421,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
-    // ewentualny bezpieczny margines (CSS var) jeśli używasz safe-area
     const root = getComputedStyle(document.documentElement);
     const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
     return h + (isFinite(safe) ? safe : 0);
@@ -1421,10 +1428,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function makePlayerFloating() {
     if (!playerBox) return;
-    const pad = 8; // odstęp od menu
+    const pad = 8;
     const barH = measureBottomBarsHeight();
 
-    // styl „floating”
     Object.assign(playerBox.style, {
       position: "fixed",
       left: "50%",
@@ -1437,31 +1443,26 @@ document.addEventListener("DOMContentLoaded", () => {
       overflow: "hidden",
     });
 
-    // dopasowuj przy zmianie rozmiaru
     const place = () => {
       const bh = measureBottomBarsHeight();
       playerBox.style.bottom = `${bh + pad}px`;
     };
     window.addEventListener("resize", place);
     window.addEventListener("orientationchange", place);
-
-    // zapisz, żeby móc odczepić przy stopie
     playerBox._placeHandler = place;
   }
 
   function clearFloatingPlayer() {
     if (!playerBox) return;
-    // usuwamy nasłuchy
     if (playerBox._placeHandler) {
       window.removeEventListener("resize", playerBox._placeHandler);
       window.removeEventListener("orientationchange", playerBox._placeHandler);
       delete playerBox._placeHandler;
     }
-    // chowamy i czyścimy style
     playerBox.hidden = true;
     ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow"]
       .forEach(k => playerBox.style[k] = "");
-    if (plTitle) setText(plTitle, ""); // wyczyść tytuł po stopie
+    if (plTitle) setText(plTitle, "");
     if (plPoster) plPoster.src = "";
   }
 
@@ -1481,14 +1482,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) {
-      plSeek.max = dur > 0 ? String(dur) : "100";
-      plSeek.value = String(pos || 0);
-    }
+    if (plSeek) { plSeek.max = dur > 0 ? String(dur) : "100"; plSeek.value = String(pos || 0); }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
 
-    // 🔁 aktualizuj tytuł z sesji, jeśli API go zwraca
     const t = sess.title || sess.item_title || sess.metadata?.title || (selected?.title || "");
     if (plTitle && t) setText(plTitle, t);
   }
@@ -1504,21 +1501,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
   function stopStatusLoop() {
-    if (statusTimer) {
-      clearInterval(statusTimer);
-      statusTimer = null;
-    }
+    if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
   }
 
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs } }); } catch (_) {}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
@@ -1537,12 +1526,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- boot ----
   function boot() {
-    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
+    if (playerBox) playerBox.hidden = true;
     setTab("movies");
     loadAvailable();
   }
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
   // ---- integracja z dolną nawigacją (opcjonalnie) ----
@@ -1550,9 +1538,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const prevShow = window.showSection;
   window.showSection = function (name) {
     try { prevShow && prevShow(name); } catch (_) {}
-    if (name === "available") {
-      loadAvailable();
-    }
+    if (name === "available") { loadAvailable(); }
   };
 })();
 
