@@ -2649,3 +2649,33 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 
 /* (opcjonalnie) del-row może płynnie wjeżdżać */
 #section-available .av-card .del-row { transition: color .2s ease, background-color .2s ease; }
+
+/* ====== Nadpiska układu w karcie AV (progres → % → kapsuły) ====== */
+#section-available .av-card .body{
+  display:flex;               /* wymuszamy kolumnę */
+  flex-direction:column;
+  gap:8px;
+}
+
+/* kolejność elementów */
+#section-available .av-card .av-progress-wrap{ order:20; }
+#section-available .av-card .tiny{ order:21; }
+
+/* wiersz kapsuł – zawsze pod % i wyrównany do prawej */
+#section-available .av-card .del-row{
+  order:22;
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  align-items:center;
+}
+
+/* drobne odstępy, żeby nic się nie kleiło */
+#section-available .av-card .tiny{ margin-top:2px; }
+#section-available .av-card .del-row{ margin-top:2px; }
+
+/* (opcjonalnie) na wąskich ekranach lekko ścieśnij */
+@media (max-width: 560px){
+  #section-available .av-card .body{ gap:6px; }
+  #section-available .av-card .del-row{ gap:6px; }
+}
