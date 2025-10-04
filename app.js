@@ -1234,36 +1234,45 @@ document.addEventListener("DOMContentLoaded", () => {
     lastPosterBlob = "";
   }
 
-  async function setPosterOnce(url) {
-    const u = String(url || "").trim();
-    if (!u || lastPosterSrc || !plPoster) return;
+  // === DROP-IN: zamień swoją funkcję setPosterOnce na tę wersję ===
+async function setPosterOnce(url) {
+  const u = String(url || "").trim();
+  if (!u || lastPosterSrc || !plPoster) return;
 
-    // Cross-origin: ustaw src bezpośrednio — żadnych Authorization
-    if (isCrossOrigin(u)) {
-      plPoster.crossOrigin = "anonymous";
-      plPoster.src = u;
-      lastPosterSrc = u;
-      lastPosterBlob = "";
-      return;
-    }
+  // posprzątaj poprzedni blob, jeśli był
+  if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} lastPosterBlob = ""; }
 
-    // Same-origin: pobierz bez credów i bez auth nagłówków
-    try {
-      const res = await fetch(u, { mode: "cors", credentials: "omit" });
-      if (!res.ok) throw new Error(String(res.status));
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      plPoster.src = objUrl;
-      if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
-      lastPosterBlob = objUrl;
-      lastPosterSrc = u;
-    } catch {
-      // fallback – ustaw src bezpośrednio
-      plPoster.src = u;
-      lastPosterSrc = u;
-      lastPosterBlob = "";
-    }
+  // jeśli zewnętrzny host (np. TMDB) – ustaw bezpośrednio (bez autoryzacji)
+  if (isCrossOrigin(u)) {
+    plPoster.crossOrigin = "anonymous";
+    plPoster.referrerPolicy = "no-referrer"; // na wszelki wypadek
+    plPoster.src = u;
+    lastPosterSrc = u;
+    lastPosterBlob = "";
+    try { await (plPoster.decode?.() || Promise.resolve()); } catch {}
+    return;
   }
+
+  // jeśli ten sam origin – spróbuj jako Blob bez credów
+  try {
+    const res = await fetch(u, { mode: "cors", credentials: "omit" });
+    if (!res.ok) throw new Error(String(res.status));
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    plPoster.src = objUrl;
+    lastPosterBlob = objUrl;
+    lastPosterSrc = u;
+    try { await (plPoster.decode?.() || Promise.resolve()); } catch {}
+  } catch {
+    // awaryjnie ustaw bezpośrednio
+    plPoster.crossOrigin = "anonymous";
+    plPoster.referrerPolicy = "no-referrer";
+    plPoster.src = u;
+    lastPosterSrc = u;
+    lastPosterBlob = "";
+  }
+}
+
 
   async function ensurePosterForActiveSession(sess, fallbackUrl) {
     const newKey = String(sess?.item_id || sess?.ratingKey || "");
