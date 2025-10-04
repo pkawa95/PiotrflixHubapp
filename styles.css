@@ -2650,32 +2650,88 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 /* (opcjonalnie) del-row może płynnie wjeżdżać */
 #section-available .av-card .del-row { transition: color .2s ease, background-color .2s ease; }
 
-/* ====== Nadpiska układu w karcie AV (progres → % → kapsuły) ====== */
-#section-available .av-card .body{
-  display:flex;               /* wymuszamy kolumnę */
-  flex-direction:column;
-  gap:8px;
-}
+/* ================= AV2 — mobile-first układ karty ================= */
 
-/* kolejność elementów */
-#section-available .av-card .av-progress-wrap{ order:20; }
-#section-available .av-card .tiny{ order:21; }
-
-/* wiersz kapsuł – zawsze pod % i wyrównany do prawej */
+/* --- wspólne drobiazgi --- */
 #section-available .av-card .del-row{
-  order:22;
   display:flex;
   gap:8px;
-  justify-content:flex-end;
   align-items:center;
 }
+#section-available .av-card .del-badge{ white-space:nowrap; }
+#section-available .av-card .actions{ display:flex; }
 
-/* drobne odstępy, żeby nic się nie kleiło */
-#section-available .av-card .tiny{ margin-top:2px; }
-#section-available .av-card .del-row{ margin-top:2px; }
+/* ========= MOBILE (≤ 560px) ========= */
+@media (max-width:560px){
 
-/* (opcjonalnie) na wąskich ekranach lekko ścieśnij */
-@media (max-width: 560px){
-  #section-available .av-card .body{ gap:6px; }
-  #section-available .av-card .del-row{ gap:6px; }
+  /* karta jako 2-kolumnowa siatka: plakat | treść */
+  #section-available .av-card{
+    display:grid;
+    grid-template-columns: 86px 1fr;     /* lewa: poster, prawa: content */
+    column-gap:12px;
+    align-items:start;
+  }
+
+  /* lewa kolumna */
+  #section-available .av-card .poster{
+    grid-column:1;
+    width:86px;
+    min-width:86px;
+  }
+  #section-available .av-card .poster .av-poster{
+    width:100%;
+    height:auto;
+    display:block;
+    border-radius:10px;
+  }
+
+  /* prawa kolumna – grid z czterema wierszami:
+     title | bar | % | (actions  |  capsules)  */
+  #section-available .av-card .body{
+    grid-column:2;
+    display:grid;
+    grid-template-columns: 1fr auto;     /* lewy słupek i prawy na kapsuły */
+    grid-template-areas:
+      "title title"
+      "prog  prog"
+      "pct   pct"
+      "acts  del";
+    row-gap:8px;
+    align-items:center;
+  }
+
+  #section-available .av-card .title{ grid-area:title; }
+  #section-available .av-card .av-progress-wrap{ grid-area:prog; }
+  #section-available .av-card .tiny{ grid-area:pct; }
+
+  /* ostatni wiersz: Cast z lewej, kapsuły z prawej */
+  #section-available .av-card .actions{
+    grid-area:acts;
+    justify-self:start;
+  }
+  #section-available .av-card .del-row{
+    grid-area:del;
+    justify-self:end;
+  }
+
+  /* kosmetyka */
+  #section-available .av-card .meta{ display:none; } /* mniej szumu na mobile */
+  #section-available .av-card .body{ padding-right:4px; }
+}
+
+/* ========= DESKTOP (> 560px) ========= */
+/* nic rewolucyjnego — zachowujemy Twój układ; ewentualnie lekki porządek */
+@media (min-width:561px){
+  #section-available .av-card .body{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  #section-available .av-card .av-progress-wrap{ order:20; }
+  #section-available .av-card .tiny{ order:21; }
+  #section-available .av-card .del-row{
+    order:22;
+    justify-content:flex-end;
+  }
+  #section-available .av-card .actions{ order:23; }
 }
