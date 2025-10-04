@@ -1101,7 +1101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(t) ? null : t;
   };
 
-  // Format daty PL, z bezpiecznym fallbackiem
+  // Format daty PL, ale z bezpiecznym fallbackiem
   const fmtDateShort = (ms) => {
     if (!ms) return "";
     try {
@@ -1117,13 +1117,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // ---- DEL BADGE ----
-  const TTL = {
-    okDays: 3,     // >3 dni → ok
-    warnMinDays: 1 // 1–3 dni → warn
-  };
+  // ---- DEL BAR ----
+  const TTL = { okDays: 3, warnMinDays: 1 };
 
-  // „usunie się za …”
   const fmtTTL = (diffMs) => {
     if (diffMs <= 0) return "do usunięcia";
     const s = Math.floor(diffMs / 1000);
@@ -1136,7 +1132,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return `usunie się za ${m} min`;
   };
 
-  // klasa koloru
   const delClass = (diffMs) => {
     if (diffMs <= 0) return "danger";
     const d = diffMs / 86400000;
@@ -1159,8 +1154,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
     const isSeries =
       (r.kind || r.type || "").toLowerCase() === "series" ||
-      !!r.season ||
-      !!r.episode;
+      !!r.season || !!r.episode;
     const kind = isSeries ? "series" : "movie";
     const pos =
       (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
@@ -1212,21 +1206,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const year = it.year ? ` (${it.year})` : "";
       const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
 
-      // PODBUDÓWKA (belka pod kartą) – tylko gdy nie ulubiony i jest deleteAt
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
-      const delRow  = showDel ? `
+      const delBar  = showDel ? `
         <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-          <div class="del-row__left">
-            <span class="del-badge">${fmtTTL(diff)}</span>
-          </div>
-          <div class="del-row__right">
-            <span class="del-date" title="Planowana data usunięcia">${fmtDateShort(it.deleteAt)}</span>
-          </div>
+          <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
+          <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
         </div>` : "";
 
       return `
-        <article class="av-card">
+        <article class="av-card ${showDel ? "has-del" : ""}">
           <div class="poster" style="position:relative">
             <img class="av-poster" src="${esc(it.poster)}" alt="">
             <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
@@ -1239,7 +1228,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="av-bar" style="width:${pct}%;"></span>
               </div>
             </div>
-
             <div class="tiny">${pct}% ${
               it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
             }</div>
@@ -1248,30 +1236,26 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          ${delRow} <!-- 🔑 belka z info o usunięciu POD całą kartą -->
+          ${delBar} <!-- 🔑 SZUFLADA – absolutnie pod kartą -->
         </article>`;
     }).join("");
 
     setHTML(listEl, html);
 
-    // USTAWIENIE KOLORÓW OD RAZU PO RENDERZE
+    // ustaw kolor/stany + odświeżanie
     listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
       const ts = Number(row.getAttribute("data-delete-at") || "");
       if (!isFinite(ts)) return;
       setDelState(row, ts - Date.now());
-      const badge = row.querySelector(".del-badge");
-      if (badge) badge.textContent = fmtTTL(ts - Date.now());
     });
 
-    // auto-refresh co 20 s
     const refreshBadges = () => {
       listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
         const ts = Number(row.getAttribute("data-delete-at") || "");
         if (!isFinite(ts)) return;
-        const diff = ts - Date.now();
-        setDelState(row, diff);
-        const badge = row.querySelector(".del-badge");
-        if (badge) badge.textContent = fmtTTL(diff);
+        setDelState(row, ts - Date.now());
+        const left = row.querySelector(".del-row__left strong");
+        if (left) left.textContent = fmtTTL(ts - Date.now());
       });
     };
     badgeTimer = setInterval(refreshBadges, 20000);
@@ -1301,18 +1285,10 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const j = await apiJson("/me/available", { method: "GET" });
       if (Array.isArray(j)) {
-        RAW.films = j.filter(
-          (x) => (x.kind || x.type || "").toLowerCase() !== "series"
-        );
-        RAW.series = j.filter(
-          (x) => (x.kind || x.type || "").toLowerCase() === "series"
-        );
+        RAW.films = j.filter((x) => (x.kind || x.type || "").toLowerCase() !== "series");
+        RAW.series = j.filter((x) => (x.kind || x.type || "").toLowerCase() === "series");
       } else {
-        RAW.films = Array.isArray(j?.films)
-          ? j.films
-          : Array.isArray(j?.movies)
-          ? j.movies
-          : [];
+        RAW.films = Array.isArray(j?.films) ? j.films : Array.isArray(j?.movies) ? j.movies : [];
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
       render();
@@ -1360,9 +1336,7 @@ document.addEventListener("DOMContentLoaded", () => {
             castSel.value = prev;
         }
       })
-      .catch(() => {
-        castSel.innerHTML = `<option value="">(błąd)</option>`;
-      });
+      .catch(() => { castSel.innerHTML = `<option value="">(błąd)</option>`; });
 
     if (typeof dlg?.showModal === "function") dlg.showModal();
     else dlg?.setAttribute("open", "");
@@ -1390,11 +1364,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (playerBox) playerBox.hidden = false;
       if (plPoster) plPoster.src = selected.poster || "";
       startStatusLoop();
-    } catch (_) {
-      /* opcjonalnie toast */
-    } finally {
-      dlg?.close?.();
-    }
+    } catch (_) {} finally { dlg?.close?.(); }
   });
 
   function fmtTime(sec) {
@@ -1408,8 +1378,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     const sess =
-      sessions.find((s) => String(s.client_id || "") === String(currentClientId)) ||
-      sessions[0];
+      sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
     if (!sess) return;
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
@@ -1432,10 +1401,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
   function stopStatusLoop() {
-    if (statusTimer) {
-      clearInterval(statusTimer);
-      statusTimer = null;
-    }
+    if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
   }
 
   plSeek?.addEventListener("input", async () => {
@@ -1450,77 +1416,49 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "play" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_) {}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "pause" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_) {}
   });
   btnStop?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "stop" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "stop" } }); } catch (_) {}
     stopStatusLoop();
     if (playerBox) playerBox.hidden = true;
   });
 
   // ---- boot ----
   function boot() {
-    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
+    if (playerBox) playerBox.hidden = true;
     setTab("movies");
     loadAvailable();
   }
-  if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
   // ---- integracja z dolną nawigacją (opcjonalnie) ----
   window.showSection = window.showSection || function () {};
   const prevShow = window.showSection;
   window.showSection = function (name) {
-    try {
-      prevShow && prevShow(name);
-    } catch (_) {}
-    if (name === "available") {
-      loadAvailable();
-    }
+    try { prevShow && prevShow(name); } catch (_) {}
+    if (name === "available") { loadAvailable(); }
   };
 })();
 
-/* ===================== Standalone kolorowanie belki ===================== */
+/* ===================== Standalone kolorowanie szuflady ===================== */
 function setDelState(row, diffMs){
   var state;
-  if (diffMs <= 0) {
-    state = 'danger';
-  } else {
-    var d = diffMs / 86400000; // ms -> dni
+  if (diffMs <= 0) state = 'danger';
+  else {
+    var d = diffMs / 86400000;
     if (d < 1) state = 'danger';
     else if (d <= 3) state = 'warn';
     else state = 'ok';
   }
-
   row.classList.remove('ok','warn','danger');
   row.classList.add(state);
   row.dataset.state = state;
-
-  // badge (po lewej)
-  var badge = row.querySelector('.del-badge');
-  if (badge){
-    badge.classList.remove('ok','warn','danger');
-    badge.classList.add(state);
-  }
 }
+

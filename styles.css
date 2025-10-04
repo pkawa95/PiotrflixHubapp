@@ -2573,81 +2573,108 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* Kolory stanów */
+/* Zmienne i bazowe kolory */
 :root{
+  --card-radius: 14px;
+  --del-height: 38px;          /* wysokość belki */
+  --del-gap: 12px;             /* odległość od dołu karty (ujemna) */
+  --del-pad-x: 14px;
+
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
   --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
   --del-danger-bg:linear-gradient(135deg,#dc3545,#a71d2a);
 
-  --del-surface:  rgba(255,255,255,0.04);  /* tło belki */
-  --del-border:   rgba(255,255,255,0.08);
-  --del-text:     rgba(255,255,255,0.9);
-  --del-muted:    rgba(255,255,255,0.7);
+  --del-text: #fff;
+  --del-text-warn: #111;
+  --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* Karta – zakładam, że .av-card już istnieje; belka idzie POD .body */
+/* Karta */
 .av-card{
-  display: grid;
-  grid-template-rows: auto auto; /* body, a pod spodem belka */
-  border-radius: 12px;
-  overflow: hidden; /* żeby belka spinała krawędzie */
+  position: relative;
+  border-radius: var(--card-radius);
+  overflow: hidden; /* dla ładnych krawędzi samej karty */
+  background: transparent; /* nic nie nadpisujemy */
 }
 
-/* BELKA – „podbudówka” z lewej badge, po prawej data */
+/* Dajemy miejsce NA DOLE karty, żeby szuflada miała przestrzeń */
+.av-card.has-del{
+  margin-bottom: calc(var(--del-height) + 10px);
+}
+
+/* SZUFLADA – belka pod kartą */
 .av-card > .del-row{
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * (var(--del-height) + var(--del-gap)));
+  height: var(--del-height);
+
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--del-surface);
-  border-top: 1px solid var(--del-border);
-  backdrop-filter: blur(2px);
+  gap: 10px;
+  padding: 0 var(--del-pad-x);
+
+  /* zaokrąglenie jak karta – „przedłużenie” spodu */
+  border-bottom-left-radius: var(--card-radius);
+  border-bottom-right-radius: var(--card-radius);
+
+  /* cieniuje jak element UI */
+  box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06) inset;
+
+  color: var(--del-text);
+  backdrop-filter: blur(1.5px);
+  -webkit-font-smoothing: antialiased;
+  will-change: transform, background;
 }
 
+/* Tła stanów – kolor CAŁEJ belki */
+.av-card > .del-row.ok{    background: var(--del-ok-bg); }
+.av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
+.av-card > .del-row.danger{background: var(--del-danger-bg); }
+
+/* Zawartość */
 .del-row__left{
-  min-width: 0;
+  font-weight: 800;
+  letter-spacing: .2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
 .del-row__right{
   justify-self: end;
 }
-
-/* Badge z tekstem „usunie się za…” */
-.del-badge{
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 12px;
-  line-height: 1;
-  color: #fff; /* nadpisane w warn, jeśli chcesz ciemny tekst */
-  white-space: nowrap;
-}
-
-/* Data po prawej */
 .del-date{
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--del-text);
-  background: rgba(0,0,0,.35);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: var(--del-date-bg);
+  color: currentColor;
 }
 
-/* Stany kolorów dla badge */
-.del-row.ok .del-badge{    background: var(--del-ok-bg);   color:#fff; }
-.del-row.warn .del-badge{  background: var(--del-warn-bg); color:#111; }
-.del-row.danger .del-badge{background: var(--del-danger-bg); color:#fff; }
+/* Drobna animacja pokazania (opcjonalnie) */
+.av-card > .del-row{
+  transform: translateY(4px);
+  opacity: .98;
+  transition: transform .25s ease, opacity .25s ease;
+}
+.av-card:hover > .del-row{
+  transform: translateY(0);
+  opacity: 1;
+}
 
-/* Drobne responsywne dopieszczenie */
-@media (max-width: 520px){
+/* Mobile – gdy wąsko, ułóż w 1 kolumnę */
+@media (max-width: 560px){
   .av-card > .del-row{
     grid-template-columns: 1fr;
-    gap: 8px;
+    height: auto;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
   .del-row__right{
     justify-self: start;
-    opacity: .9;
+    opacity: .95;
   }
 }
