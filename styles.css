@@ -2576,88 +2576,63 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 :root{
   --card-radius: 14px;
 
+  /* footer */
   --del-height: 60px;
+  --del-gap: 12px;       /* odstęp nad footerem wewnątrz karty */
   --del-pad-x: 16px;
 
+  /* kolory stanów */
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
   --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
   --del-danger-bg:linear-gradient(135deg,#dc3545,#a71d2a);
 
+  /* teksty */
   --del-text: #fff;
   --del-text-warn: #111;
   --del-date-bg: rgba(0,0,0,.30);
 
-  /* fallback gdy mask nie zadziała (kolor tła strony pod kartą) */
-  --page-bg: #0b0f14;
+  /* tło karty (dopasuj do swojego motywu) */
+  --card-bg: #111;
 }
 
-/* KARTA */
+/* KARTA – pełne zaokrąglenie + miejsce na footer, gdy jest */
 .av-card{
-  border-radius: var(--card-radius) var(--card-radius) 0 0;
-  overflow: hidden;
   position: relative;
-  z-index: 2;           
-  background: #111;
+  overflow: hidden;                 /* przytnie footer do promienia karty */
+  border-radius: var(--card-radius);
+  background: var(--card-bg);
 }
 
-/* BELKA POD KARTĄ */
-.del-row{
-  position: relative;
-  z-index: 1;
+/* tylko gdy karta ma footer */
+.av-card.has-del{
+  padding-bottom: calc(var(--del-height) + var(--del-gap));
+}
 
-  width: 100%;
+/* WEWNĘTRZNY FOOTER */
+.av-card > .del-row{
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
   height: var(--del-height);
 
-  /* 🔑 wsuń pod kartę */
-  margin-top: -20px;
-  margin-bottom: 20px;
-
-  /* tylko dolne rogi zaokrąglone */
-  border-radius: 0 0 var(--card-radius) var(--card-radius);
-
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto; /* zawsze jedna linia, także na mobile */
   align-items: center;
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.08),
-    0 6px 18px rgba(0,0,0,.35);
-
+  /* cienka linia oddzielająca od treści karty */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
   color: var(--del-text);
-  backdrop-filter: blur(1.5px);
-  overflow: hidden;
-
-  /* 🔥 WKLĘSŁE ROGI NA GÓRZE (mask) */
-  /* WebKit/Chromium */
-  -webkit-mask:
-    radial-gradient(circle at left top,    transparent var(--card-radius), #000 0) top left,
-    radial-gradient(circle at right top,   transparent var(--card-radius), #000 0) top right,
-    linear-gradient(#000 0 0);
-  -webkit-mask-size: var(--card-radius) var(--card-radius),
-                     var(--card-radius) var(--card-radius),
-                     100% 100%;
-  -webkit-mask-repeat: no-repeat;
-
-  /* Firefox/standards */
-  mask:
-    radial-gradient(circle at left top,    transparent var(--card-radius), #000 0) top left,
-    radial-gradient(circle at right top,   transparent var(--card-radius), #000 0) top right,
-    linear-gradient(#000 0 0);
-  mask-size: var(--card-radius) var(--card-radius),
-             var(--card-radius) var(--card-radius),
-             100% 100%;
-  mask-repeat: no-repeat;
 }
 
-/* kolory stanów */
-.del-row.ok{    background: var(--del-ok-bg); }
-.del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
-.del-row.danger{background: var(--del-danger-bg); }
+/* Kolory stanów (kolor całej belki) */
+.av-card > .del-row.ok{    background: var(--del-ok-bg); }
+.av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
+.av-card > .del-row.danger{background: var(--del-danger-bg); }
 
-/* teksty */
+/* Treść footera */
 .del-row__left{
+  min-width: 0;
   font-weight: 800;
   letter-spacing: .2px;
   white-space: nowrap;
@@ -2675,26 +2650,6 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   white-space: nowrap;
 }
 
-/* ✅ Fallback dla bardzo starych przeglądarek bez mask:
-   dorysuj „wycięcia” pseudo-elementami w kolorze tła strony.
-   Zadziała gorzej niż mask, ale usunie przebicia. */
-@supports not ((mask: paint(dummy)) or (-webkit-mask: paint(dummy))){
-  .del-row::before,
-  .del-row::after{
-    content:"";
-    position:absolute;
-    top:0;
-    width: var(--card-radius);
-    height: var(--card-radius);
-    background: var(--page-bg);
-  }
-  .del-row::before{
-    left: 0;
-    border-top-right-radius: var(--card-radius);
-  }
-  .del-row::after{
-    right: 0;
-    border-top-left-radius: var(--card-radius);
-  }
-}
-
+/* delikatna interakcja (opcjonalnie) */
+.av-card > .del-row{ transition: filter .2s ease; }
+.av-card:hover > .del-row{ filter: brightness(1.02); }

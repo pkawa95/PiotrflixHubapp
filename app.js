@@ -1061,16 +1061,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const listEl = section.querySelector("#av2-list");
 
   const playerBox = section.querySelector("#av2-player");
-  const plPoster = section.querySelector("#av2-pl-poster");
-  const plSeek = section.querySelector("#av2-pl-seek");
-  const plTime = section.querySelector("#av2-pl-time");
-  const plPct = section.querySelector("#av2-pl-pct");
-  const btnPlay = section.querySelector("#av2-btn-play");
-  const btnPause = section.querySelector("#av2-btn-pause");
-  const btnStop = section.querySelector("#av2-btn-stop");
+  const plPoster  = section.querySelector("#av2-pl-poster");
+  const plSeek    = section.querySelector("#av2-pl-seek");
+  const plTime    = section.querySelector("#av2-pl-time");
+  const plPct     = section.querySelector("#av2-pl-pct");
+  const btnPlay   = section.querySelector("#av2-btn-play");
+  const btnPause  = section.querySelector("#av2-btn-pause");
+  const btnStop   = section.querySelector("#av2-btn-stop");
 
   const dlg = section.querySelector("#av2-cast-modal");
-  const castSel = section.querySelector("#av2-device");
+  const castSel   = section.querySelector("#av2-device");
   const castStart = section.querySelector("#av2-cast-start");
 
   // ---- utils ----
@@ -1105,7 +1105,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch { return new Date(ms).toLocaleString(); }
   };
 
-  // ---- DEL BAR ----
+  // ---- DEL BAR (footer w karcie) ----
   const TTL = { okDays: 3, warnMinDays: 1 };
 
   const fmtTTL = (diffMs) => {
@@ -1134,7 +1134,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let selected = null;
   let currentClientId = localStorage.getItem("pf_cast_client") || "";
   let statusTimer = null;
-  let badgeTimer = null;
+  let badgeTimer  = null;
 
   // ---- canon map ----
   function canon(r) {
@@ -1195,37 +1195,36 @@ document.addEventListener("DOMContentLoaded", () => {
       const showDel = !!(it.deleteAt && !it.favorite);
       const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
 
-      // fundament – jako OSOBNY ELEMENT po karcie
-      const delBar  = showDel ? `
-<div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-  <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
-  <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
-</div>` : "";
+      // footer wewnątrz karty
+      const delFooter = showDel ? `
+        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
+          <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
+          <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
+        </div>` : "";
 
       return `
-<article class="av-card ${showDel ? "has-del" : ""}">
-  <div class="poster" style="position:relative">
-    <img class="av-poster" src="${esc(it.poster)}" alt="">
-    <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
-  </div>
-  <div class="body">
-    <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
-    ${sub ? `<div class="meta">${sub}</div>` : ""}
-    <div class="av-progress-wrap">
-      <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-        <span class="av-bar" style="width:${pct}%;"></span>
-      </div>
-    </div>
-    <div class="tiny">${pct}% ${
-      it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
-    }</div>
-    <div class="actions">
-      <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
-    </div>
-  </div>
-</article>
-${delBar}
-`;
+        <article class="av-card ${showDel ? "has-del" : ""}">
+          <div class="poster" style="position:relative">
+            <img class="av-poster" src="${esc(it.poster)}" alt="">
+            <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
+          </div>
+          <div class="body">
+            <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
+            ${sub ? `<div class="meta">${sub}</div>` : ""}
+            <div class="av-progress-wrap">
+              <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+                <span class="av-bar" style="width:${pct}%;"></span>
+              </div>
+            </div>
+            <div class="tiny">${pct}% ${
+              it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
+            }</div>
+            <div class="actions">
+              <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
+            </div>
+          </div>
+          ${delFooter}
+        </article>`;
     }).join("");
 
     setHTML(listEl, html);
@@ -1302,7 +1301,7 @@ ${delBar}
     }
   });
 
-  // ---- CAST (bez zmian kluczowych) ----
+  // ---- CAST + floating player ----
   function openCastModal() {
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson("/cast/players", { method: "GET" })
@@ -1342,11 +1341,81 @@ ${delBar}
         body: { item_id: String(selected.id), client_id: cid,
                 client_name: castSel.options[castSel.selectedIndex]?.text || "" },
       });
-      if (playerBox) playerBox.hidden = false;
+      if (playerBox) {
+        playerBox.hidden = false;
+        makePlayerFloating();
+        startStatusLoop();
+      }
       if (plPoster) plPoster.src = selected.poster || "";
-      startStatusLoop();
     } catch (_) {} finally { dlg?.close?.(); }
   });
+
+  // Floating player helpers
+  function measureBottomBarsHeight() {
+    // znajdź przyklejone/dolne nawigacje/paski
+    const candidates = document.querySelectorAll(
+      'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
+    );
+    let h = 0;
+    candidates.forEach(el => {
+      const cs = getComputedStyle(el);
+      const pos = cs.position;
+      if (pos === "fixed" || pos === "sticky") {
+        const r = el.getBoundingClientRect();
+        if (r.bottom >= window.innerHeight - 2) {
+          h = Math.max(h, Math.ceil(r.height));
+        }
+      }
+    });
+    // ewentualny bezpieczny margines (CSS var) jeśli używasz safe-area
+    const root = getComputedStyle(document.documentElement);
+    const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
+    return h + (isFinite(safe) ? safe : 0);
+  }
+
+  function makePlayerFloating() {
+    if (!playerBox) return;
+    const pad = 8; // odstęp od menu
+    const barH = measureBottomBarsHeight();
+
+    // styl „floating”
+    Object.assign(playerBox.style, {
+      position: "fixed",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "min(960px, 96vw)",
+      bottom: `${barH + pad}px`,
+      zIndex: "9999",
+      boxShadow: "0 10px 30px rgba(0,0,0,.45)",
+      borderRadius: "14px",
+      overflow: "hidden",
+    });
+
+    // dopasowuj przy zmianie rozmiaru
+    const place = () => {
+      const bh = measureBottomBarsHeight();
+      playerBox.style.bottom = `${bh + pad}px`;
+    };
+    window.addEventListener("resize", place);
+    window.addEventListener("orientationchange", place);
+
+    // zapisz, żeby móc odczepić przy stopie
+    playerBox._placeHandler = place;
+  }
+
+  function clearFloatingPlayer() {
+    if (!playerBox) return;
+    // usuwamy nasłuchy
+    if (playerBox._placeHandler) {
+      window.removeEventListener("resize", playerBox._placeHandler);
+      window.removeEventListener("orientationchange", playerBox._placeHandler);
+      delete playerBox._placeHandler;
+    }
+    // chowamy i czyścimy style
+    playerBox.hidden = true;
+    ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow"]
+      .forEach(k => playerBox.style[k] = "");
+  }
 
   function fmtTime(sec) {
     sec = Math.max(0, Math.floor(Number(sec) || 0));
@@ -1363,7 +1432,10 @@ ${delBar}
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) { plSeek.max = dur > 0 ? String(dur) : "100"; plSeek.value = String(pos || 0); }
+    if (plSeek) {
+      plSeek.max = dur > 0 ? String(dur) : "100";
+      plSeek.value = String(pos || 0);
+    }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
   }
@@ -1377,35 +1449,61 @@ ${delBar}
       } catch (_) {}
     }, 1500);
   }
-  function stopStatusLoop() { if (statusTimer) { clearInterval(statusTimer); statusTimer = null; } }
+  function stopStatusLoop() {
+    if (statusTimer) {
+      clearInterval(statusTimer);
+      statusTimer = null;
+    }
+  }
 
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs } }); } catch (_) {}
+    try {
+      await apiJson("/cast/cmd", {
+        method: "POST",
+        body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs },
+      });
+    } catch (_) {}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_) {}
+    try {
+      await apiJson("/cast/cmd", {
+        method: "POST",
+        body: { client_id: currentClientId, cmd: "play" },
+      });
+    } catch (_) {}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_) {}
+    try {
+      await apiJson("/cast/cmd", {
+        method: "POST",
+        body: { client_id: currentClientId, cmd: "pause" },
+      });
+    } catch (_) {}
   });
   btnStop?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "stop" } }); } catch (_) {}
+    try {
+      await apiJson("/cast/cmd", {
+        method: "POST",
+        body: { client_id: currentClientId, cmd: "stop" },
+      });
+    } catch (_) {}
     stopStatusLoop();
-    if (playerBox) playerBox.hidden = true;
+    clearFloatingPlayer();
   });
 
   // ---- boot ----
   function boot() {
-    if (playerBox) playerBox.hidden = true;
+    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
     setTab("movies");
     loadAvailable();
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
   // ---- integracja z dolną nawigacją (opcjonalnie) ----
@@ -1413,7 +1511,9 @@ ${delBar}
   const prevShow = window.showSection;
   window.showSection = function (name) {
     try { prevShow && prevShow(name); } catch (_) {}
-    if (name === "available") { loadAvailable(); }
+    if (name === "available") {
+      loadAvailable();
+    }
   };
 })();
 
