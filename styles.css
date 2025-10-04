@@ -2576,11 +2576,9 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 :root{
   --card-radius: 14px;
 
-  /* wysokość belki */
   --del-height: 60px;
   --del-pad-x: 16px;
 
-  /* kolory */
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
   --del-warn-bg:  linear-gradient(135deg,#ffc107,#e0a800);
   --del-danger-bg:linear-gradient(135deg,#dc3545,#a71d2a);
@@ -2590,20 +2588,24 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-date-bg: rgba(0,0,0,.30);
 }
 
-/* karta */
+/* KARTA */
 .av-card{
-  border-radius: var(--card-radius) var(--card-radius) 0 0; /* tylko góra zaokrąglona */
+  border-radius: var(--card-radius) var(--card-radius) 0 0;
   overflow: hidden;
   position: relative;
+  z-index: 2;           /* 🔑 karta zawsze nad belką */
+  background: #111;     /* upewniamy się, że ma tło */
 }
 
-/* belka fundamentu */
+/* BELKA POD KARTĄ */
 .del-row{
+  position: relative;
+  z-index: 1;           /* 🔑 belka pod kartą */
+
   width: 100%;
   height: var(--del-height);
 
-  /* 🔑 belka zachodzi pod kartę */
-  margin-top: -40px; /* podciągamy do góry, aż „wejdzie” pod kartę */
+  margin-top: -40px;    /* wchodzi pod spód karty */
   margin-bottom: 20px;
 
   border-bottom-left-radius: var(--card-radius);
@@ -2615,7 +2617,6 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   gap: 10px;
   padding: 0 var(--del-pad-x);
 
-  border-top: 1px solid rgba(255,255,255,.08);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.08),
     0 6px 18px rgba(0,0,0,.35);
