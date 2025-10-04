@@ -2576,10 +2576,12 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 :root{
   --card-radius: 14px;
 
-  /* kompaktowy footer */
-  --del-height: 38px;     /* było 60px */
-  --del-gap: 8px;         /* odstęp nad footerem wewnątrz karty (było 12px) */
-  --del-pad-x: 12px;      /* było 16px */
+  /* 🔻 BARDZO KOMPAKTOWA STOPKA */
+  --del-height: 26px;      /* było 38/60 — znacznie mniejsze */
+  --del-gap: 6px;          /* odstęp nad stopką w karcie */
+  --del-pad-x: 10px;       /* wewnętrzne poziome odstępy */
+  --del-font: 12px;        /* główny rozmiar fontu w stopce */
+  --del-date-font: 11px;   /* rozmiar fontu w dacie */
 
   /* kolory stanów */
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
@@ -2591,7 +2593,7 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   --del-text-warn: #111;
   --del-date-bg: rgba(0,0,0,.30);
 
-  /* tło karty (dopasuj do swojego motywu) */
+  /* tło karty (dopasuj do motywu) */
   --card-bg: #111;
 }
 
@@ -2608,21 +2610,22 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   padding-bottom: calc(var(--del-height) + var(--del-gap));
 }
 
-/* WEWNĘTRZNY FOOTER (kompakt) */
+/* WEWNĘTRZNY FOOTER (super-kompakt) */
 .av-card > .del-row{
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: var(--del-height);
 
   display: grid;
-  grid-template-columns: 1fr auto; /* zawsze jedna linia (PC + mobile) */
+  grid-template-columns: 1fr auto;  /* zawsze jedna linia (PC + mobile) */
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 var(--del-pad-x);
 
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
   color: var(--del-text);
-  line-height: 1;                  /* zbija wysokość w pionie */
+  line-height: 1;                   /* zbija wysokość w pionie */
+  font-size: var(--del-font);
 }
 
 /* Kolory stanów (kolor całej belki) */
@@ -2630,30 +2633,39 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 .av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
 .av-card > .del-row.danger{background: var(--del-danger-bg); }
 
-/* Treść footera (kompakt) */
+/* Treść stopki (kompakt) */
 .del-row__left{
   min-width: 0;
-  font-weight: 700;                /* było 800 */
-  font-size: .92rem;               /* delikatnie mniejsze */
-  letter-spacing: .2px;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: .1px;
 }
 
 .del-row__right{ justify-self: end; }
 
 .del-date{
   display: inline-block;
-  padding: 4px 8px;                /* było 8px 12px */
-  border-radius: 8px;              /* było 10px */
+  padding: 2px 6px;                 /* mniejsze „pill” */
+  border-radius: 6px;
   font-weight: 600;
-  font-size: .85rem;               /* mniejsze */
+  font-size: var(--del-date-font);
   background: var(--del-date-bg);
   color: currentColor;
   white-space: nowrap;
 }
 
-/* delikatna interakcja (opcjonalnie) */
-.av-card > .del-row{ transition: filter .2s ease; }
+/* subtelna interakcja (opcjonalnie) */
+.av-card > .del-row{ transition: filter .18s ease; }
 .av-card:hover > .del-row{ filter: brightness(1.02); }
+
+/* 🔧 ultramałe ekrany — jeszcze ciaśniej (opcjonalnie) */
+@media (max-width: 360px){
+  :root{
+    --del-height: 24px;
+    --del-font: 11.5px;
+    --del-date-font: 10.5px;
+    --del-pad-x: 8px;
+  }
+}
