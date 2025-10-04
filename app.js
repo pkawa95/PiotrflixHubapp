@@ -1145,6 +1145,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,ts}
   const LS_SIGNAL_KEY = "pf_cast_signal"; // ping do pozostałych kart
 
+  // --- fix: stabilne ustawianie plakatu (nie nadpisuj pustym) ---
+  let lastPosterSrc = "";
+  function setPosterSafe(url) {
+    const u = String(url || "").trim();
+    if (!u) return; // nigdy nie czyść src na pusty -> znika obraz
+    if (plPoster && u !== lastPosterSrc) {
+      plPoster.src = u;
+      lastPosterSrc = u;
+    }
+  }
+
   // ---- canon map ----
   function canon(r) {
     const title = r.display_title || r.title || r.name || "—";
@@ -1362,6 +1373,8 @@ document.addEventListener("DOMContentLoaded", () => {
     placePortal();
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
+    // utrzymaj plakat po relokacji
+    if (lastPosterSrc) setPosterSafe(lastPosterSrc);
   }
 
   function unmountGlobalPlayer() {
@@ -1428,12 +1441,12 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem("pf_cast_client", currentClientId);
       mountGlobalPlayer();
       startStatusLoop();
-      if (plPoster) plPoster.src = selected.poster || "";
+      setPosterSafe(selected.poster || "");
       if (plTitle)  plTitle.textContent = selected.title || "";
       publishCastSignal({
         client_id: currentClientId,
         title: selected?.title || "",
-        poster: selected?.poster || "",
+        poster: selected?.poster || lastPosterSrc || "",
         ts: Date.now()
       });
     } catch (_) {} finally { dlg?.close?.(); }
@@ -1472,7 +1485,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // tytuł i plakat
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
-    if (plPoster && sess.thumb) plPoster.src = sess.thumb;
+
+    // Preferuj miniaturę z PMS, ale tylko gdy jest niepusta
+    if (sess.thumb) setPosterSafe(sess.thumb);
 
     // progress
     const dur = Number(sess.duration_ms || 0) / 1000;
@@ -1485,11 +1500,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
 
-    // zapisz aktywną sesję (dla innych kart)
+    // zapisz aktywną sesję (dla innych kart) — nie nadpisuj pustym posterem
     setActiveFlag({
       client_id: currentClientId,
       title: nowTitle,
-      poster: plPoster?.src || "",
+      poster: lastPosterSrc,
       ts: Date.now()
     });
   }
@@ -1524,8 +1539,8 @@ document.addEventListener("DOMContentLoaded", () => {
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        // ustaw podgląd
-        if (plPoster && sess.thumb) plPoster.src = sess.thumb;
+        // ustaw podgląd (nie nadpisuj pustym)
+        if (sess.thumb) setPosterSafe(sess.thumb);
         if (plTitle && (sess.title || "")) plTitle.textContent = String(sess.title || "");
 
         // pokaż player globalnie i zacznij odpytywać częściej
@@ -1536,7 +1551,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setActiveFlag({
           client_id: currentClientId,
           title: String(sess.title || ""),
-          poster: plPoster?.src || "",
+          poster: lastPosterSrc,
           ts: Date.now()
         });
         return true;
@@ -1585,7 +1600,7 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("pf_cast_client", currentClientId);
           }
           if (plTitle && data.title) plTitle.textContent = data.title;
-          if (plPoster && data.poster) plPoster.src = data.poster;
+          if (data.poster) setPosterSafe(data.poster); // <- tylko jeśli niepusty
           mountGlobalPlayer();
           if (!statusTimer) startStatusLoop();
         }
@@ -1643,6 +1658,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playerBox) playerBox.hidden = true; // domyślnie ukryty
     setTab("movies");
     loadAvailable();
+
+    // Jeśli mamy zapisany stan z innej karty — zainicjalizuj z niego plakat/tytuł
+    try {
+      const cached = JSON.parse(localStorage.getItem(LS_ACTIVE_KEY) || "{}");
+      if (cached) {
+        if (cached.poster) setPosterSafe(cached.poster);
+        if (plTitle && cached.title) plTitle.textContent = cached.title;
+        if (cached.client_id) currentClientId = String(cached.client_id);
+      }
+    } catch {}
 
     // auto-show: jeśli PMS już gra, pokaż player na starcie
     await pollActiveOnce();
