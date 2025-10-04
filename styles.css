@@ -2482,3 +2482,84 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
 .av-progress-wrap{ display:flex; align-items:center; gap:8px; margin-top:6px; }
 .av-progress{ flex:1; height:6px; background:#1f2937; border-radius:4px; overflow:hidden; }
 .av-progress .av-bar{ display:block; height:100%; background:#3b82f6; }
+
+/* --- KARTA musi mieć relative --- */
+.av-card{ position:relative; }
+
+/* --- Pudełko kapsuły (prawy górny róg karty) --- */
+.del-box{
+  position:absolute; top:10px; right:12px;
+  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+  z-index: 3;
+  pointer-events:none;   /* żeby nie przykrywać klików */
+  max-width: 70%;        /* żeby nie wyszła poza kartę */
+}
+
+/* --- Kapsuła (treść ‘usunie się za …’) --- */
+.del-badge{
+  font-size: 12px; line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(15,23,42,.76);  /* półprzezroczyste tło */
+  color: #e5e7eb;
+  backdrop-filter: saturate(1.1) blur(6px);
+  box-shadow:
+    0 6px 18px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.06);
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+}
+
+/* --- Data usunięcia (pod kapsułą) --- */
+.del-date{
+  font-size: 11px; line-height: 1;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(11,18,32,.6);
+  color: #a8b2c7;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* --- Stany kolorystyczne (na .del-box) --- */
+.del-box.ok    .del-badge{
+  border-color:#184a31;
+  background: linear-gradient(180deg, rgba(20,74,55,.92), rgba(13,52,39,.92));
+  color:#d1fae5;
+}
+.del-box.warn  .del-badge{
+  border-color:#8a6b1a;
+  background: linear-gradient(180deg, rgba(122,92,26,.95), rgba(88,66,18,.92));
+  color:#fff3c4;
+}
+.del-box.danger .del-badge{
+  border-color:#7a2a3a;
+  background: linear-gradient(180deg, rgba(122,42,58,.96), rgba(92,26,40,.94));
+  color:#fecaca;
+}
+
+/* --- Drobne korekty paska postępu, żeby ładnie grało z kapsułą --- */
+.av-progress-wrap{ margin-top: 10px; }
+.av-progress{
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.av-progress .av-bar{
+  display:block; height:100%;
+  background: linear-gradient(90deg,#22d3ee,#3b82f6,#a78bfa);
+}
+
+/* --- Responsywność: mniejsze kapsuły na wąskich ekranach --- */
+@media (max-width: 520px){
+  .del-box{ top:8px; right:8px; gap:4px; max-width:78%; }
+  .del-badge{ font-size: 11px; padding: 5px 9px; }
+  .del-date{ font-size: 10px; padding: 3px 7px; }
+}
+
+.av-card .title{ padding-right: 140px; } /* miejsce na kapsułę przy mega długich tytułach */
