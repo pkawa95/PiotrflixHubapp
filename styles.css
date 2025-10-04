@@ -2573,46 +2573,41 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* Pudełko kapsułek */
-.av-card .del-box {
-  position: absolute;
-  right: 10px;
-  bottom: 10px; /* w prawym dolnym rogu */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  z-index: 3;
+/* rządek kapsułek pod paskiem postępu */
+.av-card .del-row{
+  margin-top: 6px;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
 }
 
-/* Kapsuła – usunie się za X dni/min */
-.del-badge {
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  border-radius: 12px;
-  font-weight: 600;
+.del-badge{
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
   color: #fff;
-  white-space: nowrap;
 }
-
-/* Data usunięcia */
-.del-date {
-  font-size: 0.7rem;
-  opacity: 0.8;
-  background: rgba(0,0,0,0.5);
-  padding: 2px 6px;
+.del-date{
+  font-size: 11px;
+  opacity: .85;
+  padding: 3px 8px;
   border-radius: 8px;
+  background: rgba(0,0,0,.45);
   white-space: nowrap;
 }
 
-/* Kolory zależnie od TTL */
-.del-box.ok .del-badge {
-  background: linear-gradient(135deg, #28a745, #218838); /* zielony */
+/* kolory TTL (spójne z tym co masz w JS) */
+.del-row.ok .del-badge{
+  background: linear-gradient(135deg,#28a745,#218838);
 }
-.del-box.warn .del-badge {
-  background: linear-gradient(135deg, #ffc107, #e0a800); /* żółty */
-  color: #000;
+.del-row.warn .del-badge{
+  background: linear-gradient(135deg,#ffc107,#e0a800);
+  color:#0b1220;
 }
-.del-box.danger .del-badge {
-  background: linear-gradient(135deg, #dc3545, #a71d2a); /* czerwony */
+.del-row.danger .del-badge{
+  background: linear-gradient(135deg,#dc3545,#a71d2a);
 }
