@@ -2384,7 +2384,6 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
 
 /* ===================== DELETE BADGE ===================== */
 
-/* Kontener kapsuł (w prawym górnym rogu karty) */
 .del-box {
   position: absolute;
   top: 10px;
@@ -2392,49 +2391,50 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;                 /* odstęp między kapsułkami */
+  gap: 4px;
   z-index: 3;
-  pointer-events: none;     /* nie blokuje kliknięć w kartę */
-  max-width: 70%;           /* żeby nie przykrywało tytułu */
+  pointer-events: none;
+  max-width: 70%;
   font-size: 0.75rem;
   line-height: 1.2;
 }
 
 /* Kapsuła "usunie się za X" */
 .del-badge {
-  position: static;         /* KLUCZ: nie absolutne */
+  position: static;
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
   color: #fff;
-  background: #666;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-  pointer-events: auto;     /* można np. pokazać tooltip */
+  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  pointer-events: auto;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Kolory stanu */
 .del-badge.ok {
-  background: #2e7d32;      /* zielony – OK (>3 dni) */
+  background: linear-gradient(135deg, #2ecc71, #27ae60);   /* zielony */
 }
 .del-badge.warn {
-  background: #f9a825;      /* żółty – ostrzeżenie (1–3 dni) */
+  background: linear-gradient(135deg, #fbc531, #e1a400);   /* żółto-pomarańczowy */
   color: #111;
 }
 .del-badge.danger {
-  background: #c62828;      /* czerwony – pilne (<1 dzień) */
+  background: linear-gradient(135deg, #e74c3c, #c0392b);   /* czerwony */
 }
 
-/* Data usunięcia pod spodem */
+/* Data usunięcia */
 .del-date {
-  position: static;         /* też statycznie, układana pod spodem */
+  position: static;
   font-size: 0.7rem;
-  color: #aaa;
-  background: rgba(0,0,0,0.4);
-  padding: 1px 6px;
+  color: #ccc;
+  background: rgba(0,0,0,0.5);
+  padding: 2px 8px;
   border-radius: 6px;
   white-space: nowrap;
   pointer-events: none;
+  font-weight: 500;
 }
