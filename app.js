@@ -1018,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ===================== DOSTĘPNE v2 — zgodne z HTML (av2-*) ===================== */
+/* ===================== DOSTĘPNE v2 — z auto-wyszukiwaniem postera po tytule ===================== */
 (function () {
   const section = document.getElementById("section-available");
   if (!section) return;
@@ -1111,7 +1111,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch { return new Date(ms).toLocaleString(); }
   };
 
-  // ---- DEL BAR (footer w karcie) ----
+  // ---- DEL BAR ----
   const TTL = { okDays: 3, warnMinDays: 1 };
   const fmtTTL = (diffMs) => {
     if (diffMs <= 0) return "do usunięcia";
@@ -1140,19 +1140,19 @@ document.addEventListener("DOMContentLoaded", () => {
   let statusTimer = null;
   let badgeTimer  = null;
 
-  // Global visibility across "karty"
+  // Global
   let globalPortal = null;
   let globalMountedParent = null;
   let globalMountedNextSibling = null;
   let autoDetectTimer = null;
-  const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,item_id,ts}
+  const LS_ACTIVE_KEY = "pf_cast_active";
   const LS_SIGNAL_KEY = "pf_cast_signal";
-  const LS_MIN_KEY    = "pf_cast_minimized"; // "1" | "0"
+  const LS_MIN_KEY    = "pf_cast_minimized";
 
-  /* ---- Poster — stabilny v3 (blob + retry + bez mrugania) ---- */
-  let lastPosterSrc = "";      // zwycięski oryginalny adres dla bieżącego elementu
-  let lastPosterBlob = "";     // aktualny blob: URL ustawiony w <img> (do revoke)
-  let currentItemKey = "";     // id aktualnego elementu
+  /* ---- Poster — v4 (blob + retry + auto-szukaj po tytule) ---- */
+  let lastPosterSrc = "";
+  let lastPosterBlob = "";
+  let currentItemKey = "";
   let posterRetryTimer = null;
   let posterRetryLeft = 0;
 
@@ -1166,39 +1166,41 @@ document.addEventListener("DOMContentLoaded", () => {
     ).trim();
   }
 
+  // 🔍 wyszukiwanie miniatury po tytule w dostępnych
+  function findPosterByTitle(title) {
+    if (!title) return "";
+    const q = title.toLowerCase().trim();
+    const all = [...(RAW.films || []), ...(RAW.series || [])];
+    const match = all.find(x => {
+      const t = String(x.title || x.display_title || x.name || "").toLowerCase();
+      return t.includes(q);
+    });
+    return match?.poster || match?.image_url || match?.thumb || "";
+  }
+
   async function setPosterBlobFromUrlOnce(url) {
     const u = String(url || "").trim();
-    if (!u) return false;
-    if (lastPosterSrc) return true;
-
+    if (!u || lastPosterSrc) return false;
     try {
       const res = await window.authFetch(u);
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) throw new Error(res.status);
       const blob = await res.blob();
-
       const ct = (res.headers.get("Content-Type") || "").toLowerCase();
-      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i)) {
+      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i))
         throw new Error("not-image");
-      }
-
       const objUrl = URL.createObjectURL(blob);
-      await new Promise((resolve, reject) => {
-        const test = new Image();
-        test.onload = resolve;
-        test.onerror = reject;
-        test.src = objUrl;
+      await new Promise((ok, err) => {
+        const i = new Image();
+        i.onload = ok; i.onerror = err; i.src = objUrl;
       });
-
       if (plPoster) {
-        if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} }
+        if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
         plPoster.src = objUrl;
         lastPosterBlob = objUrl;
         lastPosterSrc = u;
       }
       return true;
-    } catch (_) {
-      return false;
-    }
+    } catch { return false; }
   }
 
   async function setPosterOnce(url) {
@@ -1208,29 +1210,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function resetPosterForNewItem() {
     lastPosterSrc = "";
-    if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} }
+    if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
     lastPosterBlob = "";
   }
-
-  function startPosterRetryIfNeeded() {
-    if (lastPosterSrc || posterRetryTimer) return;
-    posterRetryLeft = 5;
-    posterRetryTimer = setInterval(async () => {
-      try {
-        if (posterRetryLeft-- <= 0) { clearInterval(posterRetryTimer); posterRetryTimer = null; return; }
-        const j = await apiJson("/cast/status", { method: "GET" });
-        const sess = Array.isArray(j?.sessions) ? j.sessions[0] : null;
-        if (sess) {
-          const maybe = bestThumbFromSession(sess);
-          if (maybe && await setPosterOnce(maybe)) {
-            clearInterval(posterRetryTimer);
-            posterRetryTimer = null;
-          }
-        }
-      } catch {}
-    }, 1000);
-  }
-  plPoster?.addEventListener("error", () => { /* brak czyszczenia = brak mrugania */ });
 
   async function ensurePosterForActiveSession(sess, fallbackUrl) {
     const newKey = String(sess?.item_id || sess?.ratingKey || "");
@@ -1238,8 +1220,11 @@ document.addEventListener("DOMContentLoaded", () => {
       currentItemKey = newKey;
       resetPosterForNewItem();
     }
-    const fromSess = bestThumbFromSession(sess);
-    const candidate = fromSess || String(fallbackUrl || "");
+    let candidate = bestThumbFromSession(sess) || String(fallbackUrl || "");
+    if (!candidate) {
+      const found = findPosterByTitle(sess?.title || sess?.name || "");
+      if (found) candidate = found;
+    }
     if (candidate) await setPosterOnce(candidate);
   }
 
