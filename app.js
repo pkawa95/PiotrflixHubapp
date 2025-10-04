@@ -1068,6 +1068,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnPlay   = section.querySelector("#av2-btn-play");
   const btnPause  = section.querySelector("#av2-btn-pause");
   const btnStop   = section.querySelector("#av2-btn-stop");
+  const plTitle   = section.querySelector("#av2-pl-title"); // 🔑 tytuł w playerze (opcjonalny element w DOM)
 
   const dlg = section.querySelector("#av2-cast-modal");
   const castSel   = section.querySelector("#av2-device");
@@ -1131,7 +1132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---- state ----
   let RAW = { films: [], series: [] };
   let activeKind = "movies";
-  let selected = null;
+  let selected = null; // { id, title, poster }
   let currentClientId = localStorage.getItem("pf_cast_client") || "";
   let statusTimer = null;
   let badgeTimer  = null;
@@ -1301,8 +1302,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // ---- dialog helpers (otwieranie/zamykanie zawsze działa) ----
+  function openDialog(d){
+    if (!d) return;
+    if (typeof d.showModal === "function") d.showModal();
+    else d.setAttribute("open", "");
+  }
+  function closeDialog(d){
+    if (!d) return;
+    try {
+      if (typeof d.close === "function") d.close();
+      else d.removeAttribute("open");
+    } catch (_) {
+      d.removeAttribute("open");
+    }
+  }
+
   // ---- CAST + floating player ----
   function openCastModal() {
+    if (!dlg) return;
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson("/cast/players", { method: "GET" })
       .then((j) => {
@@ -1321,8 +1339,31 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .catch(() => { castSel.innerHTML = `<option value="">(błąd)</option>`; });
 
-    if (typeof dlg?.showModal === "function") dlg.showModal();
-    else dlg?.setAttribute("open", "");
+    // otwórz modal
+    openDialog(dlg);
+  }
+
+  // ❌ Wyjście / anulowanie modala — działa zawsze (przycisk / tło / Esc)
+  // Delegacja na typowe selektory anulowania + dedykowany #av2-cast-cancel (jeśli istnieje)
+  if (dlg) {
+    dlg.addEventListener("click", (e) => {
+      const t = e.target;
+      if (
+        t.matches?.("#av2-cast-cancel, [data-close], [data-dismiss='modal'], .js-cancel, .btn-cancel, .btn-close")
+      ) {
+        e.preventDefault();
+        closeDialog(dlg);
+      }
+      // klik w tło <dialog> zamyka (gdy klikniemy poza „modal box”)
+      if (t === dlg) {
+        closeDialog(dlg);
+      }
+    });
+    // Esc („cancel”) zawsze zamyka
+    dlg.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      closeDialog(dlg);
+    });
   }
 
   castSel?.addEventListener("change", () => {
@@ -1333,8 +1374,8 @@ document.addEventListener("DOMContentLoaded", () => {
   castStart?.addEventListener("click", async (e) => {
     e.preventDefault();
     const cid = castSel?.value || "";
-    if (!cid) return;
-    if (!selected || !/^\d+$/.test(String(selected.id || ""))) return;
+    if (!cid) { closeDialog(dlg); return; } // pozwól wyjść jeśli nic nie wybrane
+    if (!selected || !/^\d+$/.test(String(selected.id || ""))) { closeDialog(dlg); return; }
     try {
       await apiJson("/cast/start", {
         method: "POST",
@@ -1347,7 +1388,12 @@ document.addEventListener("DOMContentLoaded", () => {
         startStatusLoop();
       }
       if (plPoster) plPoster.src = selected.poster || "";
-    } catch (_) {} finally { dlg?.close?.(); }
+      if (plTitle)  setText(plTitle, selected.title || ""); // 🔑 ustaw tytuł w playerze
+    } catch (_) {
+      // opcjonalnie: toast błędu
+    } finally {
+      closeDialog(dlg);
+    }
   });
 
   // Floating player helpers
@@ -1415,6 +1461,8 @@ document.addEventListener("DOMContentLoaded", () => {
     playerBox.hidden = true;
     ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow"]
       .forEach(k => playerBox.style[k] = "");
+    if (plTitle) setText(plTitle, ""); // wyczyść tytuł po stopie
+    if (plPoster) plPoster.src = "";
   }
 
   function fmtTime(sec) {
@@ -1424,6 +1472,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const s = sec % 60;
     return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
+
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     const sess =
@@ -1438,7 +1487,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
+
+    // 🔁 aktualizuj tytuł z sesji, jeśli API go zwraca
+    const t = sess.title || sess.item_title || sess.metadata?.title || (selected?.title || "");
+    if (plTitle && t) setText(plTitle, t);
   }
+
   function startStatusLoop() {
     stopStatusLoop();
     statusTimer = setInterval(async () => {
@@ -1468,30 +1522,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "play" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_) {}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "pause" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_) {}
   });
   btnStop?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "stop" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "stop" } }); } catch (_) {}
     stopStatusLoop();
     clearFloatingPlayer();
   });
