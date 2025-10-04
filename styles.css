@@ -2576,10 +2576,10 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 :root{
   --card-radius: 14px;
 
-  /* footer */
-  --del-height: 60px;
-  --del-gap: 12px;       /* odstęp nad footerem wewnątrz karty */
-  --del-pad-x: 16px;
+  /* kompaktowy footer */
+  --del-height: 38px;     /* było 60px */
+  --del-gap: 8px;         /* odstęp nad footerem wewnątrz karty (było 12px) */
+  --del-pad-x: 12px;      /* było 16px */
 
   /* kolory stanów */
   --del-ok-bg:    linear-gradient(135deg,#28a745,#218838);
@@ -2608,21 +2608,21 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   padding-bottom: calc(var(--del-height) + var(--del-gap));
 }
 
-/* WEWNĘTRZNY FOOTER */
+/* WEWNĘTRZNY FOOTER (kompakt) */
 .av-card > .del-row{
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: var(--del-height);
 
   display: grid;
-  grid-template-columns: 1fr auto; /* zawsze jedna linia, także na mobile */
+  grid-template-columns: 1fr auto; /* zawsze jedna linia (PC + mobile) */
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0 var(--del-pad-x);
 
-  /* cienka linia oddzielająca od treści karty */
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
   color: var(--del-text);
+  line-height: 1;                  /* zbija wysokość w pionie */
 }
 
 /* Kolory stanów (kolor całej belki) */
@@ -2630,21 +2630,25 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 .av-card > .del-row.warn{  background: var(--del-warn-bg); color: var(--del-text-warn); }
 .av-card > .del-row.danger{background: var(--del-danger-bg); }
 
-/* Treść footera */
+/* Treść footera (kompakt) */
 .del-row__left{
   min-width: 0;
-  font-weight: 800;
+  font-weight: 700;                /* było 800 */
+  font-size: .92rem;               /* delikatnie mniejsze */
   letter-spacing: .2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .del-row__right{ justify-self: end; }
+
 .del-date{
   display: inline-block;
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 4px 8px;                /* było 8px 12px */
+  border-radius: 8px;              /* było 10px */
   font-weight: 600;
+  font-size: .85rem;               /* mniejsze */
   background: var(--del-date-bg);
   color: currentColor;
   white-space: nowrap;
