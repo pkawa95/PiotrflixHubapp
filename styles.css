@@ -2593,8 +2593,8 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   border-radius: var(--card-radius) var(--card-radius) 0 0;
   overflow: hidden;
   position: relative;
-  z-index: 2;                /* karta zawsze nad belką */
-  background: #111;          /* tło karty (pasuje do pseudo-elementu) */
+  z-index: 2;           
+  background: #111;     /* tło karty */
 }
 
 /* BELKA POD KARTĄ */
@@ -2605,11 +2605,11 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   width: 100%;
   height: var(--del-height);
 
-  margin-top: -1px;          /* przyklejamy się pod kartę */
+  margin-top: -20px;    /* 🔑 wsuwa się pod kartę */
   margin-bottom: 20px;
 
-  border-bottom-left-radius: var(--card-radius);
-  border-bottom-right-radius: var(--card-radius);
+  /* tylko dolne rogi zaokrąglone */
+  border-radius: 0 0 var(--card-radius) var(--card-radius);
 
   display: grid;
   grid-template-columns: 1fr auto;
@@ -2624,20 +2624,6 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
   overflow: hidden;
-}
-
-/* 🔑 WYCIĘCIE GÓRY BELKI */
-.del-row::before{
-  content:"";
-  position:absolute;
-  top:0;
-  left:0;
-  right:0;
-  height: var(--card-radius); /* wysokość maski */
-  background:#111;            /* tło takie jak karta */
-  border-top-left-radius: var(--card-radius);
-  border-top-right-radius: var(--card-radius);
-  z-index:2;
 }
 
 /* kolory stanów */
