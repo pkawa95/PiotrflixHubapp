@@ -2351,71 +2351,6 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
   #section-available .av-poster{ width:72px; height:108px; }
 }
 
-/* === Delete capsule (prawy górny róg karty) === */
-.del-badge{
-  position:absolute; top:8px; right:8px;
-  font-size: clamp(12px, 2.6vw, 13px);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border:1px solid #263251;
-  background: #0b1220;
-  color:#d1d5db;
-  line-height:1; white-space:nowrap;
-  box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-}
-
-/* >3 dni — spokojnie */
-.del-badge.ok{
-  border-color:#183a2a;
-  background:linear-gradient(180deg,#144a2f,#0f3b24);
-  color:#d1fae5;
-}
-
-/* 1–3 dni — ostrzeżenie */
-.del-badge.warn{
-  border-color:#3a2f1a;
-  background:linear-gradient(180deg,#4a3314,#3b2a0f);
-  color:#fff3c4;
-}
-
-/* <24 h lub po terminie — pilne */
-.del-badge.danger{
-  border-color:#3a1a27;
-  background:linear-gradient(180deg,#4a1420,#3b0f1a);
-  color:#fecaca;
-}
-
-
-/* === Delete capsule – prawy górny róg karty === */
-.av-card {
-  position: relative;
-}
-.del-badge{
-  position:absolute; top:8px; right:8px;
-  font-size: clamp(12px, 2.6vw, 13px);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border:1px solid #263251;
-  background: #0b1220;
-  color:#d1d5db;
-  line-height:1; white-space:nowrap;
-  box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-}
-.del-badge.ok{
-  border-color:#183a2a;
-  background:linear-gradient(180deg,#144a2f,#0f3b24);
-  color:#d1fae5;
-}
-.del-badge.warn{
-  border-color:#3a2f1a;
-  background:linear-gradient(180deg,#4a3314,#3b2a0f);
-  color:#fff3c4;
-}
-.del-badge.danger{
-  border-color:#3a1a27;
-  background:linear-gradient(180deg,#4a1420,#3b0f1a);
-  color:#fecaca;
-}
 
 /* Pasek + info */
 .av-progress-wrap {
@@ -2446,167 +2381,60 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
 /* Karta musi mieć pozycjonowanie, żeby absoluty działały */
 .av-card{ position:relative; }
 
-/* Pudełko kapsuły + daty (prawy górny róg) */
-.del-box{
-  position:absolute; top:8px; right:8px;
-  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
-  pointer-events:none; /* nie zasłania klików na kartę */
-}
 
-/* Kapsuła (dynamiczne kolory przez klasę na .del-box: ok|warn|danger) */
-.del-badge{
-  font-size: clamp(12px, 2.6vw, 13px);
-  padding: 4px 10px;
-  border-radius: 999px;
-  line-height:1; white-space:nowrap;
-  border:1px solid #263251;
-  background:#0b1220; color:#d1d5db;
-  box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-}
+/* ===================== DELETE BADGE ===================== */
 
-/* Data pod kapsułą (subtelna) */
-.del-date{
-  font-size:11px; color:#9ca3af;
-  padding:2px 8px; border-radius:8px;
-  background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.06);
-  backdrop-filter: blur(2px);
-  white-space:nowrap;
-}
-
-/* Wariacje kolorów wg pilności (ustawiane klasą na .del-box) */
-.del-box.ok   .del-badge{ border-color:#183a2a; background:linear-gradient(180deg,#144a2f,#0f3b24); color:#d1fae5; }
-.del-box.warn .del-badge{ border-color:#3a2f1a; background:linear-gradient(180deg,#4a3314,#3b2a0f); color:#fff3c4; }
-.del-box.danger .del-badge{ border-color:#3a1a27; background:linear-gradient(180deg,#4a1420,#3b0f1a); color:#fecaca; }
-
-/* Pasek postępu (jeśli jeszcze nie masz) */
-.av-progress-wrap{ display:flex; align-items:center; gap:8px; margin-top:6px; }
-.av-progress{ flex:1; height:6px; background:#1f2937; border-radius:4px; overflow:hidden; }
-.av-progress .av-bar{ display:block; height:100%; background:#3b82f6; }
-
-/* --- KARTA musi mieć relative --- */
-.av-card{ position:relative; }
-
-/* --- Pudełko kapsuły (prawy górny róg karty) --- */
-.del-box{
-  position:absolute; top:10px; right:12px;
-  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+/* Kontener kapsuł (w prawym górnym rogu karty) */
+.del-box {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;                 /* odstęp między kapsułkami */
   z-index: 3;
-  pointer-events:none;   /* żeby nie przykrywać klików */
-  max-width: 70%;        /* żeby nie wyszła poza kartę */
+  pointer-events: none;     /* nie blokuje kliknięć w kartę */
+  max-width: 70%;           /* żeby nie przykrywało tytułu */
+  font-size: 0.75rem;
+  line-height: 1.2;
 }
 
-/* --- Kapsuła (treść ‘usunie się za …’) --- */
-.del-badge{
-  font-size: 12px; line-height: 1;
-  padding: 6px 10px;
+/* Kapsuła "usunie się za X" */
+.del-badge {
+  position: static;         /* KLUCZ: nie absolutne */
+  display: inline-block;
+  padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(15,23,42,.76);  /* półprzezroczyste tło */
-  color: #e5e7eb;
-  backdrop-filter: saturate(1.1) blur(6px);
-  box-shadow:
-    0 6px 18px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.06);
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
-  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  color: #fff;
+  background: #666;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  pointer-events: auto;     /* można np. pokazać tooltip */
 }
 
-/* --- Data usunięcia (pod kapsułą) --- */
-.del-date{
-  font-size: 11px; line-height: 1;
-  padding: 4px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.06);
-  background: rgba(11,18,32,.6);
-  color: #a8b2c7;
-  backdrop-filter: blur(4px);
+/* Kolory stanu */
+.del-badge.ok {
+  background: #2e7d32;      /* zielony – OK (>3 dni) */
+}
+.del-badge.warn {
+  background: #f9a825;      /* żółty – ostrzeżenie (1–3 dni) */
+  color: #111;
+}
+.del-badge.danger {
+  background: #c62828;      /* czerwony – pilne (<1 dzień) */
+}
+
+/* Data usunięcia pod spodem */
+.del-date {
+  position: static;         /* też statycznie, układana pod spodem */
+  font-size: 0.7rem;
+  color: #aaa;
+  background: rgba(0,0,0,0.4);
+  padding: 1px 6px;
+  border-radius: 6px;
   white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-}
-
-/* --- Stany kolorystyczne (na .del-box) --- */
-.del-box.ok    .del-badge{
-  border-color:#184a31;
-  background: linear-gradient(180deg, rgba(20,74,55,.92), rgba(13,52,39,.92));
-  color:#d1fae5;
-}
-.del-box.warn  .del-badge{
-  border-color:#8a6b1a;
-  background: linear-gradient(180deg, rgba(122,92,26,.95), rgba(88,66,18,.92));
-  color:#fff3c4;
-}
-.del-box.danger .del-badge{
-  border-color:#7a2a3a;
-  background: linear-gradient(180deg, rgba(122,42,58,.96), rgba(92,26,40,.94));
-  color:#fecaca;
-}
-
-/* --- Drobne korekty paska postępu, żeby ładnie grało z kapsułą --- */
-.av-progress-wrap{ margin-top: 10px; }
-.av-progress{
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.05);
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-}
-.av-progress .av-bar{
-  display:block; height:100%;
-  background: linear-gradient(90deg,#22d3ee,#3b82f6,#a78bfa);
-}
-
-/* --- Responsywność: mniejsze kapsuły na wąskich ekranach --- */
-@media (max-width: 520px){
-  .del-box{ top:8px; right:8px; gap:4px; max-width:78%; }
-  .del-badge{ font-size: 11px; padding: 5px 9px; }
-  .del-date{ font-size: 10px; padding: 3px 7px; }
-}
-
-.av-card .title{ padding-right: 140px; } /* miejsce na kapsułę przy mega długich tytułach */
-
-/* --- KARTA ma relative --- */
-.av-card { position: relative; }
-
-/* --- Kontener kapsuł (prawy górny róg) --- */
-.del-box{
-  position:absolute; top:10px; right:12px;
-  display:flex; flex-direction:column; align-items:flex-end;
-  gap:4px;            /* odstęp między kapsułami */
-  z-index:3;
-  pointer-events:none;
-  max-width:70%;
-}
-
-/* --- Kapsuły wygląd --- */
-.del-badge, .del-date{
-  font-size:12px; line-height:1.3;
-  padding:6px 10px;
-  border-radius:8px;
-  border:1px solid rgba(255,255,255,.08);
-  background:rgba(15,23,42,.8);
-  color:#e5e7eb;
-  backdrop-filter:saturate(1.1) blur(6px);
-  white-space:nowrap;
-  text-shadow:0 1px 0 rgba(0,0,0,.35);
-  box-shadow:0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
-}
-
-/* --- Stany kolorystyczne dla “za X dni” --- */
-.del-box.ok    .del-badge { background:rgba(20,74,55,.9); border-color:#184a31; color:#d1fae5; }
-.del-box.warn  .del-badge { background:rgba(122,92,26,.9); border-color:#8a6b1a; color:#fff3c4; }
-.del-box.danger .del-badge{ background:rgba(122,42,58,.92); border-color:#7a2a3a; color:#fecaca; }
-
-/* --- Data usunięcia spokojniejsza --- */
-.del-date{
-  font-size:11px;
-  padding:4px 8px;
-  color:#a8b2c7;
-  background:rgba(11,18,32,.6);
-  border-color:rgba(255,255,255,.05);
-}
-
-/* --- Responsywność --- */
-@media (max-width:520px){
-  .del-box{ top:8px; right:8px; gap:3px; max-width:80%; }
-  .del-badge, .del-date{ font-size:11px; padding:4px 7px; }
+  pointer-events: none;
 }
