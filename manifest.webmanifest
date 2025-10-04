@@ -1,0 +1,25 @@
+{
+  "name": "PiotrFlix",
+  "short_name": "PiotrFlix",
+  "description": "PiotrFlix — logowanie, wyszukiwanie i odtwarzanie.",
+  "lang": "pl",
+  "dir": "ltr",
+  "start_url": "/PiotrflixHubapp/?source=pwa",
+  "scope": "/PiotrflixHubapp/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui", "browser"],
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "categories": ["entertainment", "video", "utilities"],
+  "icons": [
+    { "src": "static/favicon.ico", "sizes": "48x48 64x64 96x96", "type": "image/x-icon" },
+
+    { "src": "static/apple-touch-icon.png",             "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "static/apple-touch-icon-120x120.png",     "sizes": "120x120", "type": "image/png", "purpose": "any" },
+    { "src": "static/apple-touch-icon-152x152.png",     "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "static/apple-touch-icon-precomposed.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+
+    { "src": "static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

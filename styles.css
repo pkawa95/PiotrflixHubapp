@@ -6,6 +6,43 @@
  * ********************************************************************** */
 
 /* ---------- Zmienne globalne ---------- */
+/* ===================== SAFE AREA (notch / iPhone dynamic island) ===================== */
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+  --safe-right: env(safe-area-inset-right);
+}
+
+/* Fallback dla starszych WebKitów */
+@supports (padding-top: constant(safe-area-inset-top)) {
+  :root {
+    --safe-top: constant(safe-area-inset-top);
+    --safe-bottom: constant(safe-area-inset-bottom);
+    --safe-left: constant(safe-area-inset-left);
+    --safe-right: constant(safe-area-inset-right);
+  }
+}
+
+/* Globalne odsunięcie treści od notcha i gestów */
+html, body {
+  height: 100%;
+  box-sizing: border-box;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Sticky / fixed nagłówki i nawigacja przy dolnej krawędzi */
+header, .tx-stickybar, .av2-sticky {
+  padding-top: calc(var(--safe-top) + 4px);
+}
+
+footer, .nawigacja, .bottom-nav, .auth__footer {
+  padding-bottom: var(--safe-bottom);
+}
+
 :root {
   /* Tło i tekst */
   --bg: #0b1220;                 /* domyślnie ciemny – premium look */
