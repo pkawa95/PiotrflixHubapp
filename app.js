@@ -1149,9 +1149,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_SIGNAL_KEY = "pf_cast_signal";
   const LS_MIN_KEY    = "pf_cast_minimized"; // "1" | "0"
 
-  // ---- Poster — stabilny (ustaw raz na element; fallback + jednorazowe retry na starcie) ----
-  let lastPosterSrc = "";     // zapamiętany src
-  let currentItemKey = "";    // id aktualnego elementu
+  /* ---- Poster — stabilny v3 (blob + retry + bez mrugania) ---- */
+  let lastPosterSrc = "";      // zwycięski oryginalny adres dla bieżącego elementu
+  let lastPosterBlob = "";     // aktualny blob: URL ustawiony w <img> (do revoke)
+  let currentItemKey = "";     // id aktualnego elementu
   let posterRetryTimer = null;
   let posterRetryLeft = 0;
 
@@ -1165,38 +1166,82 @@ document.addEventListener("DOMContentLoaded", () => {
     ).trim();
   }
 
-  function setPosterOnce(url) {
+  async function setPosterBlobFromUrlOnce(url) {
     const u = String(url || "").trim();
-    if (!u) return;                    // nigdy nie nadpisuj pustym
-    if (!lastPosterSrc && plPoster) {  // ustaw tylko raz dla danego elementu
-      plPoster.src = u;
-      lastPosterSrc = u;
+    if (!u) return false;
+    if (lastPosterSrc) return true;
+
+    try {
+      const res = await window.authFetch(u);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+
+      const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i)) {
+        throw new Error("not-image");
+      }
+
+      const objUrl = URL.createObjectURL(blob);
+      await new Promise((resolve, reject) => {
+        const test = new Image();
+        test.onload = resolve;
+        test.onerror = reject;
+        test.src = objUrl;
+      });
+
+      if (plPoster) {
+        if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} }
+        plPoster.src = objUrl;
+        lastPosterBlob = objUrl;
+        lastPosterSrc = u;
+      }
+      return true;
+    } catch (_) {
+      return false;
     }
   }
-  function resetPosterForNewItem() { lastPosterSrc = ""; }
+
+  async function setPosterOnce(url) {
+    if (lastPosterSrc) return;
+    await setPosterBlobFromUrlOnce(url);
+  }
+
+  function resetPosterForNewItem() {
+    lastPosterSrc = "";
+    if (lastPosterBlob) { try { URL.revokeObjectURL(lastPosterBlob); } catch {} }
+    lastPosterBlob = "";
+  }
+
   function startPosterRetryIfNeeded() {
-    // 5 prób co 1s — tylko na samym początku, gdy weszliśmy w trakcie odtwarzania
     if (lastPosterSrc || posterRetryTimer) return;
     posterRetryLeft = 5;
     posterRetryTimer = setInterval(async () => {
       try {
         if (posterRetryLeft-- <= 0) { clearInterval(posterRetryTimer); posterRetryTimer = null; return; }
         const j = await apiJson("/cast/status", { method: "GET" });
-        const sess = Array.isArray(j?.sessions) && j.sessions[0];
+        const sess = Array.isArray(j?.sessions) ? j.sessions[0] : null;
         if (sess) {
           const maybe = bestThumbFromSession(sess);
-          if (maybe) {
-            setPosterOnce(maybe);
+          if (maybe && await setPosterOnce(maybe)) {
             clearInterval(posterRetryTimer);
             posterRetryTimer = null;
           }
         }
-      } catch (_) {
-        // ignoruj; spróbujemy w kolejnej sekundzie
-      }
+      } catch {}
     }, 1000);
   }
-  plPoster?.addEventListener("error", () => { /* nie czyścimy src -> brak mrugania */ });
+  plPoster?.addEventListener("error", () => { /* brak czyszczenia = brak mrugania */ });
+
+  async function ensurePosterForActiveSession(sess, fallbackUrl) {
+    const newKey = String(sess?.item_id || sess?.ratingKey || "");
+    if (newKey && newKey !== currentItemKey) {
+      currentItemKey = newKey;
+      resetPosterForNewItem();
+    }
+    const fromSess = bestThumbFromSession(sess);
+    const candidate = fromSess || String(fallbackUrl || "");
+    if (candidate) await setPosterOnce(candidate);
+  }
 
   // ---- Symulacja czasu odtwarzania (płynny pasek) ----
   let simTimer = null;       // setInterval(1s)
@@ -1223,7 +1268,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (s) return s === "playing";
     if (typeof sess?.playing === "boolean") return sess.playing;
     if (typeof sess?.paused === "boolean") return !sess.paused;
-    return true; // domyślnie traktuj jako playing
+    return true; // domyślnie playing
   }
 
   function applyServerClock(dur, pos, isPlaying){
@@ -1234,10 +1279,8 @@ document.addEventListener("DOMContentLoaded", () => {
       simPos = pos;
       simInit = true;
     } else {
-      // przewidywana pozycja wg naszej symulacji od ostatniego ticka
       const predicted = simPos + (simPlaying ? (now - lastSyncTs)/1000 : 0);
       const drift = pos - predicted;
-      // jeśli dryf duży (>2s) — twarda synchronizacja, przy małym — płynne dociągnięcie (30%)
       if (Math.abs(drift) > 2) simPos = pos;
       else simPos = predicted + 0.3 * drift;
       simPos = Math.max(0, Math.min(simDur, simPos));
@@ -1466,7 +1509,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placePortal();
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
-    if (lastPosterSrc) plPoster && (plPoster.src = lastPosterSrc);
+    if (lastPosterBlob) plPoster && (plPoster.src = lastPosterBlob);
     const min = localStorage.getItem(LS_MIN_KEY) === "1";
     applyMinimized(min);
   }
@@ -1551,7 +1594,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentItemKey = String(selected.id || "");
       resetPosterForNewItem();
-      setPosterOnce(selected.poster || "");
+      await setPosterOnce(selected.poster || "");
       if (plTitle) plTitle.textContent = selected.title || "";
       if (minTitleEl) minTitleEl.textContent = selected.title || "";
 
@@ -1577,7 +1620,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   };
 
-  function updateFromStatus(st) {
+  async function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     if (!sessions.length) {
       stopStatusLoop();
@@ -1591,21 +1634,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
 
-    // zmiana elementu?
-    const newKey = String(sess.item_id || sess.ratingKey || "");
-    if (newKey && newKey !== currentItemKey) {
-      currentItemKey = newKey;
-      resetPosterForNewItem();
-    }
+    await ensurePosterForActiveSession(sess, selected?.poster || "");
 
-    // tytuł + poster
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
     if (minTitleEl && nowTitle) minTitleEl.textContent = nowTitle;
-    const bestThumb = bestThumbFromSession(sess) || (selected?.poster || "");
-    setPosterOnce(bestThumb);
 
-    // clock z serwera -> do symulacji
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const playing = detectPlaying(sess);
@@ -1628,9 +1662,9 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const qs = currentClientId ? `?client_id=${encodeURIComponent(currentClientId)}` : "";
         const j = await apiJson("/cast/status" + qs, { method: "GET" });
-        updateFromStatus(j);
+        await updateFromStatus(j);
       } catch (_) {}
-    }, 10000); // Twój tick ~10 s – resztę wygładza symulacja 1 s
+    }, 10000); // tick ~10 s – wygładza symulacja 1 s
   }
   function stopStatusLoop() {
     if (statusTimer) { clearInterval(statusTimer); }
@@ -1649,21 +1683,12 @@ document.addEventListener("DOMContentLoaded", () => {
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        const key = String(sess.item_id || sess.ratingKey || "");
-        if (key && key !== currentItemKey) {
-          currentItemKey = key;
-          resetPosterForNewItem();
-        }
-
-        // natychmiast spróbuj ustawić plakat z dowolnego pola miniatury
-        const bestThumb = bestThumbFromSession(sess);
-        setPosterOnce(bestThumb);
+        await ensurePosterForActiveSession(sess, "");
 
         const t = String(sess.title || "");
         if (plTitle && t) plTitle.textContent = t;
         if (minTitleEl && t) minTitleEl.textContent = t;
 
-        // start symulacji od serwerowego stanu
         const dur = Number(sess.duration_ms || 0) / 1000;
         const pos = Number(sess.view_offset_ms || 0) / 1000;
         applyServerClock(dur, pos, detectPlaying(sess));
@@ -1679,9 +1704,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ts: Date.now()
         });
 
-        // jeśli mimo wszystko plakat nie przyszedł — uruchom krótki retry
         if (!lastPosterSrc) startPosterRetryIfNeeded();
-
         return true;
       }
     } catch (_) {}
@@ -1739,7 +1762,6 @@ document.addEventListener("DOMContentLoaded", () => {
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const v = Number(plSeek.value || "0");
-    // lokalna, natychmiastowa aktualizacja symulacji
     simPos = Math.max(0, Math.min(simDur, v));
     simInit = true;
     lastSyncTs = Date.now();
@@ -1749,17 +1771,15 @@ document.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         body: { client_id: currentClientId, cmd: "seek", seek_ms: Math.round(simPos * 1000) },
       });
-    } catch (_) {}
+    } catch (_){}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    // optymistycznie przełącz na odtwarzanie
     simPlaying = true; lastSyncTs = Date.now(); startSim();
     try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_){}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    // optymistycznie wstrzymaj
     simPlaying = false; lastSyncTs = Date.now();
     try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_){}
   });
@@ -1783,7 +1803,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const cached = JSON.parse(localStorage.getItem(LS_ACTIVE_KEY) || "{}");
       if (cached) {
         if (cached.item_id) currentItemKey = String(cached.item_id);
-        setPosterOnce(cached.poster || "");
+        await setPosterOnce(cached.poster || "");
         if (plTitle && cached.title) plTitle.textContent = cached.title;
         if (minTitleEl && cached.title) minTitleEl.textContent = cached.title;
         if (cached.client_id) currentClientId = String(cached.client_id);
@@ -1792,8 +1812,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
-    // ważne: jeśli już coś gra, od razu pobierz stan + spróbuj złapać plakat,
-    // a kiedy brak miniatury — odpal lekki retry, by nie przegapić późnego thumb'a.
     const found = await pollActiveOnce();
     if (!lastPosterSrc && found) startPosterRetryIfNeeded();
 
@@ -1832,6 +1850,3 @@ function setDelState(row, diffMs){
   row.classList.add(state);
   row.dataset.state = state;
 }
-
-
-
