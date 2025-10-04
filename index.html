@@ -2,24 +2,44 @@
 <html lang="pl" data-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+  <!-- Pełny PWA viewport, bez skalowania i z obsługą notcha -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
   <title>PiotrFlix — Logowanie</title>
 
-  <!-- USTAWIENIE BAZY DLA ŚCIEŻEK NA GITHUB PAGES (NAZWA REPO!) -->
-  <!-- Jeśli zmienisz nazwę repozytorium, zaktualizuj ten href. -->
+  <!-- GitHub Pages: baza ścieżek (Nazwa repo!) -->
   <base href="/PiotrflixHubapp/">
 
-  <!-- Bazowy CSS (działa dzięki <base>) -->
-  <link rel="stylesheet" href="styles.css" />
+  <!-- Ikony (w folderze static/) -->
+  <link rel="icon" href="static/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="static/apple-touch-icon.png">
+  <!-- (opcjonalnie dodatkowe apple-touch-icon rozmiary jeśli masz w static/)
+  <link rel="apple-touch-icon" sizes="120x120" href="static/apple-touch-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="static/apple-touch-icon-152x152.png">
+  -->
+
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="application-name" content="PiotrFlix">
+
+  <!-- iOS / Android standalone/fullscreen -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PiotrFlix">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- Preferencja systemowa: dark mode (opcjonalnie do wykorzystania w CSS) -->
   <meta name="color-scheme" content="light dark" />
+
+  <!-- Główny CSS (działa względem <base>) -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-  <noscript>
-    Ta aplikacja wymaga JavaScript do logowania i wyświetlania treści.
-  </noscript>
+  <noscript>Ta aplikacja wymaga JavaScript do logowania i wyświetlania treści.</noscript>
 
   <!-- Przycisk trybu jasny/ciemny (JS ustawi aria-pressed, data-theme na <html>) -->
   <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" title="Przełącz tryb">
@@ -35,10 +55,8 @@
     data-login-endpoint="/auth/login"
     data-register-endpoint="/auth/register"
   >
-
     <!-- Logo u góry, wyśrodkowane -->
     <header class="auth__header">
-      <!-- Dzięki <base> wystarczy podać ścieżkę względem repo -->
       <img src="static/logo.png" alt="PiotrFlix" class="auth__logo" />
     </header>
 
@@ -231,225 +249,235 @@
 
   <!-- ========================= APLIKACJA (CONTENT) ========================= -->
   <div id="app" class="app" hidden>
-<!-- ====== NAWIGACJA (nowa, izolowana) ====== -->
-<nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
-  <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
-    <span class="nawigacja__ico ico--torrents" aria-hidden="true"></span>
-    <span class="nawigacja__label">Torrenty</span>
-  </button>
+    <!-- ====== NAWIGACJA (nowa, izolowana) ====== -->
+    <nav class="nawigacja" id="nawigacja" role="tablist" aria-label="Główna nawigacja">
+      <button class="nawigacja__btn" data-section="torrents" role="tab" aria-controls="section-torrents" aria-selected="false">
+        <span class="nawigacja__ico ico--torrents" aria-hidden="true"></span>
+        <span class="nawigacja__label">Torrenty</span>
+      </button>
 
-  <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
-    <span class="nawigacja__ico ico--search" aria-hidden="true"></span>
-    <span class="nawigacja__label">Wyszukaj</span>
-  </button>
+      <button class="nawigacja__btn" data-section="search" role="tab" aria-controls="section-search" aria-selected="false">
+        <span class="nawigacja__ico ico--search" aria-hidden="true"></span>
+        <span class="nawigacja__label">Wyszukaj</span>
+      </button>
 
-  <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
-    <span class="nawigacja__ico ico--available" aria-hidden="true"></span>
-    <span class="nawigacja__label">Dostępne</span>
-  </button>
+      <button class="nawigacja__btn" data-section="available" role="tab" aria-controls="section-available" aria-selected="false">
+        <span class="nawigacja__ico ico--available" aria-hidden="true"></span>
+        <span class="nawigacja__label">Dostępne</span>
+      </button>
 
-  <button class="nawigacja__btn" data-section="options" role="tab" aria-controls="section-options" aria-selected="false">
-    <span class="nawigacja__ico ico--options" aria-hidden="true"></span>
-    <span class="nawigacja__label">Opcje</span>
-  </button>
-</nav>
-
+      <button class="nawigacja__btn" data-section="options" role="tab" aria-controls="section-options" aria-selected="false">
+        <span class="nawigacja__ico ico--options" aria-hidden="true"></span>
+        <span class="nawigacja__label">Opcje</span>
+      </button>
+    </nav>
 
     <!-- Zawartość aplikacji (renderowana po zalogowaniu) -->
     <main id="content" role="region" aria-live="polite">
-<section id="section-torrents" class="section" aria-label="Torrenty i kolejka">
-  <div class="tx-container">
+      <section id="section-torrents" class="section" aria-label="Torrenty i kolejka">
+        <div class="tx-container">
 
-    <!-- sticky: logo + przełącznik -->
-    <header class="tx-stickybar">
-      <div class="tx-brand">
-        <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" />
-      </div>
-      <nav class="tx-tabs" role="tablist" aria-label="Widok">
-        <button class="tx-tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">Torrenty</button>
-        <button class="tx-tab" data-tx-tab="queue" role="tab" aria-selected="false">Kolejka</button>
-      </nav>
-    </header>
+          <!-- sticky: logo + przełącznik -->
+          <header class="tx-stickybar">
+            <div class="tx-brand">
+              <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" />
+            </div>
+            <nav class="tx-tabs" role="tablist" aria-label="Widok">
+              <button class="tx-tab is-active" data-tx-tab="torrents" role="tab" aria-selected="true">Torrenty</button>
+              <button class="tx-tab" data-tx-tab="queue" role="tab" aria-selected="false">Kolejka</button>
+            </nav>
+          </header>
 
-    <!-- narzędzia: TORRENTY -->
-    <div class="tx-toolbar" data-tx-tools="torrents">
-      <div class="tx-group">
-        <label for="tx-sort" class="tx-label">Sortuj:</label>
-        <select id="tx-sort" class="select">
-          <option value="name">Nazwa</option>
-          <option value="progress">Postęp</option>
-          <option value="state">Stan</option>
-        </select>
-      </div>
+          <!-- narzędzia: TORRENTY -->
+          <div class="tx-toolbar" data-tx-tools="torrents">
+            <div class="tx-group">
+              <label for="tx-sort" class="tx-label">Sortuj:</label>
+              <select id="tx-sort" class="select">
+                <option value="name">Nazwa</option>
+                <option value="progress">Postęp</option>
+                <option value="state">Stan</option>
+              </select>
+            </div>
 
-      <div class="tx-group">
-        <label for="tx-speed" class="tx-label">🌐 Limit pobierania:</label>
-        <select id="tx-speed" class="select">
-          <option value="0">Bez limitu</option>
-          <option value="1">1 MB/s</option>
-          <option value="2">2 MB/s</option>
-          <option value="5">5 MB/s</option>
-          <option value="10">10 MB/s</option>
-          <option value="15">15 MB/s</option>
-        </select>
-      </div>
+            <div class="tx-group">
+              <label for="tx-speed" class="tx-label">🌐 Limit pobierania:</label>
+              <select id="tx-speed" class="select">
+                <option value="0">Bez limitu</option>
+                <option value="1">1 MB/s</option>
+                <option value="2">2 MB/s</option>
+                <option value="5">5 MB/s</option>
+                <option value="10">10 MB/s</option>
+                <option value="15">15 MB/s</option>
+              </select>
+            </div>
 
-      <div id="tx-speed-feedback" class="tx-hint" aria-live="polite"></div>
-    </div>
+            <div id="tx-speed-feedback" class="tx-hint" aria-live="polite"></div>
+          </div>
 
-    <!-- lista: TORRENTY -->
-    <div id="tx-torrents" class="tx-list" role="region" aria-live="polite">
-      <div class="tx-empty">Ładowanie…</div>
-    </div>
+          <!-- lista: TORRENTY -->
+          <div id="tx-torrents" class="tx-list" role="region" aria-live="polite">
+            <div class="tx-empty">Ładowanie…</div>
+          </div>
 
-    <!-- narzędzia: KOLEJKA -->
-    <div class="tx-toolbar" data-tx-tools="queue" hidden>
-      <div class="tx-group">
-        <label for="tx-q-status" class="tx-label">Status:</label>
-        <select id="tx-q-status" class="select">
-          <option value="all">Wszystkie</option>
-          <option value="new" selected>Nowe</option>
-          <option value="picked">W realizacji</option>
-          <option value="done">Zakończone</option>
-          <option value="error">Błędy</option>
-        </select>
-      </div>
-      <div class="tx-hint">Lista odświeża się automatycznie</div>
-    </div>
+          <!-- narzędzia: KOLEJKA -->
+          <div class="tx-toolbar" data-tx-tools="queue" hidden>
+            <div class="tx-group">
+              <label for="tx-q-status" class="tx-label">Status:</label>
+              <select id="tx-q-status" class="select">
+                <option value="all">Wszystkie</option>
+                <option value="new" selected>Nowe</option>
+                <option value="picked">W realizacji</option>
+                <option value="done">Zakończone</option>
+                <option value="error">Błędy</option>
+              </select>
+            </div>
+            <div class="tx-hint">Lista odświeża się automatycznie</div>
+          </div>
 
-    <!-- lista: KOLEJKA -->
-    <div id="tx-queue" class="tx-list tx-list--queue" role="region" aria-live="polite" hidden>
-      <div class="tx-empty">Brak elementów</div>
-    </div>
+          <!-- lista: KOLEJKA -->
+          <div id="tx-queue" class="tx-list tx-list--queue" role="region" aria-live="polite" hidden>
+            <div class="tx-empty">Brak elementów</div>
+          </div>
 
-  </div>
-</section>
+        </div>
+      </section>
 
-<!-- ===================== WYSZUKAJ (sekcja) ===================== -->
-<section id="section-search" hidden aria-hidden="true">
-  <div class="tx-container">
+      <!-- ===================== WYSZUKAJ (sekcja) ===================== -->
+      <section id="section-search" hidden aria-hidden="true">
+        <div class="tx-container">
 
-    <!-- Sticky: logo + zakładki -->
-    <div class="tx-stickybar">
-      <div class="tx-brand">
-        <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" onerror="this.style.display='none'">
-      </div>
-      <div class="tx-tabs" role="tablist" aria-label="Tryb wyszukiwania">
-        <button class="tx-tab is-active" data-mode="yts_html" role="tab" aria-selected="true">Filmy</button>
-        <button class="tx-tab" data-mode="tpb_premium" role="tab" aria-selected="false">Filmy+</button>
-        <button class="tx-tab" data-mode="tpb_series" role="tab" aria-selected="false">Seriale</button>
-      </div>
-    </div>
+          <!-- Sticky: logo + zakładki -->
+          <div class="tx-stickybar">
+            <div class="tx-brand">
+              <img src="static/logo.png" alt="PiotrFlix" class="tx-logo" onerror="this.style.display='none'">
+            </div>
+            <div class="tx-tabs" role="tablist" aria-label="Tryb wyszukiwania">
+              <button class="tx-tab is-active" data-mode="yts_html" role="tab" aria-selected="true">Filmy</button>
+              <button class="tx-tab" data-mode="tpb_premium" role="tab" aria-selected="false">Filmy+</button>
+              <button class="tx-tab" data-mode="tpb_series" role="tab" aria-selected="false">Seriale</button>
+            </div>
+          </div>
 
-    <!-- Toolbar -->
-    <div class="tx-toolbar" id="sx-toolbar">
-      <div class="tx-group" style="flex:1; min-width: 220px;">
-        <label for="sx-q" class="tx-label">Wyszukaj tytuł</label>
-        <input id="sx-q" class="sx-input" type="search"
-               placeholder="np. Obecność 2 / Rocky II / The Office"
-               inputmode="search" autocomplete="off">
-      </div>
+          <!-- Toolbar -->
+          <div class="tx-toolbar" id="sx-toolbar">
+            <div class="tx-group" style="flex:1; min-width: 220px;">
+              <label for="sx-q" class="tx-label">Wyszukaj tytuł</label>
+              <input id="sx-q" class="sx-input" type="search"
+                     placeholder="np. Obecność 2 / Rocky II / The Office"
+                     inputmode="search" autocomplete="off">
+            </div>
 
-      <div class="tx-group" id="sx-quality-wrap" aria-hidden="false">
-        <label for="sx-quality" class="tx-label">Jakość (YTS)</label>
-        <select id="sx-quality" class="select">
-          <option value="">Dowolna</option>
-          <option value="720p">720p</option>
-          <option value="1080p" selected>1080p</option>
-          <option value="2160p">2160p</option>
-        </select>
-      </div>
+            <div class="tx-group" id="sx-quality-wrap" aria-hidden="false">
+              <label for="sx-quality" class="tx-label">Jakość (YTS)</label>
+              <select id="sx-quality" class="select">
+                <option value="">Dowolna</option>
+                <option value="720p">720p</option>
+                <option value="1080p" selected>1080p</option>
+                <option value="2160p">2160p</option>
+              </select>
+            </div>
 
-      <div class="tx-group">
-        <button id="sx-btn-search" class="tbtn" type="button" aria-label="Szukaj">Szukaj</button>
-      </div>
-    </div>
+            <div class="tx-group">
+              <button id="sx-btn-search" class="tbtn" type="button" aria-label="Szukaj">Szukaj</button>
+            </div>
+          </div>
 
-    <!-- Wyniki -->
-    <div id="sx-results" class="tx-list" aria-live="polite" aria-busy="false"></div>
-  </div>
+          <!-- Wyniki -->
+          <div id="sx-results" class="tx-list" aria-live="polite" aria-busy="false"></div>
+        </div>
 
-  <!-- Toast -->
-  <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
-</section>
+        <!-- Toast -->
+        <div id="sx-toast" class="sx-toast" role="status" aria-live="polite"></div>
+      </section>
 
-
-      
       <section id="section-browse" role="tabpanel" aria-hidden="true"></section>
-<!-- ===================== DOSTĘPNE (sekcja v2 – poprawione) ===================== -->
-<section id="section-available" aria-labelledby="av2-title">
-  <!-- sticky: logo + tabs -->
-  <div class="av2-sticky" id="av2-header">
-    <div class="av2-brand">
-      <img src="static/logo.png" alt="Piotrflix" class="av2-logo" />
-    </div>
-    <div class="av2-tabs" id="av2-tabs" role="tablist" aria-label="Przełącz widok">
-      <button id="av2-tab-movies" data-av2-tab="movies" class="is-active" role="tab" aria-selected="true">Filmy</button>
-      <button id="av2-tab-series" data-av2-tab="series" role="tab" aria-selected="false">Seriale</button>
-    </div>
-  </div>
 
-  <!-- info / pusty stan -->
-  <p class="av2-info" id="av2-info">Ładuję listę…</p>
+      <!-- ===================== DOSTĘPNE (sekcja v2 – poprawione) ===================== -->
+      <section id="section-available" aria-labelledby="av2-title">
+        <!-- sticky: logo + tabs -->
+        <div class="av2-sticky" id="av2-header">
+          <div class="av2-brand">
+            <img src="static/logo.png" alt="Piotrflix" class="av2-logo" />
+          </div>
+          <div class="av2-tabs" id="av2-tabs" role="tablist" aria-label="Przełącz widok">
+            <button id="av2-tab-movies" data-av2-tab="movies" class="is-active" role="tab" aria-selected="true">Filmy</button>
+            <button id="av2-tab-series" data-av2-tab="series" role="tab" aria-selected="false">Seriale</button>
+          </div>
+        </div>
 
-  <!-- LISTA -->
-  <div id="av2-list" class="av2-list" aria-live="polite"></div>
+        <!-- info / pusty stan -->
+        <p class="av2-info" id="av2-info">Ładuję listę…</p>
 
-<!-- PLAYER (pokazuj dopiero po starcie castu) -->
-<div id="av2-player" class="av2-player" hidden>
-  <!-- przycisk minimalizacji -->
-  <button id="av2-min-toggle" class="btn" aria-label="Zminimalizuj" aria-pressed="false" title="Zminimalizuj">▾</button>
+        <!-- LISTA -->
+        <div id="av2-list" class="av2-list" aria-live="polite"></div>
 
-  <!-- poster -->
-  <img id="av2-pl-poster" class="av2-pl-poster" alt="">
+        <!-- PLAYER (pokazuj dopiero po starcie castu) -->
+        <div id="av2-player" class="av2-player" hidden>
+          <!-- przycisk minimalizacji -->
+          <button id="av2-min-toggle" class="btn" aria-label="Zminimalizuj" aria-pressed="false" title="Zminimalizuj">▾</button>
 
-  <!-- główna część -->
-  <div class="av2-pl-main">
-    <!-- Tytuł -->
-    <div id="av2-pl-title" class="av2-pl-title" title=""></div>
+          <!-- poster -->
+          <img id="av2-pl-poster" class="av2-pl-poster" alt="">
 
-    <div class="av2-pl-row">
-      <input id="av2-pl-seek" type="range" min="0" max="0" value="0" step="1" />
-    </div>
+          <!-- główna część -->
+          <div class="av2-pl-main">
+            <!-- Tytuł -->
+            <div id="av2-pl-title" class="av2-pl-title" title=""></div>
 
-    <div class="av2-pl-meta">
-      <span id="av2-pl-time">00:00 / 00:00</span>
-      <span id="av2-pl-pct">0%</span>
-    </div>
+            <div class="av2-pl-row">
+              <input id="av2-pl-seek" type="range" min="0" max="0" value="0" step="1" />
+            </div>
 
-    <div class="av2-pl-ctrls">
-      <button id="av2-btn-play" class="btn btn--ghost" title="Wznów">▶</button>
-      <button id="av2-btn-pause" class="btn btn--ghost" title="Pauza">⏸</button>
-      <button id="av2-btn-stop" class="btn btn--danger" title="Stop">■</button>
-    </div>
+            <div class="av2-pl-meta">
+              <span id="av2-pl-time">00:00 / 00:00</span>
+              <span id="av2-pl-pct">0%</span>
+            </div>
 
-    <!-- Pasek mini (pokazywany tylko w trybie is-min) -->
-    <div id="av2-minbar" title="Kliknij, aby przywrócić">
-      Odtwarzam: „<span id="av2-min-title"></span>”
-    </div>
-  </div>
-</div>
+            <div class="av2-pl-ctrls">
+              <button id="av2-btn-play" class="btn btn--ghost" title="Wznów">▶</button>
+              <button id="av2-btn-pause" class="btn btn--ghost" title="Pauza">⏸</button>
+              <button id="av2-btn-stop" class="btn btn--danger" title="Stop">■</button>
+            </div>
 
+            <!-- Pasek mini (pokazywany tylko w trybie is-min) -->
+            <div id="av2-minbar" title="Kliknij, aby przywrócić">
+              Odtwarzam: „<span id="av2-min-title"></span>”
+            </div>
+          </div>
+        </div>
 
-  <!-- MODAL: wybór urządzenia -->
-  <dialog id="av2-cast-modal" class="av2-modal">
-    <form method="dialog" class="av2-modal-card" id="av2-cast-form">
-      <h3>Wybierz urządzenie Plex</h3>
-      <select id="av2-device" class="select" required>
-        <option value="">— ładuję… —</option>
-      </select>
-      <div class="av2-modal-actions">
-        <button id="av2-cast-start" class="btn btn--primary" value="play">Odtwarzaj</button>
-        <button id="av2-cast-cancel" class="btn btn--ghost" value="cancel">Wyjście</button>
-      </div>
-    </form>
-  </dialog>
-</section>
-
+        <!-- MODAL: wybór urządzenia -->
+        <dialog id="av2-cast-modal" class="av2-modal">
+          <form method="dialog" class="av2-modal-card" id="av2-cast-form">
+            <h3>Wybierz urządzenie Plex</h3>
+            <select id="av2-device" class="select" required>
+              <option value="">— ładuję… —</option>
+            </select>
+            <div class="av2-modal-actions">
+              <button id="av2-cast-start" class="btn btn--primary" value="play">Odtwarzaj</button>
+              <button id="av2-cast-cancel" class="btn btn--ghost" value="cancel">Wyjście</button>
+            </div>
+          </form>
+        </dialog>
+      </section>
     </main>
   </div>
 
-  <!-- Główny skrypt aplikacji (działa dzięki <base>) -->
+  <!-- Główny skrypt aplikacji -->
   <script src="app.js" defer></script>
+
+  <!-- Rejestracja Service Workera z poprawnym zakresem pod GH Pages -->
+  <script>
+    (function registerSW(){
+      if (!('serviceWorker' in navigator)) return;
+      const scope = '/PiotrflixHubapp/';
+      navigator.serviceWorker.register(scope + 'service-worker.js', { scope })
+        .then(reg => console.log('[PWA] SW zarejestrowany:', reg.scope))
+        .catch(err => console.error('[PWA] Błąd SW:', err));
+    })();
+
+    // (Opcjonalnie) delikatna prewencja gest-zoom na iOS/Android
+    window.addEventListener('gesturestart', e => e.preventDefault(), { passive:false });
+  </script>
 </body>
 </html>
