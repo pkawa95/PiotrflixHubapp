@@ -2573,86 +2573,46 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* === OVERRIDES: del-box / del-badge – mobile & desktop tidy === */
-
-/* karta jako kotwica dla absolutów */
-#section-available .av-card{
-  position: relative !important;
-}
-
-/* kapsuły: zawsze absolutnie w prawym górnym rogu i nie zabierają miejsca */
-#section-available .del-box{
-  position: absolute !important;
-  top: 10px; right: 12px;
-  display: flex; flex-direction: column; align-items: flex-end;
-  gap: 6px;
-  max-width: min(70%, 320px);
+/* Pudełko kapsułek */
+.av-card .del-box {
+  position: absolute;
+  right: 10px;
+  bottom: 10px; /* w prawym dolnym rogu */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   z-index: 3;
-  pointer-events: none;              /* nie przeszkadzają w klikaniu karty */
 }
 
-/* wygląd kapsuł */
-#section-available .del-badge,
-#section-available .del-date{
-  font-size: 12px; line-height: 1.25;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(15,23,42,.82);
-  color: #e5e7eb;
-  backdrop-filter: saturate(1.1) blur(6px);
+/* Kapsuła – usunie się za X dni/min */
+.del-badge {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  border-radius: 12px;
+  font-weight: 600;
+  color: #fff;
   white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
-  text-shadow: 0 1px 0 rgba(0,0,0,.35);
 }
 
-/* stany kolorystyczne (spójne z JS ok/warn/danger) */
-#section-available .del-box.ok    .del-badge{ background: linear-gradient(180deg, rgba(20,74,55,.92), rgba(13,52,39,.92)); border-color:#184a31; color:#d1fae5; }
-#section-available .del-box.warn  .del-badge{ background: linear-gradient(180deg, rgba(122,92,26,.95), rgba(88,66,18,.92));  border-color:#8a6b1a; color:#fff3c4; }
-#section-available .del-box.danger .del-badge{ background: linear-gradient(180deg, rgba(122,42,58,.96), rgba(92,26,40,.94));  border-color:#7a2a3a; color:#fecaca; }
-
-/* data – trochę spokojniejsza */
-#section-available .del-date{
-  font-size: 11px;
-  padding: 4px 8px;
-  background: rgba(11,18,32,.72);
-  color: #a8b2c7;
-  border-color: rgba(255,255,255,.06);
+/* Data usunięcia */
+.del-date {
+  font-size: 0.7rem;
+  opacity: 0.8;
+  background: rgba(0,0,0,0.5);
+  padding: 2px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
-/* tytuł NIE ma już sztucznego odsunięcia – usuwa „dziurę” na mobile */
-#section-available .av-card .title{
-  padding-right: 0 !important;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  line-clamp: 2; -webkit-line-clamp: 2;
-  overflow: hidden; text-overflow: ellipsis;
+/* Kolory zależnie od TTL */
+.del-box.ok .del-badge {
+  background: linear-gradient(135deg, #28a745, #218838); /* zielony */
 }
-
-/* pasek postępu zawsze 100% szerokości (kapsuły go nie skracają) */
-#section-available .av-progress-wrap,
-#section-available .av-progress{
-  width: 100% !important;
+.del-box.warn .del-badge {
+  background: linear-gradient(135deg, #ffc107, #e0a800); /* żółty */
+  color: #000;
 }
-
-/* --- Mobile polish --- */
-@media (max-width: 560px){
-  #section-available .del-box{
-    top: 8px; right: 8px;
-    gap: 4px;
-    max-width: 78%;
-    transform: translateZ(0);       /* ostrzejszy tekst na niektórych UA */
-  }
-  #section-available .del-badge{ font-size: 11px; padding: 5px 9px; }
-  #section-available .del-date { font-size: 10px; padding: 3px 7px; }
-
-  /* ciaśniejsze odstępy karty na mobile */
-  #section-available .av-card{ gap: 10px !important; padding: 10px !important; }
-  #section-available .av-card .body{ gap: 6px !important; }
-}
-
-/* --- Desktop polish (opcjonalnie: minimalny bufor od kapsuł przy mega długich tytułach) --- */
-@media (min-width: 1024px){
-  /* jeśli chcesz, dodaj lekki bufor dla tytułu, ale nie wpływa na progress */
-  #section-available .av-card .title{ padding-right: 140px; }
+.del-box.danger .del-badge {
+  background: linear-gradient(135deg, #dc3545, #a71d2a); /* czerwony */
 }
