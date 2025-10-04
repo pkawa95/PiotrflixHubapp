@@ -395,27 +395,41 @@
   <!-- LISTA -->
   <div id="av2-list" class="av2-list" aria-live="polite"></div>
 
-  <!-- PLAYER (pokazuj dopiero po starcie castu) -->
+<!-- PLAYER (pokazuj dopiero po starcie castu) -->
 <div id="av2-player" class="av2-player" hidden>
+  <!-- przycisk minimalizacji -->
+  <button id="av2-min-toggle" class="btn" aria-label="Zminimalizuj" aria-pressed="false" title="Zminimalizuj">▾</button>
+
+  <!-- poster -->
   <img id="av2-pl-poster" class="av2-pl-poster" alt="">
+
+  <!-- główna część -->
   <div class="av2-pl-main">
-    <!-- Tytuł aktualnie odtwarzanego materiału -->
+    <!-- Tytuł -->
     <div id="av2-pl-title" class="av2-pl-title" title=""></div>
 
     <div class="av2-pl-row">
       <input id="av2-pl-seek" type="range" min="0" max="0" value="0" step="1" />
     </div>
+
     <div class="av2-pl-meta">
       <span id="av2-pl-time">00:00 / 00:00</span>
       <span id="av2-pl-pct">0%</span>
     </div>
+
     <div class="av2-pl-ctrls">
       <button id="av2-btn-play" class="btn btn--ghost" title="Wznów">▶</button>
       <button id="av2-btn-pause" class="btn btn--ghost" title="Pauza">⏸</button>
       <button id="av2-btn-stop" class="btn btn--danger" title="Stop">■</button>
     </div>
+
+    <!-- Pasek mini (pokazywany tylko w trybie is-min) -->
+    <div id="av2-minbar" title="Kliknij, aby przywrócić">
+      Odtwarzam: „<span id="av2-min-title"></span>”
+    </div>
   </div>
 </div>
+
 
   <!-- MODAL: wybór urządzenia -->
   <dialog id="av2-cast-modal" class="av2-modal">

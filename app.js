@@ -1070,6 +1070,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnPause  = section.querySelector("#av2-btn-pause");
   const btnStop   = section.querySelector("#av2-btn-stop");
 
+  // Mini UI
+  const btnMinToggle = section.querySelector("#av2-min-toggle");
+  const minBar       = section.querySelector("#av2-minbar");
+  const minTitleEl   = section.querySelector("#av2-min-title");
+
   const dlg = section.querySelector("#av2-cast-modal");
   const castSel   = section.querySelector("#av2-device");
   const castStart = section.querySelector("#av2-cast-start");
@@ -1108,7 +1113,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- DEL BAR (footer w karcie) ----
   const TTL = { okDays: 3, warnMinDays: 1 };
-
   const fmtTTL = (diffMs) => {
     if (diffMs <= 0) return "do usunięcia";
     const s = Math.floor(diffMs / 1000);
@@ -1120,7 +1124,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (h >= 1) return `usunie się za ${h} h`;
     return `usunie się za ${m} min`;
   };
-
   const delClass = (diffMs) => {
     if (diffMs <= 0) return "danger";
     const d = diffMs / 86400000;
@@ -1144,26 +1147,22 @@ document.addEventListener("DOMContentLoaded", () => {
   let autoDetectTimer = null;
   const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,item_id,ts}
   const LS_SIGNAL_KEY = "pf_cast_signal";
+  const LS_MIN_KEY    = "pf_cast_minimized"; // "1" | "0"
 
-  // ---- Poster — załaduj raz i trzymaj statycznie do zmiany itemu ----
-  let lastPosterSrc = "";     // aktualnie ustawiony src obrazka
-  let currentItemKey = "";    // ratingKey / item_id aktualnie odtwarzany
+  // ---- Poster — stabilny (ustaw raz na element) ----
+  let lastPosterSrc = "";
+  let currentItemKey = "";
 
   function setPosterOnce(url) {
     const u = String(url || "").trim();
-    if (!u || lastPosterSrc) return;          // mamy już ustawiony plakat — nie odświeżaj
+    if (!u || lastPosterSrc) return;
     if (plPoster) {
       plPoster.src = u;
       lastPosterSrc = u;
     }
   }
-  function resetPosterForNewItem() {
-    lastPosterSrc = "";                        // pozwól kolejnemu ustawieniu wejść tylko raz
-  }
-  // awaryjnie: jeśli obrazek nie dojdzie, nie usuwaj src — zostanie ostatni poprawny
-  plPoster?.addEventListener("error", () => {
-    // nic nie rób: zostaw ostatni udany src; unikamy mrugania
-  });
+  function resetPosterForNewItem() { lastPosterSrc = ""; }
+  plPoster?.addEventListener("error", () => { /* nie czyścimy src -> brak mrugania */ });
 
   // ---- canon map ----
   function canon(r) {
@@ -1185,17 +1184,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const delAt = parseDeleteAt(r.deleteAt ?? r.delete_at ?? null);
     const favorite = !!r.favorite;
 
-    return {
-      id, title, poster, kind, pos, dur, prog,
-      season: r.season ?? null,
-      episode: r.episode ?? null,
-      year: r.year || r.release_year || null,
-      deleteAt: delAt,
-      favorite: favorite === true,
-    };
+    return { id, title, poster, kind, pos, dur, prog,
+      season: r.season ?? null, episode: r.episode ?? null,
+      year: r.year || r.release_year || null, deleteAt: delAt, favorite: favorite === true };
   }
-  const ep = (it) =>
-    it.kind === "series"
+  const ep = (it) => it.kind === "series"
       ? `S${String(it.season ?? "--").padStart(2, "0")}E${String(it.episode ?? "--").padStart(2, "0")}`
       : "";
 
@@ -1257,7 +1250,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setHTML(listEl, html);
 
-    // ustaw kolor/stany + odświeżanie
     listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
       const ts = Number(row.getAttribute("data-delete-at") || "");
       if (!isFinite(ts)) return;
@@ -1275,7 +1267,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     badgeTimer = setInterval(refreshBadges, 20000);
 
-    // Cast handlers
     listEl.querySelectorAll(".btn--cast").forEach(b => {
       b.addEventListener("click", () => {
         selected = {
@@ -1382,8 +1373,10 @@ document.addEventListener("DOMContentLoaded", () => {
     placePortal();
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
-    // utrzymaj plakat po relokacji
     if (lastPosterSrc) plPoster && (plPoster.src = lastPosterSrc);
+    // Przy montażu zastosuj ewentualny zapisany stan mini
+    const min = localStorage.getItem(LS_MIN_KEY) === "1";
+    applyMinimized(min);
   }
 
   function unmountGlobalPlayer() {
@@ -1404,6 +1397,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const barH = measureBottomBarsHeight();
     globalPortal.style.bottom = `${barH + pad}px`;
   }
+
+  // ---- Minimize / Restore ----
+  function applyMinimized(min) {
+    if (!playerBox) return;
+    playerBox.classList.toggle("is-min", !!min);
+    btnMinToggle?.setAttribute("aria-pressed", min ? "true" : "false");
+    btnMinToggle && (btnMinToggle.title = min ? "Przywróć" : "Zminimalizuj");
+  }
+  function toggleMin() {
+    const min = !playerBox.classList.contains("is-min");
+    localStorage.setItem(LS_MIN_KEY, min ? "1" : "0");
+    applyMinimized(min);
+  }
+  btnMinToggle?.addEventListener("click", (e) => { e.preventDefault(); toggleMin(); });
+  // kliknięcie w pasek mini przywraca
+  minBar?.addEventListener("click", (e) => { e.preventDefault(); localStorage.setItem(LS_MIN_KEY,"0"); applyMinimized(false); });
 
   // ---- CAST + floating player ----
   function openCastModal() {
@@ -1449,12 +1458,11 @@ document.addEventListener("DOMContentLoaded", () => {
       currentClientId = cid;
       localStorage.setItem("pf_cast_client", currentClientId);
 
-      // nowy element -> zresetuj "zamrożony" plakat, ustaw RAZ (preferuj z listy)
       currentItemKey = String(selected.id || "");
       resetPosterForNewItem();
       setPosterOnce(selected.poster || "");
-
       if (plTitle) plTitle.textContent = selected.title || "";
+      if (minTitleEl) minTitleEl.textContent = selected.title || "";
 
       mountGlobalPlayer();
       startStatusLoop();
@@ -1470,13 +1478,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---- status / player updates ----
-  function fmtTime(sec) {
-    sec = Math.max(0, Math.floor(Number(sec) || 0));
+  const fmtTime = (secRaw) => {
+    let sec = Math.max(0, Math.floor(Number(secRaw) || 0));
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
     const s = sec % 60;
     return (h ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-  }
+  };
 
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
@@ -1490,34 +1498,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
 
-    // wykryj zmianę odtwarzanego elementu — tylko wtedy pozwól zmienić plakat
     const newKey = String(sess.item_id || sess.ratingKey || "");
     if (newKey && newKey !== currentItemKey) {
       currentItemKey = newKey;
-      resetPosterForNewItem();                        // od teraz pierwszy dostępny src wygra
+      resetPosterForNewItem();
     }
 
-    // ustaw tytuł
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
+    if (minTitleEl && nowTitle) minTitleEl.textContent = nowTitle;
 
-    // ustaw plakat tylko raz na element (najpierw miniatura z PMS, inaczej to z listy)
     setPosterOnce(sess.thumb || (selected?.poster || ""));
 
-    // progress
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) {
-      plSeek.max = dur > 0 ? String(dur) : "100";
-      plSeek.value = String(pos || 0);
-    }
+    if (plSeek) { plSeek.max = dur > 0 ? String(dur) : "100"; plSeek.value = String(pos || 0); }
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
 
-    mountGlobalPlayer(); // auto-show gdy jest sesja
+    mountGlobalPlayer();
 
-    // zapisz aktywność dla innych kart
     setActiveFlag({
       client_id: currentClientId,
       title: nowTitle,
@@ -1538,13 +1539,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
   function stopStatusLoop() {
-    if (statusTimer) {
-      clearInterval(statusTimer);
-    }
+    if (statusTimer) { clearInterval(statusTimer); }
     statusTimer = null;
   }
 
-  // ---- auto-detect aktywnej sesji (auto-show) ----
+  // ---- auto-detect aktywnej sesji ----
   async function pollActiveOnce() {
     try {
       const j = await apiJson("/cast/status", { method: "GET" });
@@ -1556,23 +1555,23 @@ document.addEventListener("DOMContentLoaded", () => {
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        // nowy element? odśwież klucz i pozwól ustawić plakat tylko raz
         const key = String(sess.item_id || sess.ratingKey || "");
         if (key && key !== currentItemKey) {
           currentItemKey = key;
           resetPosterForNewItem();
         }
 
-        // ustaw jednorazowo plakat/tytuł
         setPosterOnce(sess.thumb || "");
-        if (plTitle && (sess.title || "")) plTitle.textContent = String(sess.title || "");
+        const t = String(sess.title || "");
+        if (plTitle && t) plTitle.textContent = t;
+        if (minTitleEl && t) minTitleEl.textContent = t;
 
         mountGlobalPlayer();
         startStatusLoop();
 
         setActiveFlag({
           client_id: currentClientId,
-          title: String(sess.title || ""),
+          title: t,
           poster: lastPosterSrc,
           item_id: currentItemKey,
           ts: Date.now()
@@ -1591,19 +1590,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 5000);
   }
   function stopAutoDetect() {
-    if (autoDetectTimer) {
-      clearInterval(autoDetectTimer);
-      autoDetectTimer = null;
-    }
+    if (autoDetectTimer) { clearInterval(autoDetectTimer); autoDetectTimer = null; }
   }
 
-  // ---- sygnały między kartami (localStorage) ----
+  // ---- sygnały między kartami ----
   function setActiveFlag(obj) {
     try { localStorage.setItem(LS_ACTIVE_KEY, JSON.stringify(obj || {})); } catch {}
   }
-  function clearActiveFlag() {
-    try { localStorage.removeItem(LS_ACTIVE_KEY); } catch {}
-  }
+  function clearActiveFlag() { try { localStorage.removeItem(LS_ACTIVE_KEY); } catch {} }
   function publishCastSignal(payload) {
     try {
       localStorage.setItem(LS_ACTIVE_KEY, JSON.stringify(payload || {}));
@@ -1620,8 +1614,7 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("pf_cast_client", currentClientId);
           }
           if (plTitle && data.title) plTitle.textContent = data.title;
-
-          // jeżeli przyszła inna pozycja — pozwól ustawić nowy plakat tylko raz
+          if (minTitleEl && data.title) minTitleEl.textContent = data.title;
           if (data.item_id && data.item_id !== currentItemKey) {
             currentItemKey = String(data.item_id);
             resetPosterForNewItem();
@@ -1640,39 +1633,19 @@ document.addEventListener("DOMContentLoaded", () => {
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
     const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs } }); } catch (_){}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "play" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_){}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "pause" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_){}
   });
   btnStop?.addEventListener("click", async () => {
     if (!currentClientId) return;
-    try {
-      await apiJson("/cast/cmd", {
-        method: "POST",
-        body: { client_id: currentClientId, cmd: "stop" },
-      });
-    } catch (_) {}
+    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "stop" } }); } catch (_){}
     stopStatusLoop();
     clearActiveFlag();
     unmountGlobalPlayer();
@@ -1684,19 +1657,22 @@ document.addEventListener("DOMContentLoaded", () => {
     setTab("movies");
     loadAvailable();
 
-    // przywróć stan z innych kart (jeśli był)
     try {
       const cached = JSON.parse(localStorage.getItem(LS_ACTIVE_KEY) || "{}");
       if (cached) {
         if (cached.item_id) currentItemKey = String(cached.item_id);
         setPosterOnce(cached.poster || "");
         if (plTitle && cached.title) plTitle.textContent = cached.title;
+        if (minTitleEl && cached.title) minTitleEl.textContent = cached.title;
         if (cached.client_id) currentClientId = String(cached.client_id);
       }
     } catch {}
 
-    await pollActiveOnce();  // auto-show jeśli PMS już gra
-    startAutoDetect();       // lekki watcher
+    // przywróć stan mini z poprzedniej sesji
+    applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
+
+    await pollActiveOnce();
+    startAutoDetect();
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && !statusTimer) {
@@ -1712,10 +1688,8 @@ document.addEventListener("DOMContentLoaded", () => {
   window.showSection = window.showSection || function () {};
   const prevShow = window.showSection;
   window.showSection = function (name) {
-    try { prevShow && prevShow(name); } catch (_) {}
-    if (name === "available") {
-      loadAvailable();
-    }
+    try { prevShow && prevShow(name); } catch (_){}
+    if (name === "available") { loadAvailable(); }
   };
 })();
 
