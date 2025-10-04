@@ -2597,6 +2597,18 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   background: #111;     /* tło karty */
 }
 
+/* 🔑 MASKA – zasłania belkę pod spodem */
+.av-card::after{
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px; /* minimalnie wchodzi na belkę */
+  height: 20px; /* wysokość maski = wartość margin-top belki */
+  background: #111; /* tło takie samo jak karta */
+  z-index: 3; /* nad belką, pod treścią */
+}
+
 /* BELKA POD KARTĄ */
 .del-row{
   position: relative;
@@ -2649,3 +2661,4 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   color: currentColor;
   white-space: nowrap;
 }
+
