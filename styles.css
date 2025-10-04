@@ -2382,59 +2382,109 @@ html[data-theme="light"] #section-available .av2-modal-card .select{
 .av-card{ position:relative; }
 
 
-/* ===================== DELETE BADGE ===================== */
+/* ===================== DEL BADGE — drop-in (umieść NA KOŃCU CSS) ===================== */
 
-.del-box {
+/* karta musi mieć relative, by absoluty się pozycjonowały */
+#section-available .av-card { position: relative; }
+
+/* zrób miejsce w tytule na kapsuły (responsywne) */
+#section-available .av-card .title {
+  padding-right: clamp(120px, 30vw, 200px);
+}
+
+/* pudełko kapsuł (prawy górny róg) */
+#section-available .del-box{
   position: absolute;
-  top: 10px;
-  right: 12px;
+  top: 8px; right: 8px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-  z-index: 3;
-  pointer-events: none;
-  max-width: 70%;
-  font-size: 0.75rem;
-  line-height: 1.2;
+  gap: 6px;
+  z-index: 12;
+  max-width: 72%;
+  pointer-events: none; /* nie zasłania klików karty */
 }
 
-/* Kapsuła "usunie się za X" */
-.del-badge {
-  position: static;
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-  color: #fff;
-  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+/* wygląd kapsuł */
+#section-available .del-badge,
+#section-available .del-date{
   pointer-events: auto;
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-/* Kolory stanu */
-.del-badge.ok {
-  background: linear-gradient(135deg, #2ecc71, #27ae60);   /* zielony */
-}
-.del-badge.warn {
-  background: linear-gradient(135deg, #fbc531, #e1a400);   /* żółto-pomarańczowy */
-  color: #111;
-}
-.del-badge.danger {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);   /* czerwony */
-}
-
-/* Data usunięcia */
-.del-date {
-  position: static;
-  font-size: 0.7rem;
-  color: #ccc;
-  background: rgba(0,0,0,0.5);
-  padding: 2px 8px;
-  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1;
   white-space: nowrap;
-  pointer-events: none;
-  font-weight: 500;
+  border-radius: 999px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  box-shadow: 0 6px 18px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: saturate(1.1) blur(6px);
+}
+
+/* główna kapsuła „usunie się za …” */
+#section-available .del-badge{
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(15,23,42,.85), rgba(11,18,32,.75));
+  color: #e5e7eb;
+}
+
+/* data pod kapsułą */
+#section-available .del-date{
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: linear-gradient(180deg, rgba(15,23,42,.70), rgba(11,18,32,.60));
+  color: #a8b2c7;
+}
+
+/* ===== stany kolorystyczne z JS: ok | warn | danger ===== */
+#section-available .del-box.ok .del-badge{
+  border-color: #184a31;
+  background: linear-gradient(180deg, #144a2f, #0f3b24);
+  color: #d1fae5;
+  box-shadow: 0 10px 22px rgba(20,74,55,.35), inset 0 1px 0 rgba(255,255,255,.06);
+}
+#section-available .del-box.warn .del-badge{
+  border-color: #8a6b1a;
+  background: linear-gradient(180deg, #4a3314, #3b2a0f);
+  color: #fff3c4;
+  box-shadow: 0 10px 22px rgba(122,92,26,.35), inset 0 1px 0 rgba(255,255,255,.06);
+}
+#section-available .del-box.danger .del-badge{
+  border-color: #7a2a3a;
+  background: linear-gradient(180deg, #4a1420, #3b0f1a);
+  color: #fecaca;
+  box-shadow: 0 10px 22px rgba(122,42,58,.40), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* Light mode – jaśniejsze tła i czytelny tekst */
+html[data-theme="light"] #section-available .del-badge{
+  border-color: rgba(0,0,0,.06);
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(245,248,255,.88));
+  color: #0f172a;
+  text-shadow: none;
+}
+html[data-theme="light"] #section-available .del-date{
+  border-color: rgba(0,0,0,.06);
+  background: rgba(255,255,255,.85);
+  color: #475569;
+  text-shadow: none;
+}
+html[data-theme="light"] #section-available .del-box.ok .del-badge{
+  background: linear-gradient(135deg, #86efac, #22c55e);
+  color: #0b1220;
+}
+html[data-theme="light"] #section-available .del-box.warn .del-badge{
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #0b1220;
+}
+html[data-theme="light"] #section-available .del-box.danger .del-badge{
+  background: linear-gradient(135deg, #fecaca, #ef4444);
+  color: #7f1d1d;
+}
+
+/* drobne korekty na bardzo wąskich ekranach */
+@media (max-width: 560px){
+  #section-available .del-box{ top: 6px; right: 6px; max-width: 78%; }
+  #section-available .del-badge{ font-size: 11px; padding: 5px 9px; }
+  #section-available .del-date{ font-size: 10px; padding: 3px 7px; }
+  #section-available .av-card .title{ padding-right: clamp(96px, 38vw, 160px); }
 }
