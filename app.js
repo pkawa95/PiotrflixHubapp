@@ -1062,7 +1062,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playerBox = section.querySelector("#av2-player");
   const plPoster  = section.querySelector("#av2-pl-poster");
-  const plTitle   = section.querySelector("#av2-pl-title"); // tytuł w playerze
+  const plTitle   = section.querySelector("#av2-pl-title");
   const plSeek    = section.querySelector("#av2-pl-seek");
   const plTime    = section.querySelector("#av2-pl-time");
   const plPct     = section.querySelector("#av2-pl-pct");
@@ -1137,24 +1137,33 @@ document.addEventListener("DOMContentLoaded", () => {
   let statusTimer = null;
   let badgeTimer  = null;
 
-  // Global visibility across "karty" (sekcje/zakładki i inne karty przeglądarki)
-  let globalPortal = null;                // kontener w <body> dla playera (portal)
-  let globalMountedParent = null;         // gdzie przywrócić po wyłączeniu
-  let globalMountedNextSibling = null;    // sąsiad w DOM
-  let autoDetectTimer = null;             // watcher aktywnej sesji
-  const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,ts}
-  const LS_SIGNAL_KEY = "pf_cast_signal"; // ping do pozostałych kart
+  // Global visibility across "karty"
+  let globalPortal = null;
+  let globalMountedParent = null;
+  let globalMountedNextSibling = null;
+  let autoDetectTimer = null;
+  const LS_ACTIVE_KEY = "pf_cast_active"; // {client_id,title,poster,item_id,ts}
+  const LS_SIGNAL_KEY = "pf_cast_signal";
 
-  // --- fix: stabilne ustawianie plakatu (nie nadpisuj pustym) ---
-  let lastPosterSrc = "";
-  function setPosterSafe(url) {
+  // ---- Poster — załaduj raz i trzymaj statycznie do zmiany itemu ----
+  let lastPosterSrc = "";     // aktualnie ustawiony src obrazka
+  let currentItemKey = "";    // ratingKey / item_id aktualnie odtwarzany
+
+  function setPosterOnce(url) {
     const u = String(url || "").trim();
-    if (!u) return; // nigdy nie czyść src na pusty -> znika obraz
-    if (plPoster && u !== lastPosterSrc) {
+    if (!u || lastPosterSrc) return;          // mamy już ustawiony plakat — nie odświeżaj
+    if (plPoster) {
       plPoster.src = u;
       lastPosterSrc = u;
     }
   }
+  function resetPosterForNewItem() {
+    lastPosterSrc = "";                        // pozwól kolejnemu ustawieniu wejść tylko raz
+  }
+  // awaryjnie: jeśli obrazek nie dojdzie, nie usuwaj src — zostanie ostatni poprawny
+  plPoster?.addEventListener("error", () => {
+    // nic nie rób: zostaw ostatni udany src; unikamy mrugania
+  });
 
   // ---- canon map ----
   function canon(r) {
@@ -1332,7 +1341,7 @@ document.addEventListener("DOMContentLoaded", () => {
       width: "min(960px, 96vw)",
       bottom: "8px",
       zIndex: "9999",
-      pointerEvents: "none", // kontener nie łapie klików
+      pointerEvents: "none",
     });
     document.body.appendChild(el);
     globalPortal = el;
@@ -1367,14 +1376,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const portal = ensurePortal();
     playerBox.hidden = false;
-    playerBox.style.pointerEvents = "auto"; // same klikalne
+    playerBox.style.pointerEvents = "auto";
     portal.style.pointerEvents = "none";
     portal.appendChild(playerBox);
     placePortal();
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
     // utrzymaj plakat po relokacji
-    if (lastPosterSrc) setPosterSafe(lastPosterSrc);
+    if (lastPosterSrc) plPoster && (plPoster.src = lastPosterSrc);
   }
 
   function unmountGlobalPlayer() {
@@ -1436,17 +1445,25 @@ document.addEventListener("DOMContentLoaded", () => {
         body: { item_id: String(selected.id), client_id: cid,
                 client_name: castSel.options[castSel.selectedIndex]?.text || "" },
       });
-      // Globalny widok playera + sygnał do innych kart
+
       currentClientId = cid;
       localStorage.setItem("pf_cast_client", currentClientId);
+
+      // nowy element -> zresetuj "zamrożony" plakat, ustaw RAZ (preferuj z listy)
+      currentItemKey = String(selected.id || "");
+      resetPosterForNewItem();
+      setPosterOnce(selected.poster || "");
+
+      if (plTitle) plTitle.textContent = selected.title || "";
+
       mountGlobalPlayer();
       startStatusLoop();
-      setPosterSafe(selected.poster || "");
-      if (plTitle)  plTitle.textContent = selected.title || "";
+
       publishCastSignal({
         client_id: currentClientId,
         title: selected?.title || "",
-        poster: selected?.poster || lastPosterSrc || "",
+        poster: lastPosterSrc,
+        item_id: currentItemKey,
         ts: Date.now()
       });
     } catch (_) {} finally { dlg?.close?.(); }
@@ -1464,30 +1481,28 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateFromStatus(st) {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     if (!sessions.length) {
-      // brak sesji: ukryj player i wyczyść flagę
       stopStatusLoop();
       clearActiveFlag();
       unmountGlobalPlayer();
       return;
     }
 
-    // jeżeli nie mamy client_id, spróbuj wziąć pierwszy z sesji
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
-    if (!currentClientId && sess?.client_id) {
-      currentClientId = String(sess.client_id);
-      localStorage.setItem("pf_cast_client", currentClientId);
+
+    // wykryj zmianę odtwarzanego elementu — tylko wtedy pozwól zmienić plakat
+    const newKey = String(sess.item_id || sess.ratingKey || "");
+    if (newKey && newKey !== currentItemKey) {
+      currentItemKey = newKey;
+      resetPosterForNewItem();                        // od teraz pierwszy dostępny src wygra
     }
 
-    // Pokaż player, jeśli coś gra (auto-show na „sygnał” z PMS)
-    mountGlobalPlayer();
-
-    // tytuł i plakat
+    // ustaw tytuł
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
 
-    // Preferuj miniaturę z PMS, ale tylko gdy jest niepusta
-    if (sess.thumb) setPosterSafe(sess.thumb);
+    // ustaw plakat tylko raz na element (najpierw miniatura z PMS, inaczej to z listy)
+    setPosterOnce(sess.thumb || (selected?.poster || ""));
 
     // progress
     const dur = Number(sess.duration_ms || 0) / 1000;
@@ -1500,11 +1515,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
     if (plPct) setText(plPct, `${pct}%`);
 
-    // zapisz aktywną sesję (dla innych kart) — nie nadpisuj pustym posterem
+    mountGlobalPlayer(); // auto-show gdy jest sesja
+
+    // zapisz aktywność dla innych kart
     setActiveFlag({
       client_id: currentClientId,
       title: nowTitle,
       poster: lastPosterSrc,
+      item_id: currentItemKey,
       ts: Date.now()
     });
   }
@@ -1522,8 +1540,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function stopStatusLoop() {
     if (statusTimer) {
       clearInterval(statusTimer);
-      statusTimer = null;
     }
+    statusTimer = null;
   }
 
   // ---- auto-detect aktywnej sesji (auto-show) ----
@@ -1532,26 +1550,31 @@ document.addEventListener("DOMContentLoaded", () => {
       const j = await apiJson("/cast/status", { method: "GET" });
       const sessions = Array.isArray(j?.sessions) ? j.sessions : [];
       if (sessions.length) {
-        // auto-podpięcie pod aktywnego klienta (preferuj zapamiętany)
         const saved = localStorage.getItem("pf_cast_client") || "";
         const sess = (saved && sessions.find(s => String(s.client_id) === String(saved))) || sessions[0];
 
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        // ustaw podgląd (nie nadpisuj pustym)
-        if (sess.thumb) setPosterSafe(sess.thumb);
+        // nowy element? odśwież klucz i pozwól ustawić plakat tylko raz
+        const key = String(sess.item_id || sess.ratingKey || "");
+        if (key && key !== currentItemKey) {
+          currentItemKey = key;
+          resetPosterForNewItem();
+        }
+
+        // ustaw jednorazowo plakat/tytuł
+        setPosterOnce(sess.thumb || "");
         if (plTitle && (sess.title || "")) plTitle.textContent = String(sess.title || "");
 
-        // pokaż player globalnie i zacznij odpytywać częściej
         mountGlobalPlayer();
         startStatusLoop();
 
-        // ustaw flagę aktywności
         setActiveFlag({
           client_id: currentClientId,
           title: String(sess.title || ""),
           poster: lastPosterSrc,
+          item_id: currentItemKey,
           ts: Date.now()
         });
         return true;
@@ -1562,9 +1585,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function startAutoDetect() {
     stopAutoDetect();
-    // co 5s sprawdzaj czy PMS raportuje jakąś sesję (jeśli nie ma aktywnego loopa)
     autoDetectTimer = setInterval(async () => {
-      if (statusTimer) return; // już mamy częsty loop
+      if (statusTimer) return;
       await pollActiveOnce();
     }, 5000);
   }
@@ -1583,7 +1605,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try { localStorage.removeItem(LS_ACTIVE_KEY); } catch {}
   }
   function publishCastSignal(payload) {
-    // storage event odpali się w innych kartach
     try {
       localStorage.setItem(LS_ACTIVE_KEY, JSON.stringify(payload || {}));
       localStorage.setItem(LS_SIGNAL_KEY, String(Date.now()) + ":" + Math.random().toString(36).slice(2));
@@ -1591,7 +1612,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   window.addEventListener("storage", (e) => {
     if (e.key === LS_ACTIVE_KEY) {
-      // inna karta zaktualizowała dane playera -> pokaż player
       try {
         const data = JSON.parse(e.newValue || "{}");
         if (data && (data.client_id || data.title || data.poster)) {
@@ -1600,13 +1620,18 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("pf_cast_client", currentClientId);
           }
           if (plTitle && data.title) plTitle.textContent = data.title;
-          if (data.poster) setPosterSafe(data.poster); // <- tylko jeśli niepusty
+
+          // jeżeli przyszła inna pozycja — pozwól ustawić nowy plakat tylko raz
+          if (data.item_id && data.item_id !== currentItemKey) {
+            currentItemKey = String(data.item_id);
+            resetPosterForNewItem();
+          }
+          setPosterOnce(data.poster || "");
           mountGlobalPlayer();
           if (!statusTimer) startStatusLoop();
         }
       } catch {}
     } else if (e.key === LS_SIGNAL_KEY) {
-      // ping: spróbuj pobrać bieżący status i się zsynchronizować
       if (!statusTimer) pollActiveOnce();
     }
   });
@@ -1655,26 +1680,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- boot ----
   async function boot() {
-    if (playerBox) playerBox.hidden = true; // domyślnie ukryty
+    if (playerBox) playerBox.hidden = true;
     setTab("movies");
     loadAvailable();
 
-    // Jeśli mamy zapisany stan z innej karty — zainicjalizuj z niego plakat/tytuł
+    // przywróć stan z innych kart (jeśli był)
     try {
       const cached = JSON.parse(localStorage.getItem(LS_ACTIVE_KEY) || "{}");
       if (cached) {
-        if (cached.poster) setPosterSafe(cached.poster);
+        if (cached.item_id) currentItemKey = String(cached.item_id);
+        setPosterOnce(cached.poster || "");
         if (plTitle && cached.title) plTitle.textContent = cached.title;
         if (cached.client_id) currentClientId = String(cached.client_id);
       }
     } catch {}
 
-    // auto-show: jeśli PMS już gra, pokaż player na starcie
-    await pollActiveOnce();
-    // oraz uruchom łagodny watcher
-    startAutoDetect();
+    await pollActiveOnce();  // auto-show jeśli PMS już gra
+    startAutoDetect();       // lekki watcher
 
-    // kiedy wracamy do karty — szybki sync
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && !statusTimer) {
         pollActiveOnce();
