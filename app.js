@@ -1018,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ===================== DOSTĘPNE v2 — z auto-wyszukiwaniem postera po tytule + wsparcie image_url z /cast ===================== */
+/* ===================== DOSTĘPNE v2 — z auto-wyszukiwaniem postera po tytule + wsparcie image_url z /cast (CORS-safe images) ===================== */
 (function () {
   const section = document.getElementById("section-available");
   if (!section) return;
@@ -1101,16 +1101,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return isNaN(t) ? null : t;
   };
 
-  const fmtDateShort = (ms) => {
-    if (!ms) return "";
-    try {
-      return new Date(ms).toLocaleString("pl-PL", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit",
-      });
-    } catch { return new Date(ms).toLocaleString(); }
-  };
-
   // ---- DEL BAR ----
   const TTL = { okDays: 3, warnMinDays: 1 };
   const fmtTTL = (diffMs) => {
@@ -1149,12 +1139,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_SIGNAL_KEY = "pf_cast_signal";
   const LS_MIN_KEY    = "pf_cast_minimized";
 
-  /* ---- Poster — v5 (z bazy danych po ID lub tytule) + preferencja image_url z /cast ---- */
+  /* ---- Poster — v6: CORS-safe (bez Authorization) ---- */
   let lastPosterSrc = "";
   let lastPosterBlob = "";
   let currentItemKey = "";
-  let posterRetryTimer = null;
-  let posterRetryLeft = 0;
 
   let IDX = { byId: new Map(), byNormTitle: new Map() };
 
@@ -1181,35 +1169,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function posterFromDB({ id, title }) {
-    // 1) po ID
     if (id && IDX.byId.has(String(id))) {
       const img = IDX.byId.get(String(id)).image;
       if (img) return img;
     }
-    // 2) po tytule
     const nt = normTitle(title || "");
     if (nt && IDX.byNormTitle.has(nt)) {
       const img = IDX.byNormTitle.get(nt).image;
       if (img) return img;
     }
-    // 3) fallback: backend (opcjonalnie)
+    // opcjonalne fallbacki /art/...
     try {
       if (id && /^\d+$/.test(String(id))) {
         const r = await apiJson(`/art/by-id?item_id=${encodeURIComponent(String(id))}`, { method: "GET" });
         if (r?.image_url) return r.image_url;
       }
-    } catch (_) {}
+    } catch {}
     try {
       if (title && title.trim()) {
         const r = await apiJson(`/art/by-title?title=${encodeURIComponent(title)}`, { method: "GET" });
         if (r?.image_url) return r.image_url;
       }
-    } catch (_) {}
+    } catch {}
     return "";
   }
 
   function bestThumbFromSession(sess) {
-    // ⬅️ NAJPIERW pole image_url zwrócone przez /cast/status
     const direct = String(sess?.image_url || "").trim();
     if (direct) return direct;
     return String(
@@ -1221,40 +1206,53 @@ document.addEventListener("DOMContentLoaded", () => {
     ).trim();
   }
 
-  async function setPosterBlobFromUrlOnce(url) {
-    const u = String(url || "").trim();
-    if (!u || lastPosterSrc) return false;
+  function isCrossOrigin(url) {
     try {
-      const res = await window.authFetch(u);
-      if (!res.ok) throw new Error(res.status);
-      const blob = await res.blob();
-      const ct = (res.headers.get("Content-Type") || "").toLowerCase();
-      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i))
-        throw new Error("not-image");
-      const objUrl = URL.createObjectURL(blob);
-      await new Promise((ok, err) => {
-        const i = new Image();
-        i.onload = ok; i.onerror = err; i.src = objUrl;
-      });
-      if (plPoster) {
-        if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
-        plPoster.src = objUrl;
-        lastPosterBlob = objUrl;
-        lastPosterSrc = u;
-      }
-      return true;
-    } catch { return false; }
-  }
-
-  async function setPosterOnce(url) {
-    if (lastPosterSrc) return;
-    await setPosterBlobFromUrlOnce(url);
+      const target = new URL(url, location.href);
+      const apiOrigin = API ? new URL(API, location.href).origin : location.origin;
+      return target.origin !== location.origin && target.origin !== apiOrigin;
+    } catch { return true; }
   }
 
   function resetPosterForNewItem() {
     lastPosterSrc = "";
     if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
     lastPosterBlob = "";
+  }
+
+  // CORS-safe ustawienie plakatu:
+  // - jeśli URL jest cross-origin → ustawiamy bezpośrednio img.src (bez fetch, bez Authorization)
+  // - jeśli same-origin → pobieramy blob zwykłym fetch (nie authFetch), bez credentials
+  async function setPosterOnce(url) {
+    const u = String(url || "").trim();
+    if (!u || lastPosterSrc) return;
+    if (!plPoster) return;
+
+    if (isCrossOrigin(u)) {
+      plPoster.crossOrigin = "anonymous"; // zwykle nie szkodzi, czasem pomaga
+      plPoster.src = u;
+      lastPosterSrc = u;
+      lastPosterBlob = "";
+      return;
+    }
+
+    try {
+      const res = await fetch(u, { mode: "cors", credentials: "omit" }); // ⬅️ brak Authorization
+      if (!res.ok) throw new Error(String(res.status));
+      const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i)) throw new Error("not-image");
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      plPoster.src = objUrl;
+      if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
+      lastPosterBlob = objUrl;
+      lastPosterSrc = u;
+    } catch {
+      // fallback: mimo wszystko spróbuj ustawić bezpośrednio
+      plPoster.src = u;
+      lastPosterSrc = u;
+      lastPosterBlob = "";
+    }
   }
 
   async function ensurePosterForActiveSession(sess, fallbackUrl) {
@@ -1264,9 +1262,7 @@ document.addEventListener("DOMContentLoaded", () => {
       resetPosterForNewItem();
     }
 
-    // 1️⃣ Najpierw preferuj image_url z Cast/Status
     let candidate = bestThumbFromSession(sess) || String(fallbackUrl || "");
-    // 2️⃣ Jeśli brak → zapytaj lokalny indeks lub bazę
     if (!candidate) {
       const guessed = await posterFromDB({
         id: newKey,
@@ -1274,17 +1270,16 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (guessed) candidate = guessed;
     }
-    // 3️⃣ Ustaw
     if (candidate) await setPosterOnce(candidate);
   }
 
   // ---- Symulacja czasu odtwarzania (płynny pasek) ----
-  let simTimer = null;       // setInterval(1s)
-  let simPos   = 0;          // sekundy
-  let simDur   = 0;          // sekundy
-  let simPlaying = false;    // czy gra
-  let lastSyncTs = 0;        // ms zegara przy ostatnim ticku serwera
-  let simInit = false;       // czy mieliśmy pierwszy status
+  let simTimer = null;
+  let simPos   = 0;
+  let simDur   = 0;
+  let simPlaying = false;
+  let lastSyncTs = 0;
+  let simInit = false;
 
   function startSim() {
     if (simTimer) return;
@@ -1303,7 +1298,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (s) return s === "playing";
     if (typeof sess?.playing === "boolean") return sess.playing;
     if (typeof sess?.paused === "boolean") return !sess.paused;
-    return true; // domyślnie playing
+    return true;
   }
 
   function applyServerClock(dur, pos, isPlaying){
@@ -1468,7 +1463,7 @@ document.addEventListener("DOMContentLoaded", () => {
         RAW.films = Array.isArray(j?.films) ? j.films : Array.isArray(j?.movies) ? j.movies : [];
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
-      rebuildIndex(); // ⬅️ WAŻNE: indeks do szybkiego lookupu plakatów
+      rebuildIndex();
       render();
     } catch (e) {
       setText(infoEl, `Błąd: ${e.message || e}`);
@@ -1492,7 +1487,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---- GLOBAL PLAYER (widoczny wszędzie gdy aktywny) ----
+  // ---- GLOBAL PLAYER ----
+  let globalPortal = null;
+  let globalMountedParent = null;
+  let globalMountedNextSibling = null;
+
   function ensurePortal() {
     if (globalPortal) return globalPortal;
     const el = document.createElement("div");
@@ -1510,7 +1509,6 @@ document.addEventListener("DOMContentLoaded", () => {
     globalPortal = el;
     return el;
   }
-
   function measureBottomBarsHeight() {
     const candidates = document.querySelectorAll(
       'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
@@ -1530,7 +1528,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
     return h + (isFinite(safe) ? safe : 0);
   }
-
+  function placePortal() {
+    if (!globalPortal) return;
+    const pad = 8;
+    const barH = measureBottomBarsHeight();
+    globalPortal.style.bottom = `${barH + pad}px`;
+  }
   function mountGlobalPlayer() {
     if (!playerBox) return;
     if (!globalMountedParent) {
@@ -1546,10 +1549,9 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
     if (lastPosterBlob) plPoster && (plPoster.src = lastPosterBlob);
-    const min = localStorage.getItem(LS_MIN_KEY) === "1";
+    const min = localStorage.getItem("pf_cast_minimized") === "1";
     applyMinimized(min);
   }
-
   function unmountGlobalPlayer() {
     if (!playerBox || !globalMountedParent) return;
     window.removeEventListener("resize", placePortal);
@@ -1562,14 +1564,8 @@ document.addEventListener("DOMContentLoaded", () => {
     playerBox.hidden = true;
   }
 
-  function placePortal() {
-    if (!globalPortal) return;
-    const pad = 8;
-    const barH = measureBottomBarsHeight();
-    globalPortal.style.bottom = `${barH + pad}px`;
-  }
-
   // ---- Minimize / Restore ----
+  const LS_MIN_KEY = "pf_cast_minimized";
   function applyMinimized(min) {
     if (!playerBox) return;
     playerBox.classList.toggle("is-min", !!min);
@@ -1584,7 +1580,7 @@ document.addEventListener("DOMContentLoaded", () => {
   btnMinToggle?.addEventListener("click", (e) => { e.preventDefault(); toggleMin(); });
   minBar?.addEventListener("click", (e) => { e.preventDefault(); localStorage.setItem(LS_MIN_KEY,"0"); applyMinimized(false); });
 
-  // ---- CAST + floating player ----
+  // ---- CAST + modal ----
   function openCastModal() {
     if (castSel) castSel.innerHTML = `<option value="">— ładuję… —</option>`;
     apiJson("/cast/players", { method: "GET" })
@@ -1631,7 +1627,6 @@ document.addEventListener("DOMContentLoaded", () => {
       currentItemKey = String(selected.id || "");
       resetPosterForNewItem();
 
-      // ⬅️ Preferuj image_url zwrócony przez /cast/start
       const startImg = String(resp?.image_url || "") || String(selected.poster || "");
       if (startImg) await setPosterOnce(startImg);
 
@@ -1674,7 +1669,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
 
-    // ⬅️ image_url z sesji ma pierwszeństwo
     await ensurePosterForActiveSession(sess, sess?.image_url || selected?.poster || "");
 
     const nowTitle = String(sess.title || "") || (selected?.title || "");
@@ -1705,14 +1699,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const j = await apiJson("/cast/status" + qs, { method: "GET" });
         await updateFromStatus(j);
       } catch (_) {}
-    }, 10000); // tick ~10 s – wygładza symulacja 1 s
+    }, 10000);
   }
   function stopStatusLoop() {
     if (statusTimer) { clearInterval(statusTimer); }
     statusTimer = null;
   }
 
-  // ---- auto-detect aktywnej sesji ----
+  // ---- auto-detect ----
   async function pollActiveOnce() {
     try {
       const j = await apiJson("/cast/status", { method: "GET" });
@@ -1724,7 +1718,6 @@ document.addEventListener("DOMContentLoaded", () => {
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        // ⬅️ preferuj image_url z /cast/status
         await ensurePosterForActiveSession(sess, sess?.image_url || "");
 
         const t = String(sess.title || "");
@@ -1746,10 +1739,9 @@ document.addEventListener("DOMContentLoaded", () => {
           ts: Date.now()
         });
 
-        if (!lastPosterSrc) startPosterRetryIfNeeded?.();
         return true;
       }
-    } catch (_) {}
+    } catch {}
     return false;
   }
 
@@ -1855,7 +1847,7 @@ document.addEventListener("DOMContentLoaded", () => {
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
     const found = await pollActiveOnce();
-    if (!lastPosterSrc && found) startPosterRetryIfNeeded?.();
+    if (!lastPosterSrc && found) { /* nic – teraz i tak nie fetchujemy auth */ }
 
     startAutoDetect();
 
@@ -1869,7 +1861,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
-  // ---- integracja z dolną nawigacją (opcjonalnie) ----
+  // ---- integracja z dolną nawigacją ----
   window.showSection = window.showSection || function () {};
   const prevShow = window.showSection;
   window.showSection = function (name) {
