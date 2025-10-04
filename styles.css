@@ -2675,3 +2675,31 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   line-height: 1.3;
   white-space: nowrap;
 }
+
+/* --- domyślnie: desktop --- */
+#section-available .av-card {
+  position: relative;
+}
+
+#section-available .av-card .del-row {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  z-index: 2;
+}
+
+/* --- mobile: kapsułki pod 100% --- */
+@media (max-width: 768px) {
+  #section-available .av-card .del-row {
+    position: static;      /* wraca do normalnego flow */
+    margin-top: 4px;       /* odstęp pod 100% */
+    justify-content: flex-end; /* wyrównanie do prawej */
+  }
+
+  #section-available .av-card .tiny {
+    margin-bottom: 4px; /* żeby kapsułki nie kleiły się do % */
+  }
+}
