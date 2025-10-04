@@ -2593,19 +2593,19 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   border-radius: var(--card-radius) var(--card-radius) 0 0;
   overflow: hidden;
   position: relative;
-  z-index: 2;           /* 🔑 karta zawsze nad belką */
-  background: #111;     /* upewniamy się, że ma tło */
+  z-index: 2;                /* karta zawsze nad belką */
+  background: #111;          /* tło karty (pasuje do pseudo-elementu) */
 }
 
 /* BELKA POD KARTĄ */
 .del-row{
   position: relative;
-  z-index: 1;           /* 🔑 belka pod kartą */
+  z-index: 1;
 
   width: 100%;
   height: var(--del-height);
 
-  margin-top: -40px;    /* wchodzi pod spód karty */
+  margin-top: -1px;          /* przyklejamy się pod kartę */
   margin-bottom: 20px;
 
   border-bottom-left-radius: var(--card-radius);
@@ -2623,6 +2623,21 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 
   color: var(--del-text);
   backdrop-filter: blur(1.5px);
+  overflow: hidden;
+}
+
+/* 🔑 WYCIĘCIE GÓRY BELKI */
+.del-row::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height: var(--card-radius); /* wysokość maski */
+  background:#111;            /* tło takie jak karta */
+  border-top-left-radius: var(--card-radius);
+  border-top-right-radius: var(--card-radius);
+  z-index:2;
 }
 
 /* kolory stanów */
