@@ -2650,88 +2650,28 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
 /* (opcjonalnie) del-row może płynnie wjeżdżać */
 #section-available .av-card .del-row { transition: color .2s ease, background-color .2s ease; }
 
-/* ================= AV2 — mobile-first układ karty ================= */
-
-/* --- wspólne drobiazgi --- */
-#section-available .av-card .del-row{
-  display:flex;
-  gap:8px;
-  align-items:center;
-}
-#section-available .av-card .del-badge{ white-space:nowrap; }
-#section-available .av-card .actions{ display:flex; }
-
-/* ========= MOBILE (≤ 560px) ========= */
-@media (max-width:560px){
-
-  /* karta jako 2-kolumnowa siatka: plakat | treść */
-  #section-available .av-card{
-    display:grid;
-    grid-template-columns: 86px 1fr;     /* lewa: poster, prawa: content */
-    column-gap:12px;
-    align-items:start;
-  }
-
-  /* lewa kolumna */
-  #section-available .av-card .poster{
-    grid-column:1;
-    width:86px;
-    min-width:86px;
-  }
-  #section-available .av-card .poster .av-poster{
-    width:100%;
-    height:auto;
-    display:block;
-    border-radius:10px;
-  }
-
-  /* prawa kolumna – grid z czterema wierszami:
-     title | bar | % | (actions  |  capsules)  */
-  #section-available .av-card .body{
-    grid-column:2;
-    display:grid;
-    grid-template-columns: 1fr auto;     /* lewy słupek i prawy na kapsuły */
-    grid-template-areas:
-      "title title"
-      "prog  prog"
-      "pct   pct"
-      "acts  del";
-    row-gap:8px;
-    align-items:center;
-  }
-
-  #section-available .av-card .title{ grid-area:title; }
-  #section-available .av-card .av-progress-wrap{ grid-area:prog; }
-  #section-available .av-card .tiny{ grid-area:pct; }
-
-  /* ostatni wiersz: Cast z lewej, kapsuły z prawej */
-  #section-available .av-card .actions{
-    grid-area:acts;
-    justify-self:start;
-  }
-  #section-available .av-card .del-row{
-    grid-area:del;
-    justify-self:end;
-  }
-
-  /* kosmetyka */
-  #section-available .av-card .meta{ display:none; } /* mniej szumu na mobile */
-  #section-available .av-card .body{ padding-right:4px; }
+/* --- kapsuły w prawym górnym rogu karty --- */
+#section-available .av-card {
+  position: relative; /* potrzebne, żeby absolutne pozycjonowanie działało */
 }
 
-/* ========= DESKTOP (> 560px) ========= */
-/* nic rewolucyjnego — zachowujemy Twój układ; ewentualnie lekki porządek */
-@media (min-width:561px){
-  #section-available .av-card .body{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-  }
-  #section-available .av-card .av-progress-wrap{ order:20; }
-  #section-available .av-card .tiny{ order:21; }
-  #section-available .av-card .del-row{
-    order:22;
-    justify-content:flex-end;
-  }
-  #section-available .av-card .actions{ order:23; }
+#section-available .av-card .del-row {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+
+  /* opcjonalnie cień dla czytelności */
+  z-index: 2;
+}
+
+#section-available .av-card .del-badge,
+#section-available .av-card .del-date {
+  border-radius: 14px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
 }
