@@ -1149,9 +1149,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_SIGNAL_KEY = "pf_cast_signal";
   const LS_MIN_KEY    = "pf_cast_minimized"; // "1" | "0"
 
-  // ---- Poster — stabilny (ustaw raz na element) ----
+  // ---- Poster — stabilny (ustaw raz na element; fallback + jednorazowe retry na starcie) ----
   let lastPosterSrc = "";     // zapamiętany src
   let currentItemKey = "";    // id aktualnego elementu
+  let posterRetryTimer = null;
+  let posterRetryLeft = 0;
+
+  function bestThumbFromSession(sess){
+    return String(
+      sess?.thumb ||
+      sess?.parent_thumb ||
+      sess?.grandparent_thumb ||
+      sess?.poster ||
+      sess?.art || ""
+    ).trim();
+  }
+
   function setPosterOnce(url) {
     const u = String(url || "").trim();
     if (!u) return;                    // nigdy nie nadpisuj pustym
@@ -1161,6 +1174,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   function resetPosterForNewItem() { lastPosterSrc = ""; }
+  function startPosterRetryIfNeeded() {
+    // 5 prób co 1s — tylko na samym początku, gdy weszliśmy w trakcie odtwarzania
+    if (lastPosterSrc || posterRetryTimer) return;
+    posterRetryLeft = 5;
+    posterRetryTimer = setInterval(async () => {
+      try {
+        if (posterRetryLeft-- <= 0) { clearInterval(posterRetryTimer); posterRetryTimer = null; return; }
+        const j = await apiJson("/cast/status", { method: "GET" });
+        const sess = Array.isArray(j?.sessions) && j.sessions[0];
+        if (sess) {
+          const maybe = bestThumbFromSession(sess);
+          if (maybe) {
+            setPosterOnce(maybe);
+            clearInterval(posterRetryTimer);
+            posterRetryTimer = null;
+          }
+        }
+      } catch (_) {
+        // ignoruj; spróbujemy w kolejnej sekundzie
+      }
+    }, 1000);
+  }
   plPoster?.addEventListener("error", () => { /* nie czyścimy src -> brak mrugania */ });
 
   // ---- Symulacja czasu odtwarzania (płynny pasek) ----
@@ -1184,10 +1219,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function stopSim() { if (simTimer) clearInterval(simTimer); simTimer = null; }
 
   function detectPlaying(sess){
-    const s = String(sess.state || "").toLowerCase();
+    const s = String(sess?.state || "").toLowerCase();
     if (s) return s === "playing";
-    if (typeof sess.playing === "boolean") return sess.playing;
-    if (typeof sess.paused === "boolean") return !sess.paused;
+    if (typeof sess?.playing === "boolean") return sess.playing;
+    if (typeof sess?.paused === "boolean") return !sess.paused;
     return true; // domyślnie traktuj jako playing
   }
 
@@ -1567,7 +1602,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
     if (minTitleEl && nowTitle) minTitleEl.textContent = nowTitle;
-    setPosterOnce(sess.thumb || (selected?.poster || ""));
+    const bestThumb = bestThumbFromSession(sess) || (selected?.poster || "");
+    setPosterOnce(bestThumb);
 
     // clock z serwera -> do symulacji
     const dur = Number(sess.duration_ms || 0) / 1000;
@@ -1619,7 +1655,10 @@ document.addEventListener("DOMContentLoaded", () => {
           resetPosterForNewItem();
         }
 
-        setPosterOnce(sess.thumb || "");
+        // natychmiast spróbuj ustawić plakat z dowolnego pola miniatury
+        const bestThumb = bestThumbFromSession(sess);
+        setPosterOnce(bestThumb);
+
         const t = String(sess.title || "");
         if (plTitle && t) plTitle.textContent = t;
         if (minTitleEl && t) minTitleEl.textContent = t;
@@ -1639,6 +1678,10 @@ document.addEventListener("DOMContentLoaded", () => {
           item_id: currentItemKey,
           ts: Date.now()
         });
+
+        // jeśli mimo wszystko plakat nie przyszedł — uruchom krótki retry
+        if (!lastPosterSrc) startPosterRetryIfNeeded();
+
         return true;
       }
     } catch (_) {}
@@ -1749,7 +1792,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
-    await pollActiveOnce();
+    // ważne: jeśli już coś gra, od razu pobierz stan + spróbuj złapać plakat,
+    // a kiedy brak miniatury — odpal lekki retry, by nie przegapić późnego thumb'a.
+    const found = await pollActiveOnce();
+    if (!lastPosterSrc && found) startPosterRetryIfNeeded();
+
     startAutoDetect();
 
     document.addEventListener("visibilitychange", () => {
