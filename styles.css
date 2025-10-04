@@ -2573,44 +2573,79 @@ html[data-theme="light"] #section-available .del-box.danger .del-badge{
   #section-available .av-card .title{ padding-right: 140px; }
 }
 
-/* rządek kapsułek pod paskiem postępu */
-.av-card .del-row{
-  margin-top: 6px;
-  display: flex;                 /* flex zamiast inline-flex */
-  justify-content: flex-end;     /* prawa strona */
+/* ====== AV2: kapsuły „usunie się …” pod paskiem postępu ====== */
+
+/* Odrobina oddechu pod paskiem */
+#section-available .av-card .av-progress-wrap {
+  margin-bottom: .35rem;
+}
+
+/* Wiersz z kapsułami – pod paskiem, wyrównany do PRAWEJ */
+#section-available .av-card .del-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: .5rem;
+  margin-top: .25rem;
   width: 100%;
 }
 
-/* kapsuła */
-.del-badge{
-  padding: 4px 10px;
+/* Kapsuły */
+#section-available .av-card .del-badge,
+#section-available .av-card .del-date {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  height: 28px;
+  padding: 0 .6rem;
+  border-radius: 9999px;
   font-size: 12px;
-  border-radius: 999px;
-  font-weight: 700;
-  white-space: nowrap;
-  color: #fff;
+  line-height: 1;
+  letter-spacing: .1px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.06);
 }
 
-/* data obok kapsuły */
-.del-date{
-  font-size: 11px;
-  opacity: .9;
-  padding: 3px 8px;
-  border-radius: 8px;
+/* Kolory bazowe (fallback – JS i tak nadpisze tło inline) */
+#section-available .av-card .del-badge.ok     { background: linear-gradient(135deg,#28a745,#218838); color:#fff; }
+#section-available .av-card .del-badge.warn   { background: linear-gradient(135deg,#ffc107,#e0a800); color:#111; }
+#section-available .av-card .del-badge.danger { background: linear-gradient(135deg,#dc3545,#a71d2a); color:#fff; }
+
+/* Sub-kapsuła z datą – zawsze lekko przyciemniona */
+#section-available .av-card .del-date {
   background: rgba(0,0,0,.45);
+  color: rgba(255,255,255,.85);
+  border: 1px solid rgba(255,255,255,.06);
+}
+
+/* Niech napis w tytule nie wypycha kapsuł – skracamy elegancko */
+#section-available .av-card .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* kolory TTL – dopasowane do klas z JS */
-.del-row.ok .del-badge{
-  background: linear-gradient(135deg,#28a745,#218838);
+/* Lepszy odstęp w sekcji z cyframi pod paskiem */
+#section-available .av-card .tiny {
+  margin-top: .4rem;
 }
-.del-row.warn .del-badge{
-  background: linear-gradient(135deg,#ffc107,#e0a800);
-  color:#111;
+
+/* ====== Responsive ====== */
+@media (max-width: 680px) {
+  /* Zmniejszamy kapsuły i pozwalamy im wejść w dwie linie, ale nadal trzymają się prawej */
+  #section-available .av-card .del-row {
+    gap: .4rem;
+    margin-top: .2rem;
+    flex-wrap: wrap;
+  }
+  #section-available .av-card .del-badge,
+  #section-available .av-card .del-date {
+    height: 26px;
+    padding: 0 .5rem;
+    font-size: 11px;
+  }
+  /* del-date może zjechać niżej, niech ma minimalną szerokość żeby nie „skakało” */
+  #section-available .av-card .del-date { min-width: 150px; text-align: center; }
 }
-.del-row.danger .del-badge{
-  background: linear-gradient(135deg,#dc3545,#a71d2a);
-}
+
+/* (opcjonalnie) del-row może płynnie wjeżdżać */
+#section-available .av-card .del-row { transition: color .2s ease, background-color .2s ease; }
