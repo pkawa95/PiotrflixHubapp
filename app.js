@@ -1342,49 +1342,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 client_name: castSel.options[castSel.selectedIndex]?.text || "" },
       });
       if (playerBox) {
-        showAndFloatPlayer();
+        playerBox.hidden = false;
+        makePlayerFloating();
         startStatusLoop();
       }
       if (plPoster) plPoster.src = selected.poster || "";
     } catch (_) {} finally { dlg?.close?.(); }
   });
 
-  // --- Floating player helpers ---
+  // Floating player helpers
   function measureBottomBarsHeight() {
-    // Znajdź przyklejone dolne nawigacje/paski
+    // znajdź przyklejone/dolne nawigacje/paski
     const candidates = document.querySelectorAll(
       'nav, footer, #bottom-nav, .bottom-nav, .tabbar, #app-bottom-bar, [data-bottom-nav], [role="tablist"]'
     );
     let h = 0;
     candidates.forEach(el => {
       const cs = getComputedStyle(el);
-      if (cs.position === "fixed" || cs.position === "sticky") {
+      const pos = cs.position;
+      if (pos === "fixed" || pos === "sticky") {
         const r = el.getBoundingClientRect();
         if (r.bottom >= window.innerHeight - 2) {
           h = Math.max(h, Math.ceil(r.height));
         }
       }
     });
-    // bezpieczny margines (CSS var, jeśli masz)
+    // ewentualny bezpieczny margines (CSS var) jeśli używasz safe-area
     const root = getComputedStyle(document.documentElement);
     const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
     return h + (isFinite(safe) ? safe : 0);
   }
 
-  function showAndFloatPlayer() {
-    // zdejmij wszystkie blokady widoczności
-    playerBox.hidden = false;
-    playerBox.removeAttribute('hidden');
-    playerBox.style.display = 'block';
-    playerBox.style.visibility = 'visible';
-    playerBox.style.opacity = '1';
-
-    makePlayerFloating(); // pozycjonowanie
-  }
-
   function makePlayerFloating() {
     if (!playerBox) return;
-    const pad = 8; // odstęp od dolnego menu
+    const pad = 8; // odstęp od menu
     const barH = measureBottomBarsHeight();
 
     // styl „floating”
@@ -1398,32 +1389,31 @@ document.addEventListener("DOMContentLoaded", () => {
       boxShadow: "0 10px 30px rgba(0,0,0,.45)",
       borderRadius: "14px",
       overflow: "hidden",
-      pointerEvents: "auto"
     });
 
-    // dopasowanie przy zmianie rozmiaru/rotacji
+    // dopasowuj przy zmianie rozmiaru
     const place = () => {
       const bh = measureBottomBarsHeight();
       playerBox.style.bottom = `${bh + pad}px`;
     };
     window.addEventListener("resize", place);
     window.addEventListener("orientationchange", place);
-    playerBox._placeHandler = place;
 
-    // od razu wywołaj raz (np. po pojawieniu się paska systemowego)
-    place();
+    // zapisz, żeby móc odczepić przy stopie
+    playerBox._placeHandler = place;
   }
 
   function clearFloatingPlayer() {
     if (!playerBox) return;
+    // usuwamy nasłuchy
     if (playerBox._placeHandler) {
       window.removeEventListener("resize", playerBox._placeHandler);
       window.removeEventListener("orientationchange", playerBox._placeHandler);
       delete playerBox._placeHandler;
     }
+    // chowamy i czyścimy style
     playerBox.hidden = true;
-    playerBox.style.display = "";   // czyści inline, jeśli był gdzieś !important to override i tak działał
-    ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow","pointerEvents","visibility","opacity"]
+    ["position","left","transform","width","bottom","zIndex","boxShadow","borderRadius","overflow"]
       .forEach(k => playerBox.style[k] = "");
   }
 
