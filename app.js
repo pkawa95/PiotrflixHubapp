@@ -1018,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 })();
 
-/* ===================== DOSTĘPNE v2 — z auto-wyszukiwaniem postera po tytule ===================== */
+/* ===================== DOSTĘPNE v2 — z auto-wyszukiwaniem postera po tytule + wsparcie image_url z /cast ===================== */
 (function () {
   const section = document.getElementById("section-available");
   if (!section) return;
@@ -1149,132 +1149,134 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_SIGNAL_KEY = "pf_cast_signal";
   const LS_MIN_KEY    = "pf_cast_minimized";
 
-/* ---- Poster — v5 (z bazy danych po ID lub tytule) ---- */
-let lastPosterSrc = "";
-let lastPosterBlob = "";
-let currentItemKey = "";
-let posterRetryTimer = null;
-let posterRetryLeft = 0;
+  /* ---- Poster — v5 (z bazy danych po ID lub tytule) + preferencja image_url z /cast ---- */
+  let lastPosterSrc = "";
+  let lastPosterBlob = "";
+  let currentItemKey = "";
+  let posterRetryTimer = null;
+  let posterRetryLeft = 0;
 
-let IDX = { byId: new Map(), byNormTitle: new Map() };
+  let IDX = { byId: new Map(), byNormTitle: new Map() };
 
-function normTitle(s) {
-  return String(s || "")
-    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/\bS\d{1,2}E\d{1,2}\b/g, "")
-    .replace(/\s+/g, " ").trim();
-}
-
-function rebuildIndex() {
-  IDX.byId.clear(); IDX.byNormTitle.clear();
-  const push = (it) => {
-    if (!it || typeof it !== "object") return;
-    const id = String(it.id || it.ratingKey || it.plex_id || "").trim();
-    const t = String(it.display_title || it.title || it.name || "").trim();
-    const img = String(it.image_url || it.poster || it.poster_url || it.thumb || "").trim();
-    if (id) IDX.byId.set(id, { title: t, image: img });
-    if (t) IDX.byNormTitle.set(normTitle(t), { title: t, image: img });
-  };
-  const avFilms  = Array.isArray(RAW.films)  ? RAW.films  : (Array.isArray(RAW.movies) ? RAW.movies : []);
-  const avSeries = Array.isArray(RAW.series) ? RAW.series : [];
-  avFilms.forEach(push); avSeries.forEach(push);
-}
-
-async function posterFromDB({ id, title }) {
-  // 1) po ID
-  if (id && IDX.byId.has(String(id))) {
-    const img = IDX.byId.get(String(id)).image;
-    if (img) return img;
+  function normTitle(s) {
+    return String(s || "")
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\bS\d{1,2}E\d{1,2}\b/g, "")
+      .replace(/\s+/g, " ").trim();
   }
-  // 2) po tytule
-  const nt = normTitle(title || "");
-  if (nt && IDX.byNormTitle.has(nt)) {
-    const img = IDX.byNormTitle.get(nt).image;
-    if (img) return img;
+
+  function rebuildIndex() {
+    IDX.byId.clear(); IDX.byNormTitle.clear();
+    const push = (it) => {
+      if (!it || typeof it !== "object") return;
+      const id = String(it.id || it.ratingKey || it.plex_id || "").trim();
+      const t = String(it.display_title || it.title || it.name || "").trim();
+      const img = String(it.image_url || it.poster || it.poster_url || it.thumb || "").trim();
+      if (id) IDX.byId.set(id, { title: t, image: img });
+      if (t) IDX.byNormTitle.set(normTitle(t), { title: t, image: img });
+    };
+    const avFilms  = Array.isArray(RAW.films)  ? RAW.films  : (Array.isArray(RAW.movies) ? RAW.movies : []);
+    const avSeries = Array.isArray(RAW.series) ? RAW.series : [];
+    avFilms.forEach(push); avSeries.forEach(push);
   }
-  // 3) fallback: backend
-  try {
-    if (id && /^\d+$/.test(String(id))) {
-      const r = await apiJson(`/art/by-id?item_id=${encodeURIComponent(String(id))}`, { method: "GET" });
-      if (r?.image_url) return r.image_url;
+
+  async function posterFromDB({ id, title }) {
+    // 1) po ID
+    if (id && IDX.byId.has(String(id))) {
+      const img = IDX.byId.get(String(id)).image;
+      if (img) return img;
     }
-  } catch (_) {}
-  try {
-    if (title && title.trim()) {
-      const r = await apiJson(`/art/by-title?title=${encodeURIComponent(title)}`, { method: "GET" });
-      if (r?.image_url) return r.image_url;
+    // 2) po tytule
+    const nt = normTitle(title || "");
+    if (nt && IDX.byNormTitle.has(nt)) {
+      const img = IDX.byNormTitle.get(nt).image;
+      if (img) return img;
     }
-  } catch (_) {}
-  return "";
-}
-
-function bestThumbFromSession(sess) {
-  return String(
-    sess?.thumb ||
-    sess?.parent_thumb ||
-    sess?.grandparent_thumb ||
-    sess?.poster ||
-    sess?.art || ""
-  ).trim();
-}
-
-async function setPosterBlobFromUrlOnce(url) {
-  const u = String(url || "").trim();
-  if (!u || lastPosterSrc) return false;
-  try {
-    const res = await window.authFetch(u);
-    if (!res.ok) throw new Error(res.status);
-    const blob = await res.blob();
-    const ct = (res.headers.get("Content-Type") || "").toLowerCase();
-    if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i))
-      throw new Error("not-image");
-    const objUrl = URL.createObjectURL(blob);
-    await new Promise((ok, err) => {
-      const i = new Image();
-      i.onload = ok; i.onerror = err; i.src = objUrl;
-    });
-    if (plPoster) {
-      if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
-      plPoster.src = objUrl;
-      lastPosterBlob = objUrl;
-      lastPosterSrc = u;
-    }
-    return true;
-  } catch { return false; }
-}
-
-async function setPosterOnce(url) {
-  if (lastPosterSrc) return;
-  await setPosterBlobFromUrlOnce(url);
-}
-
-function resetPosterForNewItem() {
-  lastPosterSrc = "";
-  if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
-  lastPosterBlob = "";
-}
-
-async function ensurePosterForActiveSession(sess, fallbackUrl) {
-  const newKey = String(sess?.item_id || sess?.ratingKey || "");
-  if (newKey && newKey !== currentItemKey) {
-    currentItemKey = newKey;
-    resetPosterForNewItem();
+    // 3) fallback: backend (opcjonalnie)
+    try {
+      if (id && /^\d+$/.test(String(id))) {
+        const r = await apiJson(`/art/by-id?item_id=${encodeURIComponent(String(id))}`, { method: "GET" });
+        if (r?.image_url) return r.image_url;
+      }
+    } catch (_) {}
+    try {
+      if (title && title.trim()) {
+        const r = await apiJson(`/art/by-title?title=${encodeURIComponent(title)}`, { method: "GET" });
+        if (r?.image_url) return r.image_url;
+      }
+    } catch (_) {}
+    return "";
   }
 
-  // 1️⃣ Najpierw sprawdź co zwrócił Cast
-  let candidate = bestThumbFromSession(sess) || String(fallbackUrl || "");
-  // 2️⃣ Jeśli brak → zapytaj lokalny indeks lub bazę
-  if (!candidate) {
-    const guessed = await posterFromDB({
-      id: newKey,
-      title: sess?.title || sess?.name || selected?.title || ""
-    });
-    if (guessed) candidate = guessed;
+  function bestThumbFromSession(sess) {
+    // ⬅️ NAJPIERW pole image_url zwrócone przez /cast/status
+    const direct = String(sess?.image_url || "").trim();
+    if (direct) return direct;
+    return String(
+      sess?.thumb ||
+      sess?.parent_thumb ||
+      sess?.grandparent_thumb ||
+      sess?.poster ||
+      sess?.art || ""
+    ).trim();
   }
-  // 3️⃣ Ustaw
-  if (candidate) await setPosterOnce(candidate);
-}
 
+  async function setPosterBlobFromUrlOnce(url) {
+    const u = String(url || "").trim();
+    if (!u || lastPosterSrc) return false;
+    try {
+      const res = await window.authFetch(u);
+      if (!res.ok) throw new Error(res.status);
+      const blob = await res.blob();
+      const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+      if (!ct.includes("image") && !u.match(/\.(png|jpe?g|webp|gif|bmp|svg)/i))
+        throw new Error("not-image");
+      const objUrl = URL.createObjectURL(blob);
+      await new Promise((ok, err) => {
+        const i = new Image();
+        i.onload = ok; i.onerror = err; i.src = objUrl;
+      });
+      if (plPoster) {
+        if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
+        plPoster.src = objUrl;
+        lastPosterBlob = objUrl;
+        lastPosterSrc = u;
+      }
+      return true;
+    } catch { return false; }
+  }
+
+  async function setPosterOnce(url) {
+    if (lastPosterSrc) return;
+    await setPosterBlobFromUrlOnce(url);
+  }
+
+  function resetPosterForNewItem() {
+    lastPosterSrc = "";
+    if (lastPosterBlob) try { URL.revokeObjectURL(lastPosterBlob); } catch {}
+    lastPosterBlob = "";
+  }
+
+  async function ensurePosterForActiveSession(sess, fallbackUrl) {
+    const newKey = String(sess?.item_id || sess?.ratingKey || "");
+    if (newKey && newKey !== currentItemKey) {
+      currentItemKey = newKey;
+      resetPosterForNewItem();
+    }
+
+    // 1️⃣ Najpierw preferuj image_url z Cast/Status
+    let candidate = bestThumbFromSession(sess) || String(fallbackUrl || "");
+    // 2️⃣ Jeśli brak → zapytaj lokalny indeks lub bazę
+    if (!candidate) {
+      const guessed = await posterFromDB({
+        id: newKey,
+        title: sess?.title || sess?.name || selected?.title || ""
+      });
+      if (guessed) candidate = guessed;
+    }
+    // 3️⃣ Ustaw
+    if (candidate) await setPosterOnce(candidate);
+  }
 
   // ---- Symulacja czasu odtwarzania (płynny pasek) ----
   let simTimer = null;       // setInterval(1s)
@@ -1466,6 +1468,7 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
         RAW.films = Array.isArray(j?.films) ? j.films : Array.isArray(j?.movies) ? j.movies : [];
         RAW.series = Array.isArray(j?.series) ? j.series : [];
       }
+      rebuildIndex(); // ⬅️ WAŻNE: indeks do szybkiego lookupu plakatów
       render();
     } catch (e) {
       setText(infoEl, `Błąd: ${e.message || e}`);
@@ -1616,7 +1619,7 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
     if (!cid) return;
     if (!selected || !/^\d+$/.test(String(selected.id || ""))) return;
     try {
-      await apiJson("/cast/start", {
+      const resp = await apiJson("/cast/start", {
         method: "POST",
         body: { item_id: String(selected.id), client_id: cid,
                 client_name: castSel.options[castSel.selectedIndex]?.text || "" },
@@ -1627,7 +1630,11 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
 
       currentItemKey = String(selected.id || "");
       resetPosterForNewItem();
-      await setPosterOnce(selected.poster || "");
+
+      // ⬅️ Preferuj image_url zwrócony przez /cast/start
+      const startImg = String(resp?.image_url || "") || String(selected.poster || "");
+      if (startImg) await setPosterOnce(startImg);
+
       if (plTitle) plTitle.textContent = selected.title || "";
       if (minTitleEl) minTitleEl.textContent = selected.title || "";
 
@@ -1667,7 +1674,8 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
 
-    await ensurePosterForActiveSession(sess, selected?.poster || "");
+    // ⬅️ image_url z sesji ma pierwszeństwo
+    await ensurePosterForActiveSession(sess, sess?.image_url || selected?.poster || "");
 
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
@@ -1716,7 +1724,8 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
         currentClientId = String(sess.client_id || saved || "");
         if (currentClientId) localStorage.setItem("pf_cast_client", currentClientId);
 
-        await ensurePosterForActiveSession(sess, "");
+        // ⬅️ preferuj image_url z /cast/status
+        await ensurePosterForActiveSession(sess, sess?.image_url || "");
 
         const t = String(sess.title || "");
         if (plTitle && t) plTitle.textContent = t;
@@ -1737,7 +1746,7 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
           ts: Date.now()
         });
 
-        if (!lastPosterSrc) startPosterRetryIfNeeded();
+        if (!lastPosterSrc) startPosterRetryIfNeeded?.();
         return true;
       }
     } catch (_) {}
@@ -1846,7 +1855,7 @@ async function ensurePosterForActiveSession(sess, fallbackUrl) {
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
     const found = await pollActiveOnce();
-    if (!lastPosterSrc && found) startPosterRetryIfNeeded();
+    if (!lastPosterSrc && found) startPosterRetryIfNeeded?.();
 
     startAutoDetect();
 
