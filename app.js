@@ -1150,19 +1150,77 @@ document.addEventListener("DOMContentLoaded", () => {
   const LS_MIN_KEY    = "pf_cast_minimized"; // "1" | "0"
 
   // ---- Poster — stabilny (ustaw raz na element) ----
-  let lastPosterSrc = "";
-  let currentItemKey = "";
-
+  let lastPosterSrc = "";     // zapamiętany src
+  let currentItemKey = "";    // id aktualnego elementu
   function setPosterOnce(url) {
     const u = String(url || "").trim();
-    if (!u || lastPosterSrc) return;
-    if (plPoster) {
+    if (!u) return;                    // nigdy nie nadpisuj pustym
+    if (!lastPosterSrc && plPoster) {  // ustaw tylko raz dla danego elementu
       plPoster.src = u;
       lastPosterSrc = u;
     }
   }
   function resetPosterForNewItem() { lastPosterSrc = ""; }
   plPoster?.addEventListener("error", () => { /* nie czyścimy src -> brak mrugania */ });
+
+  // ---- Symulacja czasu odtwarzania (płynny pasek) ----
+  let simTimer = null;       // setInterval(1s)
+  let simPos   = 0;          // sekundy
+  let simDur   = 0;          // sekundy
+  let simPlaying = false;    // czy gra
+  let lastSyncTs = 0;        // ms zegara przy ostatnim ticku serwera
+  let simInit = false;       // czy mieliśmy pierwszy status
+
+  function startSim() {
+    if (simTimer) return;
+    simTimer = setInterval(() => {
+      if (!simInit) return;
+      if (simPlaying) {
+        simPos = Math.min(simDur, simPos + 1);
+        updateUIFromSim();
+      }
+    }, 1000);
+  }
+  function stopSim() { if (simTimer) clearInterval(simTimer); simTimer = null; }
+
+  function detectPlaying(sess){
+    const s = String(sess.state || "").toLowerCase();
+    if (s) return s === "playing";
+    if (typeof sess.playing === "boolean") return sess.playing;
+    if (typeof sess.paused === "boolean") return !sess.paused;
+    return true; // domyślnie traktuj jako playing
+  }
+
+  function applyServerClock(dur, pos, isPlaying){
+    const now = Date.now();
+    simDur = isFinite(dur) ? dur : simDur;
+
+    if (!simInit) {
+      simPos = pos;
+      simInit = true;
+    } else {
+      // przewidywana pozycja wg naszej symulacji od ostatniego ticka
+      const predicted = simPos + (simPlaying ? (now - lastSyncTs)/1000 : 0);
+      const drift = pos - predicted;
+      // jeśli dryf duży (>2s) — twarda synchronizacja, przy małym — płynne dociągnięcie (30%)
+      if (Math.abs(drift) > 2) simPos = pos;
+      else simPos = predicted + 0.3 * drift;
+      simPos = Math.max(0, Math.min(simDur, simPos));
+    }
+
+    simPlaying = !!isPlaying;
+    lastSyncTs = now;
+
+    startSim();
+    updateUIFromSim();
+  }
+
+  function updateUIFromSim(){
+    const pct = simDur > 0 ? Math.round((simPos / simDur) * 100) : 0;
+    if (plSeek) { plSeek.max = simDur > 0 ? String(simDur) : "100"; plSeek.value = String(simPos || 0); }
+    if (plTime) setText(plTime, `${fmtTime(simPos)} / ${fmtTime(simDur)}`);
+    if (plPct) setText(plPct, `${pct}%`);
+  }
 
   // ---- canon map ----
   function canon(r) {
@@ -1374,7 +1432,6 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("resize", placePortal);
     window.addEventListener("orientationchange", placePortal);
     if (lastPosterSrc) plPoster && (plPoster.src = lastPosterSrc);
-    // Przy montażu zastosuj ewentualny zapisany stan mini
     const min = localStorage.getItem(LS_MIN_KEY) === "1";
     applyMinimized(min);
   }
@@ -1411,7 +1468,6 @@ document.addEventListener("DOMContentLoaded", () => {
     applyMinimized(min);
   }
   btnMinToggle?.addEventListener("click", (e) => { e.preventDefault(); toggleMin(); });
-  // kliknięcie w pasek mini przywraca
   minBar?.addEventListener("click", (e) => { e.preventDefault(); localStorage.setItem(LS_MIN_KEY,"0"); applyMinimized(false); });
 
   // ---- CAST + floating player ----
@@ -1490,6 +1546,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const sessions = Array.isArray(st?.sessions) ? st.sessions : [];
     if (!sessions.length) {
       stopStatusLoop();
+      stopSim();
+      simInit = false;
       clearActiveFlag();
       unmountGlobalPlayer();
       return;
@@ -1498,24 +1556,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const sess =
       sessions.find((s) => String(s.client_id || "") === String(currentClientId)) || sessions[0];
 
+    // zmiana elementu?
     const newKey = String(sess.item_id || sess.ratingKey || "");
     if (newKey && newKey !== currentItemKey) {
       currentItemKey = newKey;
       resetPosterForNewItem();
     }
 
+    // tytuł + poster
     const nowTitle = String(sess.title || "") || (selected?.title || "");
     if (plTitle && nowTitle) plTitle.textContent = nowTitle;
     if (minTitleEl && nowTitle) minTitleEl.textContent = nowTitle;
-
     setPosterOnce(sess.thumb || (selected?.poster || ""));
 
+    // clock z serwera -> do symulacji
     const dur = Number(sess.duration_ms || 0) / 1000;
     const pos = Number(sess.view_offset_ms || 0) / 1000;
-    const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
-    if (plSeek) { plSeek.max = dur > 0 ? String(dur) : "100"; plSeek.value = String(pos || 0); }
-    if (plTime) setText(plTime, `${fmtTime(pos)} / ${fmtTime(dur)}`);
-    if (plPct) setText(plPct, `${pct}%`);
+    const playing = detectPlaying(sess);
+    applyServerClock(dur, pos, playing);
 
     mountGlobalPlayer();
 
@@ -1536,7 +1594,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const j = await apiJson("/cast/status" + qs, { method: "GET" });
         updateFromStatus(j);
       } catch (_) {}
-    }, 1500);
+    }, 10000); // Twój tick ~10 s – resztę wygładza symulacja 1 s
   }
   function stopStatusLoop() {
     if (statusTimer) { clearInterval(statusTimer); }
@@ -1565,6 +1623,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const t = String(sess.title || "");
         if (plTitle && t) plTitle.textContent = t;
         if (minTitleEl && t) minTitleEl.textContent = t;
+
+        // start symulacji od serwerowego stanu
+        const dur = Number(sess.duration_ms || 0) / 1000;
+        const pos = Number(sess.view_offset_ms || 0) / 1000;
+        applyServerClock(dur, pos, detectPlaying(sess));
 
         mountGlobalPlayer();
         startStatusLoop();
@@ -1632,21 +1695,37 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---- CONTROLS ----
   plSeek?.addEventListener("input", async () => {
     if (!currentClientId) return;
-    const seekMs = Math.round(Number(plSeek.value || "0") * 1000);
-    try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "seek", seek_ms: seekMs } }); } catch (_){}
+    const v = Number(plSeek.value || "0");
+    // lokalna, natychmiastowa aktualizacja symulacji
+    simPos = Math.max(0, Math.min(simDur, v));
+    simInit = true;
+    lastSyncTs = Date.now();
+    updateUIFromSim();
+    try {
+      await apiJson("/cast/cmd", {
+        method: "POST",
+        body: { client_id: currentClientId, cmd: "seek", seek_ms: Math.round(simPos * 1000) },
+      });
+    } catch (_) {}
   });
   btnPlay?.addEventListener("click", async () => {
     if (!currentClientId) return;
+    // optymistycznie przełącz na odtwarzanie
+    simPlaying = true; lastSyncTs = Date.now(); startSim();
     try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "play" } }); } catch (_){}
   });
   btnPause?.addEventListener("click", async () => {
     if (!currentClientId) return;
+    // optymistycznie wstrzymaj
+    simPlaying = false; lastSyncTs = Date.now();
     try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "pause" } }); } catch (_){}
   });
   btnStop?.addEventListener("click", async () => {
     if (!currentClientId) return;
     try { await apiJson("/cast/cmd", { method: "POST", body: { client_id: currentClientId, cmd: "stop" } }); } catch (_){}
     stopStatusLoop();
+    stopSim();
+    simInit = false;
     clearActiveFlag();
     unmountGlobalPlayer();
   });
@@ -1668,7 +1747,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch {}
 
-    // przywróć stan mini z poprzedniej sesji
     applyMinimized(localStorage.getItem(LS_MIN_KEY) === "1");
 
     await pollActiveOnce();
