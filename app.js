@@ -2241,3 +2241,330 @@ function genreChipsHtml(names, limit = 4) {
   return `<div class="av2-genres" aria-label="Gatunki">${chips}${moreChip}</div>`;
 }
 
+(function(){
+  const section = document.getElementById("section-available");
+  if (!section) return;
+
+  /* ===== Utilities ===== */
+  const API =
+    document.getElementById("auth-screen")?.dataset.apiBase ||
+    localStorage.getItem("pf_base") || "";
+
+  const joinUrl = (b, p) => `${(b||"").replace(/\/+$/,"")}/${String(p||"").replace(/^\/+/,"")}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+
+  async function apiJson(path, opt={}) {
+    const init = { ...opt, headers: new Headers(opt.headers||{}) };
+    if (!init.headers.has("Content-Type") && init.body && typeof init.body === "object" && !(init.body instanceof FormData)){
+      init.headers.set("Content-Type","application/json");
+    }
+    if (init.headers.get("Content-Type")==="application/json" && init.body && typeof init.body === "object"){
+      init.body = JSON.stringify(init.body);
+    }
+    const res = await (window.authFetch ? window.authFetch(joinUrl(API,path),init) : fetch(joinUrl(API,path),init));
+    const txt = await res.text().catch(()=> "");
+    if (!res.ok){
+      try{ const j = JSON.parse(txt); throw new Error(j.message || j.error || res.status); }
+      catch{ throw new Error(txt || `HTTP ${res.status}`); }
+    }
+    try{ return JSON.parse(txt); } catch{ return txt; }
+  }
+
+  const measureBottomBarsHeight = () => {
+    const candidates = document.querySelectorAll(
+      'nav, footer, #bottom-nav, .bottom-nav, .tabbar, [data-bottom-nav], [role="tablist"]'
+    );
+    let h = 0;
+    candidates.forEach(el => {
+      const cs = getComputedStyle(el);
+      const pos = cs.position;
+      if (pos === "fixed" || pos === "sticky") {
+        const r = el.getBoundingClientRect();
+        if (r.bottom >= window.innerHeight - 2) h = Math.max(h, Math.ceil(r.height));
+      }
+    });
+    const root = getComputedStyle(document.documentElement);
+    const safe = parseFloat(root.getPropertyValue('--safe-area-inset-bottom')) || 0;
+    return h + (isFinite(safe) ? safe : 0);
+  };
+
+  /* ===== Elements ===== */
+  const fabDock = section.querySelector("#pf-fab-dock");
+  const fabRandom = section.querySelector("#pf-fab-random");
+  const fabSearch = section.querySelector("#pf-fab-search");
+
+  const dlgSearch = section.querySelector("#pf-search-panel");
+  const inSearch  = section.querySelector("#pf-search-input");
+  const chipsSearch = section.querySelector("#pf-search-genres");
+  const radiosSearch = section.querySelectorAll('input[name="pf-search-scope"]');
+  const chkSearchUnw = section.querySelector("#pf-search-unwatched");
+  const btnSearchApply = section.querySelector("#pf-search-apply");
+  const btnSearchClear = section.querySelector("#pf-search-clear");
+
+  const dlgRand   = section.querySelector("#pf-random-panel");
+  const chipsRand = section.querySelector("#pf-rand-genres");
+  const radiosRand = section.querySelectorAll('input[name="pf-rand-scope"]');
+  const chkRandUnw = section.querySelector("#pf-rand-unwatched");
+  const btnRandStart = section.querySelector("#pf-rand-start");
+  const reel      = section.querySelector("#pf-reel");
+  const resBox    = section.querySelector("#pf-rand-result");
+  const resPoster = section.querySelector("#pf-rand-poster");
+  const resTitle  = section.querySelector("#pf-rand-title");
+  const resSub    = section.querySelector("#pf-rand-sub");
+  const btnRandCast = section.querySelector("#pf-rand-cast");
+  const btnRandClose= section.querySelector("#pf-rand-close");
+
+  const listEl = section.querySelector("#av2-list"); // Twoja lista kafli
+
+  /* ===== Data cache ===== */
+  let DATA = { movies: [], series: [] }; // canon’owane
+  let GENRES = []; // ["Akcja", ...]
+  let CARD_INDEX = new Map(); // id -> DOM element
+
+  function canon(r){
+    const title  = r.display_title || r.title || r.name || "—";
+    const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
+    const isSeries = (r.kind || r.type || "").toLowerCase() === "series" || !!r.season || !!r.episode;
+    const kind = isSeries ? "series" : "movie";
+    const pos =
+      (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
+    const dur =
+      (r.duration_ms ?? r.total_ms ?? 1000 * (r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
+    let prog = r.progress ?? r.ratio ?? (dur > 0 ? pos / dur : 0);
+    if (prog > 1.01) prog = prog / 100;
+    prog = Math.max(0, Math.min(1, Number(prog)||0));
+    const id = String(
+      (String(r.plex_id || r.ratingKey || "").match(/^\d+$/)
+        ? (r.plex_id || r.ratingKey)
+        : (r.id || ""))
+    );
+    const genres = Array.isArray(r.genres) ? r.genres.filter(Boolean).map(String) : [];
+    const year = r.year || r.release_year || null;
+    return { id, title, poster, kind, pos, dur, prog, genres, year };
+  }
+
+  async function ensureData(){
+    if (!tokenOk()) return;
+    try{
+      const j = await apiJson("/me/available",{ method:"GET" });
+      const films  = Array.isArray(j?.films)  ? j.films  : (Array.isArray(j?.movies) ? j.movies : []);
+      const series = Array.isArray(j?.series) ? j.series : [];
+      DATA.movies = films.map(canon);
+      DATA.series = series.map(canon);
+      const set = new Set();
+      for (const it of [...DATA.movies, ...DATA.series]) (it.genres||[]).forEach(g => set.add(g));
+      GENRES = Array.from(set).sort((a,b)=> a.localeCompare(b,"pl",{sensitivity:"base"}));
+      buildChips(chipsSearch, GENRES, {single:true});
+      buildChips(chipsRand, GENRES, {single:false});
+      indexCards();
+    }catch(e){ /* silent */ }
+  }
+
+  function indexCards(){
+    CARD_INDEX.clear();
+    listEl.querySelectorAll(".av-card").forEach(card => {
+      let id = card.getAttribute("data-id");
+      if (!id){
+        const b = card.querySelector(".actions .btn--cast");
+        id = b?.getAttribute("data-id") || "";
+      }
+      if (id) CARD_INDEX.set(String(id), card);
+    });
+  }
+
+  /* ===== FAB placement & visibility ===== */
+  function placeFabDock(){
+    if (!fabDock) return;
+    const pad = 12;
+    fabDock.style.bottom = (measureBottomBarsHeight() + pad) + "px";
+  }
+  function isPlayerVisible(){
+    const box = document.getElementById("av2-player");
+    return box && !box.hidden;
+  }
+  const LS_ACTIVE_KEY = "pf_cast_active";
+  function updateFabVisibility(){
+    const hasCast = isPlayerVisible() || !!localStorage.getItem(LS_ACTIVE_KEY);
+    fabDock.hidden = !!hasCast;
+  }
+  window.addEventListener("resize", placeFabDock);
+  window.addEventListener("orientationchange", placeFabDock);
+  window.addEventListener("storage", (e)=>{ if (e.key===LS_ACTIVE_KEY) updateFabVisibility(); });
+  setInterval(updateFabVisibility, 1000); // miękko – nieinwazyjny polling
+
+  /* ===== Chips ===== */
+  function chipColor(i){
+    const hues = [210, 265, 330, 25, 150, 195, 0, 280, 120, 35]; // różne gradienty
+    const h1 = hues[i % hues.length];
+    const h2 = (h1 + 30) % 360;
+    return `--c1: hsl(${h1} 70% 55%); --c2: hsl(${h2} 70% 55%);`;
+  }
+  function buildChips(host, names, {single}){
+    if (!host) return;
+    host.innerHTML = names.map((g,i)=>(
+      `<button type="button" class="pf-chip" data-genre="${esc(g)}" style="${chipColor(i)}">${esc(g)}</button>`
+    )).join("");
+    host.addEventListener("click", (e) => {
+      const b = e.target.closest(".pf-chip"); if (!b) return;
+      if (single){
+        host.querySelectorAll(".pf-chip.is-on").forEach(x=> x.classList.remove("is-on"));
+        b.classList.add("is-on");
+      } else {
+        b.classList.toggle("is-on");
+      }
+    }, { once:true });
+  }
+  function selectedGenres(host){
+    return Array.from(host?.querySelectorAll(".pf-chip.is-on")||[]).map(x=> x.getAttribute("data-genre"));
+  }
+  function clearChips(host){ host?.querySelectorAll(".pf-chip.is-on").forEach(x=> x.classList.remove("is-on")); }
+
+  /* ===== Live Search ===== */
+  function currentScope(radios){
+    const it = Array.from(radios||[]).find(r=> r.checked);
+    return it ? it.value : "all";
+  }
+  function itemsByScope(scope){
+    if (scope==="movies") return DATA.movies.slice();
+    if (scope==="series") return DATA.series.slice();
+    return [...DATA.movies, ...DATA.series];
+  }
+  function applyLiveFilter(){
+    indexCards(); // na wypadek świeżego renderu
+    const q = (inSearch.value || "").trim().toLowerCase();
+    const g = selectedGenres(chipsSearch)[0] || "";
+    const scope = currentScope(radiosSearch);
+    const onlyUnw = !!chkSearchUnw.checked;
+
+    const setOK = new Set();
+    const items = itemsByScope(scope);
+    for (const it of items){
+      if (q && !it.title.toLowerCase().includes(q)) continue;
+      if (g && !(it.genres||[]).some(x => String(x).toLowerCase() === g.toLowerCase())) continue;
+      if (onlyUnw && (it.prog||0) >= 0.95) continue;
+      setOK.add(String(it.id));
+    }
+    // pokaż/ukryj karty
+    CARD_INDEX.forEach((card, id) => {
+      card.style.display = setOK.size ? (setOK.has(String(id)) ? "" : "none") : "";
+    });
+  }
+
+  btnSearchApply?.addEventListener("click", (e)=>{ e.preventDefault(); applyLiveFilter(); dlgSearch.close(); });
+  btnSearchClear?.addEventListener("click", (e)=>{ e.preventDefault();
+    inSearch.value = ""; clearChips(chipsSearch); chkSearchUnw.checked = false;
+    Array.from(radiosSearch).forEach(r=> r.checked = (r.value==="all"));
+    applyLiveFilter(); dlgSearch.close();
+  });
+  inSearch?.addEventListener("input", ()=> applyLiveFilter());
+
+  /* ===== Randomizer ===== */
+  function candidatesForRandom(){
+    const scope = currentScope(radiosRand);
+    const onlyUnw = !!chkRandUnw.checked;
+    const want = selectedGenres(chipsRand); // OR pomiędzy wieloma
+    let items = itemsByScope(scope);
+    if (want.length){
+      const W = want.map(x=> x.toLowerCase());
+      items = items.filter(it => (it.genres||[]).some(g => W.includes(String(g).toLowerCase())));
+    }
+    if (onlyUnw){ items = items.filter(it => (it.prog||0) < 0.95); }
+    return items;
+  }
+  function pickRandom(items){ return items.length ? items[Math.floor(Math.random()*items.length)] : null; }
+
+  let reelTimer = null;
+  function stopReel(){ if (reelTimer) clearInterval(reelTimer); reelTimer = null; }
+
+  async function runRandom(){
+    stopReel();
+    resBox.hidden = true;
+    const pool = candidatesForRandom();
+    if (!pool.length){ // brak kandydatów
+      reel.querySelectorAll("img").forEach(img => img.removeAttribute("src"));
+      resBox.hidden = false;
+      resPoster.src = ""; resTitle.textContent = "Brak pozycji dla tego filtra";
+      resSub.textContent = "";
+      btnRandCast.disabled = true;
+      return;
+    }
+    // animacja ~2.4s
+    const slots = Array.from(reel.querySelectorAll("img"));
+    let i=0;
+    reelTimer = setInterval(()=>{
+      for (let s=0; s<slots.length; s++){
+        const it = pool[(i + s) % pool.length];
+        slots[s].src = it.poster || "";
+      }
+      i = (i + 1) % pool.length;
+    }, 120);
+
+    await new Promise(r => setTimeout(r, 2400));
+    stopReel();
+
+    // final pick
+    const pick = pickRandom(pool);
+    if (!pick){
+      resBox.hidden = false;
+      resPoster.src = ""; resTitle.textContent = "Brak wyniku"; resSub.textContent = "";
+      btnRandCast.disabled = true;
+      return;
+    }
+    resPoster.src = pick.poster || "";
+    resTitle.textContent = pick.title || "—";
+    resSub.textContent = (pick.kind==="series" ? "Serial" : "Film") + (pick.year ? ` · ${pick.year}` : "");
+    resBox.dataset.pickId = pick.id;
+    resBox.hidden = false;
+    btnRandCast.disabled = false;
+  }
+
+  btnRandStart?.addEventListener("click", (e)=>{ e.preventDefault(); runRandom(); });
+  btnRandClose?.addEventListener("click", (e)=>{ e.preventDefault(); dlgRand.close(); });
+
+  // Cast wybranego wyniku: klikamy ukryty przycisk „Cast ▶” z listy (Twoja logika obsłuży dalej)
+  btnRandCast?.addEventListener("click", (e)=>{
+    e.preventDefault();
+    const id = resBox.dataset.pickId || "";
+    if (!id) return;
+    // spróbuj przewinąć + kliknąć istniejący „Cast ▶”
+    const card = CARD_INDEX.get(String(id));
+    const btn = card?.querySelector('.actions .btn--cast[data-id]');
+    if (btn){
+      card.scrollIntoView({behavior:"smooth", block:"center"});
+      setTimeout(()=> btn.dispatchEvent(new MouseEvent("click",{bubbles:true})), 200);
+      dlgRand.close();
+    }
+  });
+
+  /* ===== Openers ===== */
+  fabSearch?.addEventListener("click", async ()=>{
+    await ensureData();
+    indexCards();
+    if (typeof dlgSearch.showModal === "function") dlgSearch.showModal();
+    else dlgSearch.setAttribute("open","");
+    inSearch?.focus({ preventScroll:true });
+  });
+
+  fabRandom?.addEventListener("click", async ()=>{
+    await ensureData();
+    resBox.hidden = true;
+    if (typeof dlgRand.showModal === "function") dlgRand.showModal();
+    else dlgRand.setAttribute("open","");
+  });
+
+  /* ===== Boot ===== */
+  function boot(){
+    placeFabDock();
+    updateFabVisibility();
+    // pokaż FAB-y dopiero po inicjalizacji (i jeżeli nie ma playera)
+    fabDock.hidden = isPlayerVisible();
+    // 1. indeksuj karty gdy lista gotowa
+    const mo = new MutationObserver(()=> indexCards());
+    mo.observe(listEl, { childList:true, subtree:false });
+    // 2. pierwszy fetch (nie blokuje)
+    ensureData();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
