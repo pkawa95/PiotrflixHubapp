@@ -62,183 +62,184 @@
 
     <!-- Karta z panelem logowania/rejestracji -->
     <div class="auth__card" data-swipe-area="true" aria-live="polite">
-      <!-- Zakładki: Zaloguj | Zarejestruj -->
-      <nav class="auth__tabs" role="tablist" aria-label="Przełączanie paneli">
-        <button
-          id="tab-login"
-          class="auth__tab is-active"
-          role="tab"
-          aria-controls="panel-login"
-          aria-selected="true"
-          tabindex="0"
-          data-auth-view="login"
-          type="button"
-        >Zaloguj</button>
-        <button
-          id="tab-register"
-          class="auth__tab"
-          role="tab"
-          aria-controls="panel-register"
-          aria-selected="false"
-          tabindex="-1"
-          data-auth-view="register"
-          type="button"
-        >Zarejestruj</button>
-      </nav>
+<!-- Karta z panelem logowania/rejestracji (PODMIANKA) -->
+<div class="auth__card" data-swipe-area="true" aria-live="polite">
+  <!-- Zakładki -->
+  <nav class="auth__tabs" role="tablist" aria-label="Przełączanie paneli">
+    <button
+      id="tab-login"
+      class="auth__tab is-active"
+      role="tab"
+      aria-controls="panel-login"
+      aria-selected="true"
+      tabindex="0"
+      data-auth-view="login"
+      type="button"
+    >Zaloguj</button>
+    <button
+      id="tab-register"
+      class="auth__tab"
+      role="tab"
+      aria-controls="panel-register"
+      aria-selected="false"
+      tabindex="-1"
+      data-auth-view="register"
+      type="button"
+    >Zarejestruj</button>
+  </nav>
 
-      <!-- Wrapper pod gesty (swipe). JS może robić przesuwany slider. -->
-      <div class="auth__panels" data-panels-slider="true">
-        <!-- ========= Panel: LOGOWANIE ========= -->
-        <section
-          id="panel-login"
-          class="auth__panel"
-          role="tabpanel"
-          aria-labelledby="tab-login"
-          aria-hidden="false"
-          data-view="login"
-        >
-          <form id="form-login" class="form" method="post" action="#" novalidate autocomplete="on">
-            <div class="form__row">
-              <label for="login-email" class="form__label">Adres e-mail</label>
-              <input
-                id="login-email"
-                name="email"
-                class="form__input"
-                type="email"
-                inputmode="email"
-                autocomplete="email"
-                required
-                aria-describedby="login-email-error"
-              />
-              <p id="login-email-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+  <!-- Wrapper pod gesty (opcjonalny slider) -->
+  <div class="auth__panels" data-panels-slider="true">
+    <!-- ========= Panel: LOGOWANIE ========= -->
+    <section
+      id="panel-login"
+      class="auth__panel"
+      role="tabpanel"
+      aria-labelledby="tab-login"
+      aria-hidden="false"
+      data-auth-panel="login"
+    >
+      <form id="form-login" class="form" method="post" action="#" novalidate autocomplete="on">
+        <div class="form__row">
+          <label for="login-email" class="form__label">Adres e-mail</label>
+          <input
+            id="login-email"
+            name="email"
+            class="form__input"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            required
+            aria-describedby="login-email-error"
+          />
+          <p id="login-email-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row">
-              <label for="login-password" class="form__label">Hasło</label>
-              <input
-                id="login-password"
-                name="password"
-                class="form__input"
-                type="password"
-                autocomplete="current-password"
-                required
-                aria-describedby="login-password-error"
-              />
-              <p id="login-password-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+        <div class="form__row">
+          <label for="login-password" class="form__label">Hasło</label>
+          <input
+            id="login-password"
+            name="password"
+            class="form__input"
+            type="password"
+            autocomplete="current-password"
+            required
+            aria-describedby="login-password-error"
+          />
+          <p id="login-password-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row form__row--inline">
-              <label class="checkbox">
-                <input id="login-remember" name="remember" type="checkbox" />
-                <span>Nie wylogowuj mnie</span>
-              </label>
-            </div>
+        <div class="form__row form__row--inline">
+          <label class="checkbox">
+            <input id="login-remember" name="remember" type="checkbox" />
+            <span>Nie wylogowuj mnie</span>
+          </label>
+        </div>
 
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary" data-action="login-submit">Zaloguj się</button>
-            </div>
+        <div class="form__actions">
+          <button type="submit" class="btn btn--primary" data-action="login-submit">Zaloguj się</button>
+        </div>
 
-            <!-- Błąd globalny logowania -->
-            <p id="login-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
-          </form>
-        </section>
+        <p id="login-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
+      </form>
+    </section>
 
-        <!-- ========= Panel: REJESTRACJA ========= -->
-        <section
-          id="panel-register"
-          class="auth__panel"
-          role="tabpanel"
-          aria-labelledby="tab-register"
-          aria-hidden="true"
-          data-view="register"
-        >
-          <form id="form-register" class="form" method="post" action="#" novalidate autocomplete="on">
-            <div class="form__row">
-              <label for="reg-firstname" class="form__label">Imię</label>
-              <input
-                id="reg-firstname"
-                name="firstname"
-                class="form__input"
-                type="text"
-                autocomplete="given-name"
-                required
-                aria-describedby="reg-firstname-error"
-              />
-              <p id="reg-firstname-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+    <!-- ========= Panel: REJESTRACJA ========= -->
+    <section
+      id="panel-register"
+      class="auth__panel"
+      role="tabpanel"
+      aria-labelledby="tab-register"
+      aria-hidden="true"
+      data-auth-panel="register"
+    >
+      <form id="form-register" class="form" method="post" action="#" novalidate autocomplete="on">
+        <div class="form__row">
+          <label for="reg-firstname" class="form__label">Imię</label>
+          <input
+            id="reg-firstname"
+            name="firstname"
+            class="form__input"
+            type="text"
+            autocomplete="given-name"
+            required
+            aria-describedby="reg-firstname-error"
+          />
+          <p id="reg-firstname-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row">
-              <label for="reg-lastname" class="form__label">Nazwisko</label>
-              <input
-                id="reg-lastname"
-                name="lastname"
-                class="form__input"
-                type="text"
-                autocomplete="family-name"
-                required
-                aria-describedby="reg-lastname-error"
-              />
-              <p id="reg-lastname-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+        <div class="form__row">
+          <label for="reg-lastname" class="form__label">Nazwisko</label>
+          <input
+            id="reg-lastname"
+            name="lastname"
+            class="form__input"
+            type="text"
+            autocomplete="family-name"
+            required
+            aria-describedby="reg-lastname-error"
+          />
+          <p id="reg-lastname-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row">
-              <label for="reg-email" class="form__label">Adres e-mail</label>
-              <input
-                id="reg-email"
-                name="email"
-                class="form__input"
-                type="email"
-                inputmode="email"
-                autocomplete="email"
-                required
-                aria-describedby="reg-email-error"
-              />
-              <p id="reg-email-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+        <div class="form__row">
+          <label for="reg-email" class="form__label">Adres e-mail</label>
+          <input
+            id="reg-email"
+            name="email"
+            class="form__input"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            required
+            aria-describedby="reg-email-error"
+          />
+          <p id="reg-email-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row">
-              <label for="reg-password" class="form__label">Hasło</label>
-              <input
-                id="reg-password"
-                name="password"
-                class="form__input"
-                type="password"
-                autocomplete="new-password"
-                required
-                aria-describedby="reg-password-error"
-              />
-              <p id="reg-password-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+        <div class="form__row">
+          <label for="reg-password" class="form__label">Hasło</label>
+          <input
+            id="reg-password"
+            name="password"
+            class="form__input"
+            type="password"
+            autocomplete="new-password"
+            required
+            aria-describedby="reg-password-error"
+          />
+          <p id="reg-password-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__row">
-              <label for="reg-password2" class="form__label">Powtórz hasło</label>
-              <input
-                id="reg-password2"
-                name="password_confirm"
-                class="form__input"
-                type="password"
-                autocomplete="new-password"
-                required
-                aria-describedby="reg-password2-error"
-              />
-              <p id="reg-password2-error" class="form__error" role="alert" aria-live="assertive"></p>
-            </div>
+        <div class="form__row">
+          <label for="reg-password2" class="form__label">Powtórz hasło</label>
+          <input
+            id="reg-password2"
+            name="password_confirm"
+            class="form__input"
+            type="password"
+            autocomplete="new-password"
+            required
+            aria-describedby="reg-password2-error"
+          />
+          <p id="reg-password2-error" class="form__error" role="alert" aria-live="assertive"></p>
+        </div>
 
-            <div class="form__actions">
-              <button type="submit" class="btn btn--primary" data-action="register-submit">Utwórz konto</button>
-            </div>
+        <div class="form__actions">
+          <button type="submit" class="btn btn--primary" data-action="register-submit">Utwórz konto</button>
+        </div>
 
-            <!-- Błąd globalny rejestracji -->
-            <p id="register-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
-          </form>
-        </section>
-      </div>
+        <p id="register-global-error" class="form__error form__error--global" role="alert" aria-live="assertive"></p>
+      </form>
+    </section>
+  </div>
 
-      <!-- Podpowiedź gestu (opcjonalnie ukrywana w CSS) -->
-      <div class="auth__hint" aria-hidden="true">
-        Przesuń w lewo/prawo, aby przełączyć panele
-      </div>
-    </div>
+  <!-- Podpowiedź gestu (opcjonalnie ukrywana w CSS) -->
+  <div class="auth__hint" aria-hidden="true">
+    Przesuń w lewo/prawo, aby przełączyć panele
+  </div>
+</div>
+
 
     <!-- Stopka na ekranie logowania -->
     <footer class="auth__footer">

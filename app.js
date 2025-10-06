@@ -1994,3 +1994,69 @@ function setDelState(row, diffMs){
   row.classList.add(state);
   row.dataset.state = state;
 }
+
+
+/* ====== AUTH: przełączanie login/register ====== */
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.getElementById("auth-screen");
+  if (!root) return;
+
+  const tabs   = Array.from(root.querySelectorAll("[data-auth-view]"));
+  let panels   = Array.from(root.querySelectorAll("[data-auth-panel]"));
+
+  // Fallback: jeśli nie masz data-auth-panel, użyj bezpośrednio formularzy
+  if (!panels.length) {
+    const pLogin = root.querySelector("#form-login");
+    const pReg   = root.querySelector("#form-register");
+    if (pLogin || pReg) {
+      panels = [
+        { el: pLogin, key: "login" },
+        { el: pReg,   key: "register" },
+      ].filter(x => x.el);
+    }
+  } else {
+    panels = panels.map(el => ({ el, key: el.getAttribute("data-auth-panel") }));
+  }
+
+  function setAuthView(view) {
+    // zakładki
+    tabs.forEach(b => {
+      const on = b.getAttribute("data-auth-view") === view;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    // panele
+    panels.forEach(({ el, key }) => {
+      const on = key === view;
+      el.hidden = !on;
+      el.setAttribute("aria-hidden", on ? "false" : "true");
+    });
+    // #hash (opcjonalnie)
+    try { history.replaceState(null, "", "#" + view); } catch {}
+    // focus w pierwszym polu
+    const firstInput = panels.find(p => p.key === view)?.el?.querySelector("input,button,select,textarea");
+    firstInput && setTimeout(() => firstInput.focus({ preventScroll: true }), 50);
+  }
+
+  // kliknięcia
+  root.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-auth-view]");
+    if (!btn) return;
+    e.preventDefault();
+    setAuthView(btn.getAttribute("data-auth-view"));
+  });
+
+  // klawiatura (Enter/Space na aktywnej zakładce)
+  root.addEventListener("keydown", (e) => {
+    const btn = e.target.closest("[data-auth-view]");
+    if (!btn) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      setAuthView(btn.getAttribute("data-auth-view"));
+    }
+  });
+
+  // start: hash albo domyślnie „login”
+  const start = /#register/i.test(location.hash) ? "register" : "login";
+  setAuthView(start);
+});
