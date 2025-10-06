@@ -457,11 +457,7 @@
             </div>
           </form>
         </dialog>
-
-
-
-
-        <!-- FLOATING ACTION BUTTONS -->
+<!-- FLOATING ACTION BUTTONS -->
 <div id="pf-fab-dock" class="pf-fab-dock" hidden>
   <button id="pf-fab-random" class="pf-fab" title="Losuj">
     <img src="static/svg/random-1dice-svgrepo-com.svg" alt="Losuj">
@@ -487,7 +483,7 @@
 
       <div class="pf-field">
         <label>Gatunek (jeden)</label>
-        <div id="pf-search-genres" class="pf-chips pf-chips--lg pf-chips--scroll" role="listbox" aria-label="Gatunki"></div>
+        <div id="pf-search-genres" class="pf-chips pf-chips--xl pf-chips--scroll" aria-label="Gatunki (single)"></div>
       </div>
 
       <div class="pf-row">
@@ -516,8 +512,8 @@
   </form>
 </dialog>
 
-<!-- PANEL: Randomizer -->
-<dialog id="pf-random-panel" class="pf-panel pf-panel--sheet">
+<!-- NOWY MODAL: Losowanie (jedna animowana ramka plakatu) -->
+<dialog id="pf-lottery" class="pf-panel pf-panel--sheet">
   <form method="dialog" class="pf-panel__card">
     <header class="pf-panel__header">
       <h3>Losowanie</h3>
@@ -529,50 +525,55 @@
         <div class="pf-field">
           <label>Zakres</label>
           <div class="pf-segment">
-            <input type="radio" name="pf-rand-scope" id="pf-rand-all" value="all" checked>
-            <label for="pf-rand-all">Oba</label>
-            <input type="radio" name="pf-rand-scope" id="pf-rand-movies" value="movies">
-            <label for="pf-rand-movies">Filmy</label>
-            <input type="radio" name="pf-rand-scope" id="pf-rand-series" value="series">
-            <label for="pf-rand-series">Seriale</label>
+            <input type="radio" name="pf-lot-scope" id="pf-lot-all" value="all" checked>
+            <label for="pf-lot-all">Oba</label>
+            <input type="radio" name="pf-lot-scope" id="pf-lot-movies" value="movies">
+            <label for="pf-lot-movies">Filmy</label>
+            <input type="radio" name="pf-lot-scope" id="pf-lot-series" value="series">
+            <label for="pf-lot-series">Seriale</label>
           </div>
         </div>
         <label class="pf-check">
-          <input id="pf-rand-unwatched" type="checkbox" checked>
+          <input id="pf-lot-unwatched" type="checkbox" checked>
           <span>tylko nieobejrzane (&lt;95%)</span>
         </label>
       </div>
 
       <div class="pf-field">
         <label>Gatunki (wiele)</label>
-        <div id="pf-rand-genres" class="pf-chips pf-chips--lg pf-chips--scroll" aria-label="Gatunki (multi)"></div>
+        <div id="pf-lot-genres" class="pf-chips pf-chips--xl pf-chips--scroll" aria-label="Gatunki (multi)"></div>
       </div>
 
-      <div id="pf-reel" class="pf-reel" aria-live="polite">
-        <div class="pf-reel__slot"><img alt=""></div>
-        <div class="pf-reel__slot"><img alt=""></div>
-        <div class="pf-reel__slot"><img alt=""></div>
+      <!-- animacja jednej ramki -->
+      <div class="pf-reel1" aria-live="polite">
+        <div class="pf-reel1__slot">
+          <img id="pf-reel1-img" alt="">
+        </div>
       </div>
 
-      <div id="pf-rand-result" class="pf-result" hidden>
-        <img id="pf-rand-poster" alt="">
+      <!-- wynik -->
+      <div id="pf-lot-result" class="pf-result" hidden>
+        <img id="pf-lot-poster" alt="">
         <div class="pf-result__meta">
-          <div id="pf-rand-title" class="pf-result__title">—</div>
-          <div id="pf-rand-sub"   class="pf-result__sub">—</div>
+          <div id="pf-lot-title" class="pf-result__title">—</div>
+          <div id="pf-lot-sub"   class="pf-result__sub">—</div>
           <div class="pf-result__actions">
-            <button id="pf-rand-cast"  class="btn btn--primary" value="cast">Cast ▶</button>
-            <button id="pf-rand-close" class="btn btn--ghost"   value="close">Zamknij</button>
+            <button id="pf-lot-cast"  class="btn btn--primary" value="cast">Cast ▶</button>
+            <button id="pf-lot-close" class="btn btn--ghost"   value="close">Zamknij</button>
           </div>
         </div>
       </div>
     </div>
 
     <footer class="pf-panel__footer">
-      <button id="pf-rand-start" class="btn btn--primary" value="start">Losuj 🎲</button>
+      <button id="pf-lot-start" class="btn btn--primary" value="start">Losuj 🎲</button>
     </footer>
   </form>
 </dialog>
 
+
+
+        
       </section>
 
       <!-- ===================== OPCJE ===================== -->

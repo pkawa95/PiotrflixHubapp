@@ -2299,7 +2299,7 @@ html[data-theme="light"] #section-search #sx-quality {
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   color: #fff;
   box-shadow: 0 10px 22px rgba(124,58,237,.28), 0 6px 14px rgba(6,182,212,.22);
-  margin-top: -10px; /* standardowe podniesienie */
+  margin-top: -10px; /* 🔹 podnosi przycisk */
 }
 
 @media (hover:hover){
@@ -3043,63 +3043,31 @@ html[data-theme="light"] #section-options .opts-header {
   100%{ transform:scale(1); }
 }
 
-/* 🔹 Na desktopie — przenieś przycisk w prawy górny róg karty */
-@media (min-width: 1024px) {
-  #section-available .card {
-    position: relative;
-  }
-
-  #section-available .btn--cast {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    margin-top: 0; /* neutralizujemy wcześniejszy margines */
-  }
-}
-
-/* 🔹 Na mobile — dodatkowo wyżej */
-@media (max-width: 768px) {
-  #section-available .btn--cast {
-    margin-top: -20px;
-  }
-}
-
-@media (min-width: 1024px) {
-  #section-available .card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  #section-available .btn--cast {
-    margin-left: auto;
-  }
-}
-
-/* ===== Floating buttons ===== */
+/* ===== FABs ===== */
 .pf-fab-dock{
   position: fixed;
   right: 12px;
-  bottom: 12px; /* JS podniesie nad dolną nawigację */
+  bottom: 12px; /* JS podniesie jeszcze nad dolne menu */
   display: flex;
   flex-direction: column;
   gap: 10px;
   z-index: 9998; /* player ma 9999 */
+  pointer-events: auto;
 }
 .pf-fab{
-  width: 54px; height: 54px;
+  width: 56px; height: 56px;
   border-radius: 50%;
   border: none; outline: none;
   background: linear-gradient(135deg,#1e90ff,#6a5acd);
-  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
   cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease;
   display: grid; place-items: center;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
 }
 .pf-fab img{ width: 26px; height: 26px; filter: invert(1) drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
-.pf-fab:active{ transform: translateY(1px) scale(.98); box-shadow: 0 4px 18px rgba(0,0,0,.22); }
+.pf-fab:active{ transform: translateY(1px) scale(.98); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
 
-/* ===== Panels (bottom sheets) ===== */
+/* ===== Bottom sheet dialogs ===== */
 .pf-panel{ border: none; padding: 0; width: min(860px, 96vw); }
 .pf-panel::backdrop{ background: rgba(0,0,0,.45); }
 .pf-panel--sheet{ margin: 0; position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; }
@@ -3125,53 +3093,72 @@ html[data-theme="light"] #section-options .opts-header {
 .pf-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
 .pf-field{ display:grid; gap:6px; min-width: 220px; flex: 1 1 240px; }
 .pf-field label{ opacity:.8; font-size:.92rem; }
-.pf-field input[type="search"], .pf-field input[type="text"]{
-  height: 40px; padding: 8px 12px; border-radius: 10px; border:1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: inherit;
+.pf-field input[type="search"]{
+  height: 40px; padding: 8px 12px; border-radius: 10px;
+  border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: inherit;
 }
 
-.pf-check{ display:inline-flex; align-items:center; gap:.5rem; user-select:none; }
+/* ===== Segment control ===== */
+.pf-check{ display:inline-flex; align-items:center; gap:.55rem; user-select:none; }
 .pf-segment{
-  display:inline-grid; grid-auto-flow: column; gap:0;
-  background: rgba(255,255,255,.05); border-radius: 12px; padding: 4px;
+  display:inline-grid; grid-auto-flow: column; gap:0; background: rgba(255,255,255,.06);
+  border-radius: 12px; padding: 4px;
 }
 .pf-segment input{ display:none }
 .pf-segment label{
-  padding: 6px 10px; border-radius: 10px; cursor:pointer; white-space:nowrap; opacity:.8;
+  padding: 7px 12px; border-radius: 10px; cursor:pointer; white-space:nowrap; opacity:.85; transition: background .12s ease, opacity .12s ease;
 }
-.pf-segment input:checked + label{ background: rgba(255,255,255,.1); opacity:1 }
+.pf-segment input:checked + label{ background: rgba(255,255,255,.14); opacity:1 }
 
-/* ===== Chips list ===== */
-.pf-chips{ display:flex; flex-wrap:wrap; gap:8px; }
-.pf-chips--scroll{ overflow:auto; max-height: 160px; padding-bottom: 2px; }
+/* ===== Chips (duże, wyraźne) ===== */
+.pf-chips{ display:flex; flex-wrap:wrap; gap:10px; }
+.pf-chips--scroll{ overflow:auto; max-height: 180px; padding-bottom: 2px; }
+.pf-chips--xl .pf-chip{ padding: 10px 14px; font-size: 1rem; }
+
 .pf-chip{
-  --c1: #6a5acd; --c2:#1e90ff;
-  display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; cursor:pointer;
+  --c1: #6a5acd; --c2: #1e90ff;
+  position: relative;
+  display:inline-flex; align-items:center; gap:10px;
+  padding:8px 12px; border-radius:999px; cursor:pointer;
   background: linear-gradient(135deg,var(--c1),var(--c2));
-  color:#fff; font-weight:600; font-size:.9rem; box-shadow: inset 0 0 0 2px rgba(255,255,255,.1), 0 6px 16px rgba(0,0,0,.25);
-  opacity:.92; transition: transform .08s ease, opacity .08s ease, box-shadow .12s ease;
+  color:#fff; font-weight:700;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 8px 24px rgba(0,0,0,.28);
+  opacity:.95; transition: transform .08s ease, opacity .08s ease, box-shadow .12s ease, filter .12s ease;
 }
 .pf-chip:hover{ transform: translateY(-1px); opacity:1 }
-.pf-chip.is-on{ box-shadow: inset 0 0 0 2px rgba(255,255,255,.6), 0 8px 22px rgba(0,0,0,.28) }
-.pf-chip small{ opacity:.85; font-weight:400 }
-
-/* ===== Random reel ===== */
-.pf-reel{
-  display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-top: 4px; margin-bottom: 10px;
+.pf-chip.is-on{
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,.85), 0 10px 28px rgba(0,0,0,.32);
+  filter: saturate(1.25) brightness(1.05);
 }
-.pf-reel__slot{
-  aspect-ratio: 2/3; border-radius: 12px; overflow:hidden;
+.pf-chip.is-on::after{
+  content: "✓";
+  font-weight: 900;
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display:grid; place-items:center;
+  background: rgba(255,255,255,.92); color:#111;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+
+/* ===== Jedna ramka „reel” ===== */
+.pf-reel1{ display:grid; justify-items:center; margin-top: 4px; margin-bottom: 10px; }
+.pf-reel1__slot{
+  width: 180px; max-width: 42vw; aspect-ratio: 2/3; border-radius: 14px; overflow:hidden;
   background: rgba(255,255,255,.06);
   display:grid; place-items:center;
+  box-shadow: 0 14px 40px rgba(0,0,0,.35);
 }
-.pf-reel__slot img{ width:100%; height:100%; object-fit:cover; }
+.pf-reel1__slot img{ width:100%; height:100%; object-fit:cover; }
 
+/* ===== Wynik ===== */
 .pf-result{ display:flex; gap:12px; align-items:flex-start; }
 .pf-result img{ width: 140px; aspect-ratio: 2/3; object-fit:cover; border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.35); }
 .pf-result__meta{ display:grid; gap:8px; }
-.pf-result__title{ font-size: 1.25rem; font-weight: 700; }
-.pf-result__sub{ opacity:.8 }
+.pf-result__title{ font-size: 1.25rem; font-weight: 800; }
+.pf-result__sub{ opacity:.85 }
 
-/* ===== Buttons (reuse) ===== */
+/* ===== Buttons ===== */
 .btn{ height: 40px; padding: 0 14px; border-radius: 10px; border: 0; cursor: pointer; }
 .btn--primary{ background: linear-gradient(135deg,#1e90ff,#6a5acd); color:#fff; }
 .btn--ghost{ background: transparent; border:1px solid rgba(255,255,255,.25); color:inherit; }
