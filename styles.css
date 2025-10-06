@@ -2896,50 +2896,43 @@ html[data-theme="light"] .opts__card { background: #fff; border-color: rgba(0,0,
 .btn--ghost { background: transparent; border: 1px solid rgba(125,125,125,.35); }
 html[data-theme="light"] .btn--ghost { border-color: rgba(0,0,0,.18); }
 
-/* ===== OPCJE – logo i układ ===== */
-.opts-header {
+/* ===== OPCJE – sticky header z logo (fix pack) ===== */
+.opts-header{
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 100;               /* ⬅️ ponad innymi nagłówkami/toolbarami */
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.75rem;
+  gap: .75rem;
+  padding: .75rem 1rem;
   background: var(--color-bg, #0b1020);
+  border-bottom: 1px solid rgba(255,255,255,.08);
   backdrop-filter: blur(8px);
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+html[data-theme="light"] .opts-header{
+  background:#f5f6fa;
+  border-color:rgba(0,0,0,.06);
 }
 
-html[data-theme="light"] .opts-header {
-  background: #f5f6fa;
-  border-color: rgba(0,0,0,0.05);
-}
-
-.opts-logo-wrap {
-  flex-shrink: 0;
-}
-
-.opts-logo {
-  width: 36px;
-  height: 36px;
+/* Logo widoczne nawet bez stylów obrazka */
+.opts-logo{
+  width: 40px;                /* ⬅️ jawny rozmiar, żeby nie “znikało” przy 0x0 */
+  height: 40px;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 0 6px rgba(0,0,0,0.15);
-  transition: transform 0.25s ease;
+  border-radius: 10px;
+  box-shadow: 0 1px 8px rgba(0,0,0,.25);
+  transition: transform .25s ease;
 }
+.opts-logo:hover{ transform: scale(1.05); }
 
-.opts-logo:hover {
-  transform: scale(1.05);
-}
-
-.opts-title {
+.opts-title{
   font-size: 1.25rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: .02em;
   color: var(--color-text, #fff);
 }
+html[data-theme="light"] .opts-title{ color:#111; }
 
-html[data-theme="light"] .opts-title {
-  color: #111;
-}
+/* Na wypadek gdyby inny sticky miał większy z-index */
+.tx-stickybar{ z-index: 50; }
+.nawigacja    { z-index: 60; }  /* jeśli Twoja nawigacja jest “sticky/fixed” u góry/bottom */
