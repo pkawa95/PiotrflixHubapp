@@ -2299,7 +2299,7 @@ html[data-theme="light"] #section-search #sx-quality {
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   color: #fff;
   box-shadow: 0 10px 22px rgba(124,58,237,.28), 0 6px 14px rgba(6,182,212,.22);
-  margin-top: -10px; /* 🔹 podnosi przycisk */
+  margin-top: -10px; /* standardowe podniesienie */
 }
 
 @media (hover:hover){
@@ -3020,5 +3020,58 @@ html[data-theme="light"] #section-options .opts-header {
 @media (max-width: 768px) {
   #section-available .btn--cast {
     transform: translateY(-20px);
+  }
+}
+
+/* Pasek losowania */
+.av2-randbox{
+  display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+  padding:.5rem 0 .25rem;
+}
+.av2-randbox select{ min-width: 220px; }
+.av2-randbox .chk{ display:inline-flex; align-items:center; gap:.4rem; }
+
+/* Podświetlenie wylosowanej karty */
+.av-card.is-highlight{
+  outline: 2px solid #58a6ff;
+  outline-offset: 2px;
+  animation: avPulse .9s ease-in-out 2;
+}
+@keyframes avPulse{
+  0%{ transform:scale(1); }
+  50%{ transform:scale(1.01); }
+  100%{ transform:scale(1); }
+}
+
+/* 🔹 Na desktopie — przenieś przycisk w prawy górny róg karty */
+@media (min-width: 1024px) {
+  #section-available .card {
+    position: relative;
+  }
+
+  #section-available .btn--cast {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    margin-top: 0; /* neutralizujemy wcześniejszy margines */
+  }
+}
+
+/* 🔹 Na mobile — dodatkowo wyżej */
+@media (max-width: 768px) {
+  #section-available .btn--cast {
+    margin-top: -20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  #section-available .card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  #section-available .btn--cast {
+    margin-left: auto;
   }
 }
