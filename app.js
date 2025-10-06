@@ -2060,3 +2060,110 @@ document.addEventListener("DOMContentLoaded", () => {
   const start = /#register/i.test(location.hash) ? "register" : "login";
   setAuthView(start);
 });
+
+
+/* ====== OPCJE (motyw + whoami + wyloguj) ====== */
+(function(){
+  const section = document.getElementById('section-options');
+  if (!section) return;
+
+  // API base jak w innych modułach
+  const API =
+    document.getElementById('auth-screen')?.dataset.apiBase ||
+    localStorage.getItem('pf_base') || '';
+  const joinUrl = (b, p) => `${(b||'').replace(/\/+$/,'')}/${String(p||'').replace(/^\/+/, '')}`;
+  const tokenOk = () => !!(window.getAuthToken && window.getAuthToken());
+
+  // UI refs
+  const themeChk   = section.querySelector('#opts-theme');
+  const btnRefresh = section.querySelector('#opts-refresh');
+  const btnLogout  = section.querySelector('#opts-logout');
+
+  const elName   = section.querySelector('#opts-name');
+  const elEmail  = section.querySelector('#opts-email');
+  const elId     = section.querySelector('#opts-id');
+  const elStatus = section.querySelector('#opts-status');
+  const elErr    = section.querySelector('#opts-error');
+
+  // ===== Motyw (synchronizacja z globalnym #theme-toggle) =====
+  const root = document.documentElement;
+  const THEME_KEY = 'theme';
+  const globalBtn = document.getElementById('theme-toggle');
+
+  function currentTheme(){
+    // priorytet: atrybut na <html> -> localStorage -> prefers
+    const attr = root.getAttribute('data-theme');
+    if (attr === 'light' || attr === 'dark') return attr;
+    const ls = localStorage.getItem(THEME_KEY);
+    if (ls === 'light' || ls === 'dark') return ls;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function setTheme(t){
+    const val = (t === 'dark') ? 'dark' : 'light';
+    root.setAttribute('data-theme', val);
+    try { localStorage.setItem(THEME_KEY, val); } catch(_){}
+    themeChk.checked = (val === 'dark');
+    if (globalBtn) globalBtn.setAttribute('aria-pressed', String(val === 'dark'));
+  }
+
+  // init stanu przełącznika
+  setTheme(currentTheme());
+  themeChk.addEventListener('change', () => setTheme(themeChk.checked ? 'dark' : 'light'));
+  // też zsynchronizuj z globalnym przyciskiem, jeśli ktoś go kliknie
+  globalBtn?.addEventListener('click', () => setTheme(
+    root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+  ));
+
+  // ===== WhoAmI (GET /auth/whoami) =====
+  async function loadWhoAmI(){
+    elErr.textContent = '';
+    elStatus.textContent = tokenOk() ? 'Sprawdzam…' : 'Nie zalogowany';
+    if (!tokenOk()){
+      elName.textContent = '—';
+      elEmail.textContent = '—';
+      elId.textContent = '—';
+      return;
+    }
+    try{
+      const r = await window.authFetch(joinUrl(API, '/auth/whoami'), { method:'GET' });
+      const j = await r.json().catch(()=> ({}));
+      if (!r.ok){
+        throw new Error(j?.message || j?.error || ('HTTP '+r.status));
+      }
+      const first = j.first_name || j.firstName || j.given_name || '';
+      const last  = j.last_name  || j.lastName  || j.family_name || '';
+      const name  = (first || last) ? `${first} ${last}`.trim() : (j.name || '—');
+      elName.textContent = name || '—';
+      elEmail.textContent = j.email || j.username || '—';
+      elId.textContent = String(j.id ?? j.user_id ?? '—');
+      elStatus.textContent = 'Zalogowany';
+    } catch(err){
+      elStatus.textContent = 'Błąd';
+      elErr.textContent = (err && err.message) ? err.message : 'Nie udało się pobrać danych.';
+      elName.textContent = '—';
+      elEmail.textContent = '—';
+      elId.textContent = '—';
+    }
+  }
+  btnRefresh?.addEventListener('click', loadWhoAmI);
+
+  // ===== Wylogowanie =====
+  btnLogout?.addEventListener('click', async () => {
+    // jeżeli masz backendowe /auth/logout możesz tu strzelić, ale wystarczy wyczyścić token lokalnie
+    try { window.clearAuthToken && window.clearAuthToken(); } catch(_){}
+    // UI: przełącz na ekran logowania (showAuth jest wołany przez clearAuthToken w Twoim kodzie)
+  });
+
+  // ===== Integracja z nawigacją — doładowuj przy wejściu =====
+  window.showSection = window.showSection || function(){};
+  const prevShow = window.showSection;
+  window.showSection = function(name){
+    try { prevShow && prevShow(name); } catch(_){}
+    if (name === 'options'){ loadWhoAmI(); }
+  };
+
+  // Jeśli ktoś wejdzie prosto w /#options
+  if (location.hash.replace('#','') === 'options') {
+    setTimeout(loadWhoAmI, 50);
+  }
+})();

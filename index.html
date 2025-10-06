@@ -464,6 +464,70 @@
     </main>
   </div>
 
+<!-- ===================== OPCJE ===================== -->
+<section id="section-options" class="section" aria-label="Opcje" hidden aria-hidden="true">
+  <div class="opts">
+    <!-- Karta: motyw -->
+    <article class="opts__card">
+      <header class="opts__card-hd">
+        <h2>Motyw</h2>
+      </header>
+      <div class="opts__row">
+        <div class="opts__col">
+          <div class="opts__label">Tryb jasny / ciemny</div>
+          <div class="opts__hint">Przełącz wygląd aplikacji. Zapamiętywany w przeglądarce.</div>
+        </div>
+        <div class="opts__col opts__col--end">
+          <label class="switch">
+            <input id="opts-theme" type="checkbox" aria-label="Przełącz motyw">
+            <span class="switch__ui" aria-hidden="true"></span>
+            <span class="switch__txt">Ciemny</span>
+          </label>
+        </div>
+      </div>
+    </article>
+
+    <!-- Karta: kto zalogowany -->
+    <article class="opts__card" aria-live="polite">
+      <header class="opts__card-hd">
+        <h2>Konto</h2>
+        <button id="opts-refresh" class="btn btn--ghost" type="button" title="Odśwież">Odśwież</button>
+      </header>
+
+      <div id="opts-user" class="opts__user">
+        <div class="opts__row">
+          <div class="opts__col">
+            <div class="opts__label">Imię i nazwisko</div>
+            <div class="opts__value" id="opts-name">—</div>
+          </div>
+          <div class="opts__col">
+            <div class="opts__label">E-mail</div>
+            <div class="opts__value" id="opts-email">—</div>
+          </div>
+        </div>
+        <div class="opts__row">
+          <div class="opts__col">
+            <div class="opts__label">ID użytkownika</div>
+            <div class="opts__value" id="opts-id">—</div>
+          </div>
+          <div class="opts__col">
+            <div class="opts__label">Status</div>
+            <div class="opts__value" id="opts-status">—</div>
+          </div>
+        </div>
+        <p id="opts-error" class="form__error" role="alert"></p>
+      </div>
+
+      <footer class="opts__card-ft">
+        <button id="opts-logout" class="btn btn--danger" type="button">Wyloguj</button>
+      </footer>
+    </article>
+  </div>
+</section>
+
+
+
+
   <!-- Główny skrypt aplikacji -->
   <script src="app.js" defer></script>
 
