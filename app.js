@@ -2212,20 +2212,32 @@ if (optsLogo) {
   });
 }
 
-// === GENRES: helper do kapsułek pod tytułem ===
+// === GENRES: helper z kolorami gradientowymi per gatunek ===
 function genreChipsHtml(names, limit = 4) {
   if (!Array.isArray(names) || names.length === 0) return "";
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])
   );
 
+  // Deterministyczny hue 0..359 na bazie stringa
+  function hashHue(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
+
   const take = names.filter(Boolean).slice(0, limit);
   const more = Math.max(0, names.length - take.length);
 
-  const chips = take.map(n => `<span class="av2-genre" title="${esc(n)}">${esc(n)}</span>`).join("");
+  const chips = take.map(n => {
+    const hue = hashHue(String(n));
+    return `<span class="av2-genre" style="--g-h:${hue}" title="${esc(n)}">${esc(n)}</span>`;
+  }).join("");
+
   const moreChip = more > 0
     ? `<span class="av2-genre av2-genre--more" title="${names.map(esc).join(", ")}">+${more}</span>`
     : "";
 
   return `<div class="av2-genres" aria-label="Gatunki">${chips}${moreChip}</div>`;
 }
+

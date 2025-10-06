@@ -2289,11 +2289,19 @@ html[data-theme="light"] #section-search #sx-quality {
 }
 
 #section-available .av-actions{ display: flex; gap: 8px; align-items: center; }
-#section-available .btn--cast{
-  appearance:none; border:0; cursor:pointer; border-radius:12px; padding:9px 12px; font-weight:800;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff;
+#section-available .btn--cast {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
   box-shadow: 0 10px 22px rgba(124,58,237,.28), 0 6px 14px rgba(6,182,212,.22);
+  margin-top: -10px; /* 🔹 podnosi przycisk */
 }
+
 @media (hover:hover){
   #section-available .btn--cast:hover{ filter: brightness(1.05); }
 }
@@ -2941,8 +2949,65 @@ html[data-theme="light"] #section-options .opts-header {
 }
 
 
-/* Genres (kapsułki) pod tytułem */
-.av2-genres{display:flex;flex-wrap:wrap;gap:.375rem;margin:.25rem 0 .25rem}
-.av2-genre{font-size:.72rem;line-height:1;padding:.2rem .5rem;border-radius:9999px;
-           background:rgba(0,0,0,.6);color:#fff;backdrop-filter:saturate(120%) blur(2px)}
-.av2-genre--more{opacity:.85}
+/* Kontener na żetony gatunków */
+.av2-genres{
+  display:flex; flex-wrap:wrap; gap:.375rem; margin:.25rem 0 .25rem;
+}
+
+/* Pojedynczy żeton */
+.av2-genre{
+  --g-h: 200;             /* <- nadpisywane inline z JS */
+  --g-s: 72%;
+  --g-l: 46%;
+  --g-l2: calc(var(--g-l) + 10%);
+  --g-s2: calc(var(--g-s) + 8%);
+  display:inline-flex; align-items:center; gap:.35ch;
+  padding:.22rem .6rem; border-radius:9999px;
+  font-size:.72rem; line-height:1; white-space:nowrap; user-select:none;
+  color:#fff; text-shadow: 0 1px 1.25px rgba(0,0,0,.45);
+  background:
+    linear-gradient(135deg,
+      hsl(var(--g-h) var(--g-s) var(--g-l2)) 0%,
+      hsl(calc(var(--g-h) + 24) var(--g-s2) calc(var(--g-l) - 6%)) 100%);
+  border:1px solid color-mix(in hsl,
+      hsl(var(--g-h) var(--g-s) var(--g-l)) 60%,
+      black 40%);
+  box-shadow:
+    0 .5px 0 rgba(255,255,255,.15) inset,
+    0 1px 2px rgba(0,0,0,.25);
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+
+.av2-genre:hover{ transform: translateY(-1px); filter: saturate(1.05) brightness(1.03); }
+.av2-genre:active{ transform: translateY(0); filter: none; }
+.av2-genre:focus-visible{
+  outline: 2px solid color-mix(in hsl,
+    hsl(var(--g-h) var(--g-s) var(--g-l2)) 70%, white 30%);
+  outline-offset: 2px;
+}
+
+/* „+N” – stonowany, żeby nie gryzł się z kolorami */
+.av2-genre--more{
+  background: linear-gradient(135deg, rgba(110,110,110,.35), rgba(60,60,60,.55));
+  border-color: rgba(0,0,0,.35);
+  color:#eee; text-shadow: 0 1px 1px rgba(0,0,0,.35);
+}
+
+/* Light theme – delikatne rozjaśnienie i ciemniejsza ramka */
+:root[data-theme="light"] .av2-genre{
+  color:#111; text-shadow:none;
+  border-color: color-mix(in hsl,
+    hsl(var(--g-h) var(--g-s) var(--g-l)) 30%, black 30%);
+  box-shadow:
+    0 .5px 0 rgba(255,255,255,.4) inset,
+    0 .5px 1.5px rgba(0,0,0,.12);
+}
+:root[data-theme="light"] .av2-genre--more{
+  background: linear-gradient(135deg, rgba(180,180,180,.5), rgba(140,140,140,.6));
+  color:#222;
+}
+
+/* Prefer-reduced-motion: bez animacji */
+@media (prefers-reduced-motion: reduce){
+  .av2-genre{ transition: none; }
+}
