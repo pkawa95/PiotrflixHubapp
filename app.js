@@ -1439,29 +1439,50 @@ async function setPosterOnce(url) {
   }
 
   // ---- canon map ----
-  function canon(r) {
-    const title = r.display_title || r.title || r.name || "—";
-    const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-    const isSeries = (r.kind || r.type || "").toLowerCase() === "series" || !!r.season || !!r.episode;
-    const kind = isSeries ? "series" : "movie";
-    const pos =
-      (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
-    const dur =
-      (r.duration_ms ?? r.total_ms ?? 1000 * (r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
-    let prog = r.progress ?? r.ratio ?? (dur > 0 ? pos / dur : 0);
-    prog = clamp01(prog > 1.01 ? prog / 100 : prog);
-    const id =
-      (String(r.plex_id || r.ratingKey || "").match(/^\d+$/)
-        ? String(r.plex_id || r.ratingKey)
-        : String(r.id || ""));
+function canon(r) {
+  const title = r.display_title || r.title || r.name || "—";
+  const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
+  const isSeries = (r.kind || r.type || "").toLowerCase() === "series" || !!r.season || !!r.episode;
+  const kind = isSeries ? "series" : "movie";
+  const pos =
+    (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
+  const dur =
+    (r.duration_ms ?? r.total_ms ?? 1000 * (r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
+  let prog = r.progress ?? r.ratio ?? (dur > 0 ? pos / dur : 0);
+  const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
+  prog = clamp01(prog > 1.01 ? prog / 100 : prog);
+  const id =
+    (String(r.plex_id || r.ratingKey || "").match(/^\d+$/)
+      ? String(r.plex_id || r.ratingKey)
+      : String(r.id || ""));
 
-    const delAt = parseDeleteAt(r.deleteAt ?? r.delete_at ?? null);
-    const favorite = !!r.favorite;
+  const delAt = (function parseDeleteAt(val){
+    if (val == null || val === "") return null;
+    if (typeof val === "number") {
+      const n = Number(val);
+      if (!isFinite(n)) return null;
+      return n < 1e12 ? Math.round(n * 1000) : Math.round(n);
+    }
+    const s = String(val).trim();
+    if (!s) return null;
+    const asNum = Number(s.replace(",", "."));
+    if (isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum * 1000) : Math.round(asNum);
+    const t = Date.parse(s);
+    return isNaN(t) ? null : t;
+  })(r.deleteAt ?? r.delete_at ?? null);
 
-    return { id, title, poster, kind, pos, dur, prog,
-      season: r.season ?? null, episode: r.episode ?? null,
-      year: r.year || r.release_year || null, deleteAt: delAt, favorite: favorite === true };
-  }
+  return {
+    id, title, poster, kind, pos, dur, prog,
+    season: r.season ?? null,
+    episode: r.episode ?? null,
+    year: r.year || r.release_year || null,
+    deleteAt: delAt,
+    favorite: r.favorite === true,
+    // ⬇⬇⬇ NOWE: przepuść nazwy gatunków z backendu
+    genres: Array.isArray(r.genres) ? r.genres.filter(Boolean) : []
+  };
+}
+
   const ep = (it) => it.kind === "series"
       ? `S${String(it.season ?? "--").padStart(2, "0")}E${String(it.episode ?? "--").padStart(2, "0")}`
       : "";
@@ -1483,44 +1504,51 @@ async function setPosterOnce(url) {
 
     if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
 
-    const html = arr.map(it => {
-      const pct  = Math.round((it.prog || 0) * 100);
-      const year = it.year ? ` (${it.year})` : "";
-      const sub  = (it.kind === "series" && it.season != null && it.episode != null) ? ep(it) : "";
+const html = arr.map(it => {
+  const pct  = Math.round((it.prog || 0) * 100);
+  const year = it.year ? ` (${it.year})` : "";
+  const sub  = (it.kind === "series" && it.season != null && it.episode != null)
+    ? `S${String(it.season).padStart(2,"0")}E${String(it.episode).padStart(2,"0")}`
+    : "";
 
-      const showDel = !!(it.deleteAt && !it.favorite);
-      const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
+  const showDel = !!(it.deleteAt && !it.favorite);
+  const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
 
-      const delFooter = showDel ? `
-        <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-          <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
-          <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
-        </div>` : "";
+  const delFooter = showDel ? `
+    <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
+      <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
+      <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
+    </div>` : "";
 
-      return `
-        <article class="av-card ${showDel ? "has-del" : ""}">
-          <div class="poster" style="position:relative">
-            <img class="av-poster" src="${esc(it.poster)}" alt="">
-            <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
+  return `
+    <article class="av-card ${showDel ? "has-del" : ""}">
+      <div class="poster" style="position:relative">
+        <img class="av-poster" src="${esc(it.poster)}" alt="">
+        <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
+      </div>
+      <div class="body">
+        <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
+
+        ${genreChipsHtml(it.genres)} <!-- ⬅⬅⬅ DODANE: kapsułki gatunków pod tytułem -->
+
+        ${sub ? `<div class="meta">${sub}</div>` : ""}
+
+        <div class="av-progress-wrap">
+          <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+            <span class="av-bar" style="width:${pct}%;"></span>
           </div>
-          <div class="body">
-            <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
-            ${sub ? `<div class="meta">${sub}</div>` : ""}
-            <div class="av-progress-wrap">
-              <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-                <span class="av-bar" style="width:${pct}%;"></span>
-              </div>
-            </div>
-            <div class="tiny">${pct}% ${
-              it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
-            }</div>
-            <div class="actions">
-              <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
-            </div>
-          </div>
-          ${delFooter}
-        </article>`;
-    }).join("");
+        </div>
+        <div class="tiny">${pct}% ${
+          it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
+        }</div>
+        <div class="actions">
+          <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
+        </div>
+      </div>
+      ${delFooter}
+    </article>`;
+}).join("");
+
 
     setHTML(listEl, html);
 
@@ -2182,4 +2210,22 @@ if (optsLogo) {
       }, 50);
     }
   });
+}
+
+// === GENRES: helper do kapsułek pod tytułem ===
+function genreChipsHtml(names, limit = 4) {
+  if (!Array.isArray(names) || names.length === 0) return "";
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])
+  );
+
+  const take = names.filter(Boolean).slice(0, limit);
+  const more = Math.max(0, names.length - take.length);
+
+  const chips = take.map(n => `<span class="av2-genre" title="${esc(n)}">${esc(n)}</span>`).join("");
+  const moreChip = more > 0
+    ? `<span class="av2-genre av2-genre--more" title="${names.map(esc).join(", ")}">+${more}</span>`
+    : "";
+
+  return `<div class="av2-genres" aria-label="Gatunki">${chips}${moreChip}</div>`;
 }

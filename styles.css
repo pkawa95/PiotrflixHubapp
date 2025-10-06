@@ -2939,3 +2939,10 @@ html[data-theme="light"] #section-options .opts-header {
 #section-options .opts-logo:hover {
   transform: scale(1.05);
 }
+
+
+/* Genres (kapsułki) pod tytułem */
+.av2-genres{display:flex;flex-wrap:wrap;gap:.375rem;margin:.25rem 0 .25rem}
+.av2-genre{font-size:.72rem;line-height:1;padding:.2rem .5rem;border-radius:9999px;
+           background:rgba(0,0,0,.6);color:#fff;backdrop-filter:saturate(120%) blur(2px)}
+.av2-genre--more{opacity:.85}
