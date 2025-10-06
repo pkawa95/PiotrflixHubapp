@@ -2167,3 +2167,19 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(loadWhoAmI, 50);
   }
 })();
+
+// Animacja pojawienia się logo przy wejściu do sekcji "Opcje"
+const optsLogo = document.querySelector('#section-options .opts-logo');
+if (optsLogo) {
+  window.addEventListener('showSection', e => {
+    if (e.detail === 'options') {
+      optsLogo.style.opacity = '0';
+      optsLogo.style.transform = 'translateY(-5px)';
+      setTimeout(() => {
+        optsLogo.style.transition = 'all 0.4s ease';
+        optsLogo.style.opacity = '1';
+        optsLogo.style.transform = 'translateY(0)';
+      }, 50);
+    }
+  });
+}
