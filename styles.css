@@ -3011,3 +3011,14 @@ html[data-theme="light"] #section-options .opts-header {
 @media (prefers-reduced-motion: reduce){
   .av2-genre{ transition: none; }
 }
+
+
+#section-available .btn--cast {
+  transform: translateY(-10px);
+}
+
+@media (max-width: 768px) {
+  #section-available .btn--cast {
+    transform: translateY(-20px);
+  }
+}
