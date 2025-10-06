@@ -2896,43 +2896,46 @@ html[data-theme="light"] .opts__card { background: #fff; border-color: rgba(0,0,
 .btn--ghost { background: transparent; border: 1px solid rgba(125,125,125,.35); }
 html[data-theme="light"] .btn--ghost { border-color: rgba(0,0,0,.18); }
 
-/* ===== OPCJE – sticky header z logo (fix pack) ===== */
-.opts-header{
+/* ===== Nagłówek sekcji Opcje ===== */
+#section-options .opts-header {
   position: sticky;
   top: 0;
-  z-index: 100;               /* ⬅️ ponad innymi nagłówkami/toolbarami */
+  z-index: 100;
   display: flex;
+  justify-content: space-between; /* <— kluczowe: lewo/prawo */
   align-items: center;
-  gap: .75rem;
-  padding: .75rem 1rem;
+  padding: 0.75rem 1rem;
   background: var(--color-bg, #0b1020);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-  backdrop-filter: blur(8px);
-}
-html[data-theme="light"] .opts-header{
-  background:#f5f6fa;
-  border-color:rgba(0,0,0,.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-/* Logo widoczne nawet bez stylów obrazka */
-.opts-logo{
-  width: 40px;                /* ⬅️ jawny rozmiar, żeby nie “znikało” przy 0x0 */
-  height: 40px;
-  object-fit: contain;
-  border-radius: 10px;
-  box-shadow: 0 1px 8px rgba(0,0,0,.25);
-  transition: transform .25s ease;
+html[data-theme="light"] #section-options .opts-header {
+  background: #f5f6fa;
 }
-.opts-logo:hover{ transform: scale(1.05); }
 
-.opts-title{
-  font-size: 1.25rem;
+/* tytuł "Opcje" po lewej */
+#section-options .opts-title {
+  font-size: 1.4rem;
   font-weight: 600;
-  letter-spacing: .02em;
+  margin: 0;
   color: var(--color-text, #fff);
 }
-html[data-theme="light"] .opts-title{ color:#111; }
 
-/* Na wypadek gdyby inny sticky miał większy z-index */
-.tx-stickybar{ z-index: 50; }
-.nawigacja    { z-index: 60; }  /* jeśli Twoja nawigacja jest “sticky/fixed” u góry/bottom */
+/* logo po prawej */
+#section-options .opts-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#section-options .opts-logo {
+  width: 60px;     /* większe logo */
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+#section-options .opts-logo:hover {
+  transform: scale(1.05);
+}
