@@ -1440,48 +1440,43 @@ async function setPosterOnce(url) {
 
   // ---- canon map ----
 function canon(r) {
-  const title = r.display_title || r.title || r.name || "—";
-  const poster = r.image_url || r.poster || r.poster_url || r.thumb || "";
-  const isSeries = (r.kind || r.type || "").toLowerCase() === "series" || !!r.season || !!r.episode;
-  const kind = isSeries ? "series" : "movie";
-  const pos =
-    (r.position_ms ?? r.view_offset_ms ?? 1000 * (r.position ?? r.watched_seconds ?? 0)) / 1000;
-  const dur =
-    (r.duration_ms ?? r.total_ms ?? 1000 * (r.duration ?? r.runtime ?? r.total_seconds ?? 0)) / 1000;
-  let prog = r.progress ?? r.ratio ?? (dur > 0 ? pos / dur : 0);
-  const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
-  prog = clamp01(prog > 1.01 ? prog / 100 : prog);
-  const id =
-    (String(r.plex_id || r.ratingKey || "").match(/^\d+$/)
-      ? String(r.plex_id || r.ratingKey)
-      : String(r.id || ""));
+  const isSeries =
+    r.series_id != null ||
+    r.season != null ||
+    r.episode != null;
 
-  const delAt = (function parseDeleteAt(val){
-    if (val == null || val === "") return null;
-    if (typeof val === "number") {
-      const n = Number(val);
-      if (!isFinite(n)) return null;
-      return n < 1e12 ? Math.round(n * 1000) : Math.round(n);
-    }
-    const s = String(val).trim();
-    if (!s) return null;
-    const asNum = Number(s.replace(",", "."));
-    if (isFinite(asNum)) return asNum < 1e12 ? Math.round(asNum * 1000) : Math.round(asNum);
-    const t = Date.parse(s);
-    return isNaN(t) ? null : t;
-  })(r.deleteAt ?? r.delete_at ?? null);
+  const rawProgress = Number(r.progress ?? 0);
+  const prog =
+    rawProgress > 1.01 ? rawProgress / 100 : rawProgress;
 
   return {
-    id, title, poster, kind, pos, dur, prog,
+    id: String(
+      r.movie_id ??
+      r.series_id ??
+      r.episode_id ??
+      r.id ??
+      ""
+    ),
+
+    title: r.title || r.series_title || "—",
+    poster: r.poster_url || r.poster || "",
+    kind: isSeries ? "series" : "movie",
+
+    pos: 0,
+    dur: 0,
+    prog,
+
     season: r.season ?? null,
     episode: r.episode ?? null,
-    year: r.year || r.release_year || null,
-    deleteAt: delAt,
-    favorite: r.favorite === true,
-    // ⬇⬇⬇ NOWE: przepuść nazwy gatunków z backendu
-    genres: Array.isArray(r.genres) ? r.genres.filter(Boolean) : []
+    year: r.year ?? null,
+
+    deleteAt: r.delete_at ? Date.parse(r.delete_at) : null,
+    favorite: false,
+
+    genres: Array.isArray(r.genres) ? r.genres : [],
   };
 }
+
 
   const ep = (it) => it.kind === "series"
       ? `S${String(it.season ?? "--").padStart(2, "0")}E${String(it.episode ?? "--").padStart(2, "0")}`
@@ -1581,30 +1576,34 @@ const html = arr.map(it => {
     });
   }
 
-  // ---- load ----
-  async function loadAvailable() {
-    if (!tokenOk()) {
-      setText(infoEl, "Musisz być zalogowany (brak tokenu).");
-      setHTML(listEl, "");
-      return;
-    }
-    setText(infoEl, "Ładuję listę…");
+// ---- load (NEW: user-based endpoints) ----
+async function loadAvailable() {
+  if (!tokenOk()) {
+    setText(infoEl, "Musisz być zalogowany (brak tokenu).");
     setHTML(listEl, "");
-    try {
-      const j = await apiJson("/me/available", { method: "GET" });
-      if (Array.isArray(j)) {
-        RAW.films = j.filter((x) => (x.kind || x.type || "").toLowerCase() !== "series");
-        RAW.series = j.filter((x) => (x.kind || x.type || "").toLowerCase() === "series");
-      } else {
-        RAW.films = Array.isArray(j?.films) ? j.films : Array.isArray(j?.movies) ? j.movies : [];
-        RAW.series = Array.isArray(j?.series) ? j.series : [];
-      }
-      rebuildIndex(); // ⬅️ indeks do szybkiego lookupu plakatów
-      render();
-    } catch (e) {
-      setText(infoEl, `Błąd: ${e.message || e}`);
-    }
+    return;
   }
+
+  setText(infoEl, "Ładuję listę…");
+  setHTML(listEl, "");
+
+  try {
+    // ⬇⬇⬇ NOWE źródła danych
+    const [movies, series] = await Promise.all([
+      apiJson("/user/movies", { method: "GET" }),
+      apiJson("/user/series", { method: "GET" }),
+    ]);
+
+    RAW.films = Array.isArray(movies) ? movies : [];
+    RAW.series = Array.isArray(series) ? series : [];
+
+    rebuildIndex(); // ⬅️ indeks do szybkiego lookupu plakatów
+    render();
+  } catch (e) {
+    setText(infoEl, `Błąd: ${e.message || e}`);
+  }
+}
+
 
   // ---- tabs ----
   function setTab(kind) {
