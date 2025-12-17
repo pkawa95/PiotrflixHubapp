@@ -1438,44 +1438,68 @@ async function setPosterOnce(url) {
     if (plPct) setText(plPct, `${pct}%`);
   }
 
-  // ---- canon map ----
-function canon(r) {
-  const isSeries =
-    r.series_id != null ||
-    r.season != null ||
-    r.episode != null;
+function normalizeGenres(g) {
+  if (!g) return [];
 
-  const rawProgress = Number(r.progress ?? 0);
+  // już tablica
+  if (Array.isArray(g)) {
+    return g.map(x => String(x).trim()).filter(Boolean);
+  }
+
+  // JSON string z backendu
+  if (typeof g === "string") {
+    try {
+      const parsed = JSON.parse(g);
+      if (Array.isArray(parsed)) {
+        return parsed.map(x => String(x).trim()).filter(Boolean);
+      }
+    } catch (_) {}
+  }
+
+  return [];
+}
+
+
+
+// ---- canon map ----
+function canon(r) {
+  // r = { movie: {...}, user: {...} }
+
+  const m = r.movie || {};
+  const u = r.user  || {};
+
+  const rawProgress = Number(u.progress ?? 0);
   const prog =
     rawProgress > 1.01 ? rawProgress / 100 : rawProgress;
 
   return {
-    id: String(
-      r.movie_id ??
-      r.series_id ??
-      r.episode_id ??
-      r.id ??
-      ""
-    ),
+    id: String(m.id || ""),
+    title: m.title || "—",
+    poster: m.poster_url || "",
+    year: m.year ?? null,
 
-    title: r.title || r.series_title || "—",
-    poster: r.poster_url || r.poster || "",
-    kind: isSeries ? "series" : "movie",
+    kind: "movie",
 
+    // progress / playback
+    prog,
     pos: 0,
     dur: 0,
-    prog,
 
-    season: r.season ?? null,
-    episode: r.episode ?? null,
-    year: r.year ?? null,
+    // user-specific
+    deleteAt: u.delete_at ? Date.parse(u.delete_at) : null,
+    favorite: Boolean(u.favorite ?? false),
+    available: u.available !== false,
 
-    deleteAt: r.delete_at ? Date.parse(r.delete_at) : null,
-    favorite: false,
+    // ✅ GENRES — ZAWSZE TABLICA
+    genres: normalizeGenres(m.genres),
 
-    genres: Array.isArray(r.genres) ? r.genres : [],
+    rating: m.tmdb_rating ?? null,
+
+    // passthrough
+    _raw: r,
   };
 }
+
 
 
   const ep = (it) => it.kind === "series"
