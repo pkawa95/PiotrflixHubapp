@@ -354,19 +354,8 @@ html[data-theme="light"] .nawigacja {
 .form__actions { display: grid; gap: 12px; }
 
 /* Przyciski – neon glossy */
-.btn {
-  appearance: none; border: 0; border-radius: 14px;
-  padding: 12px 16px; font-weight: 800; letter-spacing: .2px;
-  cursor: pointer; color: #0b1220;
-  transition: transform .06s ease, box-shadow .2s ease, filter .2s ease;
-}
-.btn--primary {
-  color: #0b1220;
-  background:
-    linear-gradient(135deg, var(--primary), var(--primary-2)),
-    linear-gradient(180deg, rgba(255,255,255,.25), rgba(255,255,255,.05));
-  box-shadow: 0 12px 28px rgba(124,58,237,.35), 0 6px 18px rgba(6,182,212,.28);
-}
+
+
 @media (hover:hover) {
   .btn--primary:hover { filter: brightness(1.05); box-shadow: 0 16px 34px rgba(124,58,237,.40), 0 8px 22px rgba(6,182,212,.32); }
 }
@@ -2289,22 +2278,9 @@ html[data-theme="light"] #section-search #sx-quality {
 }
 
 #section-available .av-actions{ display: flex; gap: 8px; align-items: center; }
-#section-available .btn--cast {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  border-radius: 12px;
-  padding: 9px 12px;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(124,58,237,.28), 0 6px 14px rgba(6,182,212,.22);
-  margin-top: -10px; /* 🔹 podnosi przycisk */
-}
 
-@media (hover:hover){
-  #section-available .btn--cast:hover{ filter: brightness(1.05); }
-}
+
+
 
 /* —— Player (pokazuje się po starcie castu) —— */
 #section-available .av2-player{
@@ -3013,16 +2989,6 @@ html[data-theme="light"] #section-options .opts-header {
 }
 
 
-#section-available .btn--cast {
-  transform: translateY(-10px);
-}
-
-@media (max-width: 768px) {
-  #section-available .btn--cast {
-    transform: translateY(-20px);
-  }
-}
-
 /* Pasek losowania */
 .av2-randbox{
   display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
@@ -3043,3 +3009,879 @@ html[data-theme="light"] #section-options .opts-header {
   100%{ transform:scale(1); }
 }
 
+/* =========================================================
+   SERIES – SEASONS (pill buttons) + EPISODES
+   Dopasowane do PREMIUM NEON GLOSSY
+   ========================================================= */
+
+/* Kontener rozwinięcia */
+.av-series-expand {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* ===== Sezony jako przyciski ===== */
+.av-season {
+  margin-bottom: 12px;
+}
+
+.av-season__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: .9rem;
+
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.08),
+    rgba(255,255,255,.03)
+  );
+  border: 1px solid var(--border);
+  color: var(--fg);
+
+  cursor: pointer;
+  user-select: none;
+  transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+}
+
+/* Hover */
+@media (hover:hover) {
+  .av-season__head:hover {
+    transform: translateY(-1px);
+    background: linear-gradient(
+      180deg,
+      rgba(124,58,237,.18),
+      rgba(6,182,212,.12)
+    );
+    box-shadow: var(--glow-soft);
+  }
+}
+
+/* Sezon ukończony */
+.av-season[data-complete="1"] .av-season__head {
+  background: linear-gradient(
+    135deg,
+    rgba(34,197,94,.9),
+    rgba(16,185,129,.9)
+  );
+  color: #0b1220;
+  border: none;
+  box-shadow: 0 10px 24px rgba(34,197,94,.35);
+}
+
+/* ===== Pasek postępu sezonu ===== */
+.av-season .av-progress {
+  margin: 8px 0 6px;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,.08);
+  border: 1px solid var(--border);
+}
+
+.av-season .av-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-soft);
+}
+
+/* ===== Lista odcinków ===== */
+.av-episodes {
+  list-style: none;
+  padding: 6px 6px 2px;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.av-episode {
+  display: grid;
+  grid-template-columns: 40px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 10px;
+  border-radius: 10px;
+
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  font-size: .85rem;
+  color: var(--fg);
+
+  transition: background .15s ease, opacity .15s ease;
+}
+
+/* Obejrzany odcinek */
+.av-episode.is-watched {
+  opacity: .55;
+  text-decoration: line-through;
+}
+
+/* Hover odcinka */
+@media (hover:hover) {
+  .av-episode:hover {
+    background: rgba(255,255,255,.08);
+  }
+}
+
+/* Numer */
+.ep-no {
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* Tytuł */
+.ep-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Procent */
+.ep-pct {
+  text-align: right;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* =========================================================
+   SEASON TOGGLE – PREMIUM NEON BUTTON
+   ========================================================= */
+
+.av-season__head {
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* licznik odcinków */
+.av-season__count {
+  font-weight: 700;
+  font-size: .85rem;
+  color: var(--muted);
+}
+
+/* strzałka */
+.av-season__toggle {
+  font-size: .8rem;
+  font-weight: 900;
+  opacity: .7;
+  transition: transform .2s ease, opacity .2s ease;
+}
+
+/* hover – strzałka */
+@media (hover:hover) {
+  .av-season__head:hover .av-season__toggle {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* ===== rozwinięty sezon ===== */
+.av-season__body {
+  margin-top: 8px;
+  padding: 10px 10px 6px;
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.04),
+    rgba(255,255,255,.02)
+  );
+  border: 1px solid var(--border);
+  animation: season-open .18s ease;
+}
+
+@keyframes season-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* obrót strzałki */
+.av-season:not(:has(.av-season__body[hidden])) .av-season__toggle {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+/* focus accessibility */
+.av-season__head:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+
+/* =========================================================
+   SEASONS TOGGLE (Sezony / Zwiń)
+   Styl: PiotrFlix – neon + glass + pill
+   ========================================================= */
+
+.av-seasons-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-top: 10px;
+  padding: 8px 16px;
+
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: .9rem;
+
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    var(--primary-2)
+  );
+
+  border: none;
+  cursor: pointer;
+  user-select: none;
+
+  box-shadow:
+    0 10px 26px rgba(124,58,237,.45),
+    inset 0 1px 0 rgba(255,255,255,.25);
+
+  transition:
+    transform .12s ease,
+    box-shadow .2s ease,
+    filter .2s ease;
+}
+
+/* hover */
+@media (hover:hover) {
+  .av-seasons-toggle:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow:
+      0 14px 32px rgba(124,58,237,.6),
+      inset 0 1px 0 rgba(255,255,255,.3);
+  }
+}
+
+/* active / click */
+.av-seasons-toggle:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 18px rgba(124,58,237,.35),
+    inset 0 2px 4px rgba(0,0,0,.25);
+}
+
+/* focus (accessibility) */
+.av-seasons-toggle:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(124,58,237,.35),
+    0 14px 32px rgba(124,58,237,.6);
+}
+
+/* label */
+.av-seasons-toggle__label {
+  letter-spacing: .2px;
+}
+
+/* strzałka */
+.av-seasons-toggle__icon {
+  font-size: .8rem;
+  font-weight: 900;
+  opacity: .9;
+  transition: transform .2s ease;
+}
+
+/* ===== STAN ROZWINIĘTY ===== */
+.av-seasons-toggle[aria-expanded="true"] {
+  background: linear-gradient(
+    135deg,
+    #64748b,
+    #475569
+  );
+  box-shadow:
+    0 10px 24px rgba(15,23,42,.55),
+    inset 0 1px 0 rgba(255,255,255,.15);
+}
+
+/* obrót strzałki */
+.av-seasons-toggle[aria-expanded="true"]
+.av-seasons-toggle__icon {
+  transform: rotate(180deg);
+}
+
+
+/* =========================================================
+   SERIES CARD – FINAL FIX (GRID, NO DRAMA)
+   ========================================================= */
+
+.av-card {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  grid-template-rows: auto auto 1fr;
+  gap: 14px;
+
+  align-items: start;
+  padding: 14px;
+
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+/* POSTER */
+.av-card .poster {
+  grid-row: 1 / span 3;
+}
+.av-poster {
+  width: 96px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* BODY */
+.av-card .body {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 8px;
+}
+
+/* TITLE */
+.av-card .title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+/* ACTIONS – PRAWA KOLUMNA */
+.av-card .actions {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: space-between;
+}
+
+/* BUTTONS – UJEDNOLICONE */
+.av-card .actions button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+
+  padding: 10px 16px;
+  font-weight: 800;
+  font-size: .9rem;
+
+  cursor: pointer;
+  color: #fff;
+
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: var(--glow-soft);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+
+
+/* MOBILE */
+@media (max-width: 640px) {
+  .av-card {
+    grid-template-columns: 72px 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .av-card .poster {
+    grid-row: 1 / span 4;
+  }
+
+  .av-card .actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .av-card .actions button {
+    flex: 1;
+  }
+}
+
+/* =========================================================
+   CORE UI SYSTEM — CLEAN BASE
+   ========================================================= */
+
+/* ---------- Layout ---------- */
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+/* ---------- Card ---------- */
+
+.card {
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+  padding: 14px;
+}
+
+/* media card (poster + body + actions) */
+.card--media {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .card--media {
+    grid-template-columns: 72px 1fr;
+  }
+}
+
+/* ---------- Poster ---------- */
+
+.card__poster {
+  width: 96px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .card__poster {
+    width: 72px;
+    height: 108px;
+  }
+}
+
+/* ---------- Body ---------- */
+
+.card__body {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Actions ---------- */
+
+.card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+@media (max-width: 640px) {
+  .card__actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+}
+
+/* ---------- Buttons ---------- */
+
+
+
+/* ---------- Progress ---------- */
+
+.progress {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-soft);
+}
+
+/* =========================================================
+   SERIES CARD — CLEAN v1
+   ========================================================= */
+
+.series-card {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 16px;
+  padding: 16px;
+
+  background: linear-gradient(180deg, #0b1220, #070b14);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+}
+
+/* poster */
+.series-poster {
+  width: 96px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+
+/* main */
+.series-main {
+  display: grid;
+  gap: 8px;
+}
+
+.series-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* genres */
+.series-genres {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.genre-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+  background: rgba(255,255,255,.12);
+}
+
+/* progress */
+.series-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+}
+
+.series-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #22d3ee, #8b5cf6);
+}
+
+/* meta */
+.series-meta {
+  font-size: .85rem;
+  opacity: .7;
+}
+
+/* actions */
+.series-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 640px) {
+  .series-card {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .series-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+
+
+/* =========================================================
+   SERIES CARD – CLEAN LAYOUT (NO LEGACY)
+   ========================================================= */
+
+.series-card {
+  display: grid;
+  grid-template-columns: 96px 1fr 220px;
+  gap: 16px;
+
+  padding: 16px;
+  border-radius: 20px;
+
+  background: linear-gradient(180deg, var(--card-strong), var(--card));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* POSTER */
+.series-poster {
+  width: 96px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+/* MAIN */
+.series-main {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.series-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+/* GENRES */
+.series-genres {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.series-genre {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+}
+
+/* PROGRESS */
+.series-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.series-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-2), var(--primary));
+  box-shadow: var(--glow-soft);
+}
+
+/* META */
+.series-meta {
+  font-size: .85rem;
+  color: var(--muted);
+}
+
+/* ACTIONS */
+.series-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+
+/* MOBILE */
+@media (max-width: 640px) {
+  .series-card {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .series-poster {
+    width: 72px;
+    height: 108px;
+  }
+
+  .series-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+
+
+}
+
+
+/* =========================================================
+   AV CARD — HARD RESET (NO MERCY MODE) v4
+   ========================================================= */
+
+.av-card {
+  display: grid !important;
+  grid-template-columns: 120px 1fr 220px !important;
+  gap: 20px !important;
+
+  align-items: center !important;
+
+  padding: 18px !important;
+  border-radius: 22px !important;
+
+  background: linear-gradient(180deg, var(--card-strong), var(--card)) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* =========================================================
+   POSTER
+   ========================================================= */
+
+.av-card .poster {
+  width: 120px !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+/* ❌ usuwamy pasek progressu pod plakatem */
+.av-card .poster .vprog {
+  display: none !important;
+}
+
+.av-card .av-poster {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
+  object-fit: cover !important;
+  border-radius: 14px !important;
+}
+
+/* =========================================================
+   BODY
+   ========================================================= */
+
+.av-card .body {
+  display: grid !important;
+  gap: 10px !important;
+  align-content: center !important;
+}
+
+/* =========================================================
+   ACTIONS — DESKTOP (RIGHT COLUMN)
+   ========================================================= */
+
+.av-card .actions {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 12px !important;
+
+  justify-self: end !important;
+}
+
+/* =========================================================
+   BASE BUTTON — FIXED SIZE (CAST & SEZONY)
+   ========================================================= */
+
+.av-card .action-btn {
+  all: unset !important;
+
+  /* 🔒 SZTYWNE WYMIARY */
+  width: 140px !important;
+  height: 44px !important;
+
+  border-radius: 999px !important;
+  padding: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+
+  font-weight: 700 !important;
+  font-size: .95rem !important;
+  letter-spacing: .2px !important;
+
+  cursor: pointer !important;
+  white-space: nowrap !important;
+
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)) !important;
+
+  box-shadow:
+    0 10px 22px rgba(124,58,237,.4),
+    0 4px 12px rgba(6,182,212,.3) !important;
+}
+
+/* Cast i Sezony — TEN SAM ROZMIAR */
+.av-card .action-btn--cast,
+.av-card .action-btn--seasons {
+  width: 140px !important;
+  height: 44px !important;
+}
+
+/* Sezony – glass, ale bez zmiany wymiarów */
+.av-card .action-btn--seasons {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04)),
+    linear-gradient(135deg, var(--primary), var(--primary-2)) !important;
+
+  border: 1px solid rgba(255,255,255,.18) !important;
+}
+
+/* =========================================================
+   SERIES EXPAND
+   ========================================================= */
+
+.av-card .av-series-expand {
+  grid-column: 1 / 3 !important;
+  margin-top: 14px !important;
+}
+
+/* =========================================================
+   MOBILE — SAFE ZONE ABOVE DELETE BAR
+   ========================================================= */
+
+@media (max-width: 720px) {
+
+  .av-card {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding-bottom: 96px !important; /* 🟡 miejsce na belkę usuwania */
+  }
+
+  /* POSTER — MOBILE */
+  .av-card .poster {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .av-card .av-poster {
+    width: auto !important;
+    max-width: 200px !important;
+    height: auto !important;
+
+    aspect-ratio: 2 / 3 !important;
+    object-fit: contain !important;
+
+    margin: 0 auto !important;
+  }
+
+  /* ACTIONS — PODNIESIONE NAD BELKĘ */
+  .av-card .actions {
+    align-items: center !important;
+    width: 100% !important;
+    margin-bottom: 24px !important; /* 🔼 podniesienie przycisków */
+  }
+
+  /* SZTYWNE WYMIARY — MOBILE */
+  .av-card .action-btn,
+  .av-card .action-btn--cast,
+  .av-card .action-btn--seasons {
+    width: 140px !important;
+    height: 44px !important;
+  }
+
+  .av-card .av-series-expand {
+    grid-column: 1 !important;
+  }
+}

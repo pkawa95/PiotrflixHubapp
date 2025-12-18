@@ -837,38 +837,59 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --------- Render ---------
-  function renderResults(items, ctx){
-    if (!Array.isArray(items) || !items.length){
-      results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
-      return;
-    }
-    const html = items.map((it) => {
-      const title = esc(pick(it,'title','name','display_title') || '—');
-      const desc  = esc(pick(it,'description','overview','summary') || '');
-      const img   = pick(it,'image','poster','thumb','poster_url') || 'https://via.placeholder.com/300x450?text=Poster';
-      const url   = pick(it,'url','link','href') || '';
-      const magnet= pick(it,'magnet','magnet_uri') || '';
-      const rating= it.rating ? `★ ${esc(String(it.rating))}` : '';
-      const provider = esc(it.provider || ctx.provider || '—');
-
-      return `
-        <article class="qcard" data-provider="${esc(ctx.provider)}" data-type="${esc(ctx.type)}"
-                 ${url ? `data-url="${esc(url)}"` : ''} ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
-          <img class="qcard__img" src="${esc(img)}" alt="" onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
-          <div>
-            <div class="qcard__title">${title}</div>
-            <p class="qcard__desc">${desc}</p>
-            <div class="qcard__meta">
-              ${rating ? `${rating} • ` : ''}<span class="tbadge"><span class="tbadge__dot"></span>${provider}</span>
-            </div>
-          </div>
-          <div class="qcard__actions">
-            <button class="tbtn sx-btn-get">Pobierz</button>
-          </div>
-        </article>`;
-    }).join('');
-    results.innerHTML = html;
+function renderResults(items, ctx){
+  if (!Array.isArray(items) || !items.length){
+    results.innerHTML = `<div class="tx-empty">Brak wyników dla podanego zapytania.</div>`;
+    return;
   }
+
+  const html = items.map(it => {
+    const title = esc(pick(it,'title','name','display_title') || '—');
+    const desc  = esc(pick(it,'description','overview','summary') || '');
+    const img   = pick(it,'image','poster','thumb','poster_url')
+      || 'https://via.placeholder.com/300x450?text=Poster';
+    const url   = pick(it,'url','link','href') || '';
+    const magnet= pick(it,'magnet','magnet_uri') || '';
+    const rating= it.rating ? `★ ${esc(String(it.rating))}` : null;
+    const provider = esc(it.provider || ctx.provider || '—');
+
+    return `
+      <article class="search-card"
+        data-provider="${esc(ctx.provider || '')}"
+        data-type="${esc(ctx.type || '')}"
+        ${url ? `data-url="${esc(url)}"` : ''}
+        ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
+
+        <img
+          class="search-poster"
+          src="${esc(img)}"
+          alt=""
+          onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+
+        <div class="search-main">
+          <h3 class="search-title">${title}</h3>
+
+          ${desc ? `<p class="search-desc">${desc}</p>` : ''}
+
+          <div class="search-meta">
+            ${rating ? `<span class="search-rating">${rating}</span>` : ''}
+            <span class="search-provider">${provider}</span>
+          </div>
+        </div>
+
+        <div class="search-actions">
+          <button class="search-btn search-btn--primary sx-btn-get">
+            Pobierz
+          </button>
+        </div>
+
+      </article>
+    `;
+  }).join('');
+
+  results.innerHTML = html;
+}
+
 
   // --------- Search ---------
   async function doSearch(){
@@ -1507,6 +1528,70 @@ function canonSeries(r) {
   };
 }
 
+function renderSeriesSeasons(seriesId, container) {
+  container.innerHTML = `<div class="tx-empty">Ładuję sezony…</div>`;
+
+  apiJson(`/user/series/${encodeURIComponent(seriesId)}/seasons`, { method: "GET" })
+    .then(seasons => {
+      if (!Array.isArray(seasons) || !seasons.length) {
+        container.innerHTML = `<div class="tx-empty">Brak danych o sezonach.</div>`;
+        return;
+      }
+
+      container.innerHTML = seasons.map(s => {
+        const pct = Math.round(s.progress || 0);
+
+        return `
+          <div class="av-season"
+               data-season="${s.season}"
+               data-complete="${pct >= 99 ? 1 : 0}">
+
+            <!-- PRZYCISK SEZONU -->
+            <button class="av-season__head"
+                    type="button"
+                    aria-expanded="false">
+
+              <span class="av-season__label">
+                Sezon ${s.season}
+              </span>
+
+              <span class="av-season__count">
+                ${s.watched_episodes}/${s.total_episodes}
+              </span>
+
+              <span class="av-season__toggle" aria-hidden="true">▼</span>
+            </button>
+
+            <!-- ROZWIJANA ZAWARTOŚĆ SEZONU -->
+            <div class="av-season__body" hidden>
+
+              <div class="av-progress">
+                <span class="av-bar" style="width:${pct}%;"></span>
+              </div>
+
+              <ul class="av-episodes">
+                ${s.episodes.map(e => `
+                  <li class="av-episode ${e.progress >= 92 ? "is-watched" : ""}">
+                    <span class="ep-no">E${String(e.episode).padStart(2, "0")}</span>
+                    <span class="ep-title">${esc(e.title)}</span>
+                    <span class="ep-pct">${Math.round(e.progress || 0)}%</span>
+                  </li>
+                `).join("")}
+              </ul>
+
+            </div>
+          </div>
+        `;
+      }).join("");
+    })
+    .catch(err => {
+      console.error(err);
+      container.innerHTML = `<div class="tx-empty">Błąd ładowania sezonów.</div>`;
+    });
+}
+
+
+
 // ---- render ----
 function render() {
   const arrRaw =
@@ -1526,16 +1611,10 @@ function render() {
 
   setText(infoEl, `Pozycji: ${arr.length}`);
 
-  if (badgeTimer) {
-    clearInterval(badgeTimer);
-    badgeTimer = null;
-  }
-
   const html = arr.map(it => {
     const pct  = Math.round((it.prog || 0) * 100);
     const year = it.year ? ` (${it.year})` : "";
 
-    // ⬇⬇⬇ TYLKO FILMY mają deleteAt
     const showDel =
       it.kind === "movie" &&
       !!it.deleteAt &&
@@ -1544,85 +1623,101 @@ function render() {
     const diff = showDel ? (it.deleteAt - Date.now()) : 0;
 
     const delFooter = showDel ? `
-      <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-        <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
-        <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
+      <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}">
+        <div><strong>${fmtTTL(diff)}</strong></div>
+        <div>${fmtDateShort(it.deleteAt)}</div>
       </div>` : "";
 
-    // ⬇⬇⬇ linia info różna dla filmu / serialu
-    const tinyLine =
-      it.kind === "series"
-        ? `${it.watchedEpisodes} / ${it.totalEpisodes} odcinków`
-        : `${pct}%${
-            it.dur
-              ? ` · ${Math.round((it.pos || 0) / 60)} / ${Math.round((it.dur || 0) / 60)} min`
-              : ""
-          }`;
-
     return `
-      <article class="av-card ${showDel ? "has-del" : ""}">
-        <div class="poster" style="position:relative">
+      <article class="av-card ${it.kind === "series" ? "is-series" : ""}">
+        <div class="poster">
           <img class="av-poster" src="${esc(it.poster)}" alt="">
-          <div class="vprog" aria-hidden="true">
-            <span style="width:${pct}%;"></span>
-          </div>
+          <div class="vprog"><span style="width:${pct}%;"></span></div>
         </div>
 
         <div class="body">
-          <div class="title" title="${esc(it.title)}">
-            ${esc(it.title)}${year}
-          </div>
-
+          <div class="title">${esc(it.title)}${year}</div>
           ${genreChipsHtml(it.genres || [])}
 
-          <div class="av-progress-wrap">
-            <div class="av-progress"
-                 role="progressbar"
-                 aria-valuemin="0"
-                 aria-valuemax="100"
-                 aria-valuenow="${pct}">
-              <span class="av-bar" style="width:${pct}%;"></span>
-            </div>
+          <div class="av-progress">
+            <span class="av-bar" style="width:${pct}%;"></span>
           </div>
 
-          <div class="tiny">${tinyLine}</div>
+          <div class="tiny">
+            ${
+              it.kind === "series"
+                ? `${it.watchedEpisodes} / ${it.totalEpisodes} odcinków`
+                : `${pct}%`
+            }
+          </div>
 
           <div class="actions">
+            <!-- CAST -->
             <button
-              class="btn--cast"
+              class="action-btn action-btn--cast btn--cast"
               data-id="${esc(it.id)}"
               data-title="${esc(it.title)}"
               data-poster="${esc(it.poster)}"
               data-kind="${it.kind}">
               Cast ▶
             </button>
+
+            <!-- SEZONY -->
+            ${
+              it.kind === "series"
+                ? `
+                <button
+                  class="action-btn action-btn--seasons av-seasons-toggle"
+                  data-series-id="${esc(it.id)}"
+                  aria-expanded="false"
+                  type="button">
+                  <span class="action-btn__label">Sezony</span>
+                  <span class="action-btn__icon av-seasons-toggle__icon">▼</span>
+                </button>
+                `
+                : ""
+            }
           </div>
+
+          ${
+            it.kind === "series"
+              ? `<div class="av-series-expand" data-series="${esc(it.id)}" hidden></div>`
+              : ""
+          }
         </div>
 
         ${delFooter}
-      </article>`;
+      </article>
+    `;
   }).join("");
 
   setHTML(listEl, html);
 
-  // refresh badge TTL
-  listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
-    const ts = Number(row.getAttribute("data-delete-at") || "");
-    if (isFinite(ts)) setDelState(row, ts - Date.now());
+  // ---- expand series (Sezony / Zwiń) ----
+  listEl.querySelectorAll(".av-seasons-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.seriesId;
+      const box = listEl.querySelector(
+        `.av-series-expand[data-series="${CSS.escape(id)}"]`
+      );
+      if (!box) return;
+
+      const open = !box.hasAttribute("hidden");
+
+      box.toggleAttribute("hidden", open);
+      btn.setAttribute("aria-expanded", String(!open));
+
+      const icon = btn.querySelector(".av-seasons-toggle__icon");
+      if (icon) icon.textContent = open ? "▼" : "▲";
+
+      if (!open && !box.dataset.loaded) {
+        box.dataset.loaded = "1";
+        renderSeriesSeasons(id, box);
+      }
+    });
   });
 
-  const refreshBadges = () => {
-    listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
-      const ts = Number(row.getAttribute("data-delete-at") || "");
-      if (!isFinite(ts)) return;
-      setDelState(row, ts - Date.now());
-      const left = row.querySelector(".del-row__left strong");
-      if (left) left.textContent = fmtTTL(ts - Date.now());
-    });
-  };
-  badgeTimer = setInterval(refreshBadges, 20000);
-
-  // Cast
+  // ---- cast ----
   listEl.querySelectorAll(".btn--cast").forEach(b => {
     b.addEventListener("click", () => {
       selected = {
@@ -2301,3 +2396,83 @@ function genreChipsHtml(names, limit = 4) {
   return `<div class="av2-genres" aria-label="Gatunki">${chips}${moreChip}</div>`;
 }
 
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".av-season__head");
+  if (!btn) return;
+
+  const season = btn.closest(".av-season");
+  const body = season.querySelector(".av-season__body");
+  const icon = btn.querySelector(".av-season__toggle");
+  if (!body || !icon) return;
+
+  const isOpen = !body.hasAttribute("hidden");
+
+  // 🔒 zamknij inne sezony (UX)
+  season.parentElement
+    .querySelectorAll(".av-season__body:not([hidden])")
+    .forEach(el => {
+      if (el !== body) {
+        el.setAttribute("hidden", "");
+        const ic = el.closest(".av-season")?.querySelector(".av-season__toggle");
+        if (ic) ic.textContent = "▼";
+      }
+    });
+
+  // toggle aktualny
+  body.toggleAttribute("hidden", isOpen);
+  icon.textContent = isOpen ? "▼" : "▲";
+});
+
+
+function renderSeries(items) {
+  if (!Array.isArray(items) || !items.length) {
+    results.innerHTML = `<div class="tx-empty">Brak seriali.</div>`;
+    return;
+  }
+
+  results.innerHTML = items.map(it => {
+    const title = esc(it.title || "—");
+    const year  = it.year ? ` (${it.year})` : "";
+    const poster = esc(it.poster || "https://via.placeholder.com/300x450?text=Poster");
+
+    const pct = Math.round((it.progress || 0) * 100);
+
+    return `
+      <article class="series-card" data-id="${esc(it.id)}">
+
+        <img class="series-poster"
+             src="${poster}"
+             alt=""
+             loading="lazy">
+
+        <div class="series-main">
+          <h3 class="series-title">${title}${year}</h3>
+
+          <div class="series-genres">
+            ${(it.genres || []).map(g =>
+              `<span class="series-genre">${esc(g)}</span>`
+            ).join("")}
+          </div>
+
+          <div class="series-progress">
+            <span class="series-progress__bar" style="width:${pct}%"></span>
+          </div>
+
+          <div class="series-meta">
+            ${it.watched_episodes} / ${it.total_episodes} odcinków
+          </div>
+        </div>
+
+        <div class="series-actions">
+          <button class="series-btn series-btn--seasons">
+            Sezony ▼
+          </button>
+          <button class="series-btn series-btn--cast">
+            Cast ▶
+          </button>
+        </div>
+
+      </article>
+    `;
+  }).join("");
+}
