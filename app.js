@@ -1461,144 +1461,181 @@ function normalizeGenres(g) {
 
 
 
-// ---- canon map ----
-function canon(r) {
-  // r = { movie: {...}, user: {...} }
-
+function canonMovie(r) {
   const m = r.movie || {};
   const u = r.user  || {};
 
   const rawProgress = Number(u.progress ?? 0);
-  const prog =
-    rawProgress > 1.01 ? rawProgress / 100 : rawProgress;
+  const prog = rawProgress > 1.01 ? rawProgress / 100 : rawProgress;
 
   return {
-    id: String(m.id || ""),
-    title: m.title || "—",
+    kind: "movie",
+    id: String(m.id),
+    title: m.title,
     poster: m.poster_url || "",
     year: m.year ?? null,
-
-    kind: "movie",
-
-    // progress / playback
     prog,
-    pos: 0,
-    dur: 0,
-
-    // user-specific
     deleteAt: u.delete_at ? Date.parse(u.delete_at) : null,
-    favorite: Boolean(u.favorite ?? false),
-    available: u.available !== false,
-
-    // ✅ GENRES — ZAWSZE TABLICA
     genres: normalizeGenres(m.genres),
-
     rating: m.tmdb_rating ?? null,
-
-    // passthrough
-    _raw: r,
+    _raw: r
   };
 }
 
+function canonSeries(r) {
+  const s = r.series || {};
+  const u = r.user   || {};
 
+  const total = Number(u.total_episodes || 0);
+  const watched = Number(u.watched_episodes || 0);
+  const prog = total > 0 ? watched / total : 0;
 
-  const ep = (it) => it.kind === "series"
-      ? `S${String(it.season ?? "--").padStart(2, "0")}E${String(it.episode ?? "--").padStart(2, "0")}`
-      : "";
+  return {
+    kind: "series",
+    id: String(s.id),
+    title: s.title,
+    poster: s.poster_url || "",
+    year: s.year ?? null,
 
-  // ---- render ----
-  function render() {
-    const arrRaw =
-      activeKind === "movies"
-        ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies) ? RAW.movies : []))
-        : (Array.isArray(RAW.series) ? RAW.series : []);
-    const arr = arrRaw.map(canon);
+    totalEpisodes: total,
+    watchedEpisodes: watched,
+    prog,
 
-    if (!arr.length) {
-      setHTML(listEl, "");
-      setText(infoEl, "Brak pozycji do wyświetlenia.");
-      return;
-    }
-    setText(infoEl, `Pozycji: ${arr.length}`);
+    genres: normalizeGenres(s.genres),
+    rating: s.tmdb_rating ?? null,
+    _raw: r
+  };
+}
 
-    if (badgeTimer) { clearInterval(badgeTimer); badgeTimer = null; }
+// ---- render ----
+function render() {
+  const arrRaw =
+    activeKind === "movies"
+      ? (Array.isArray(RAW.films) ? RAW.films : (Array.isArray(RAW.movies) ? RAW.movies : []))
+      : (Array.isArray(RAW.series) ? RAW.series : []);
 
-const html = arr.map(it => {
-  const pct  = Math.round((it.prog || 0) * 100);
-  const year = it.year ? ` (${it.year})` : "";
-  const sub  = (it.kind === "series" && it.season != null && it.episode != null)
-    ? `S${String(it.season).padStart(2,"0")}E${String(it.episode).padStart(2,"0")}`
-    : "";
+  const arr = arrRaw.map(
+    activeKind === "movies" ? canonMovie : canonSeries
+  );
 
-  const showDel = !!(it.deleteAt && !it.favorite);
-  const diff    = showDel ? (it.deleteAt - Date.now()) : 0;
+  if (!arr.length) {
+    setHTML(listEl, "");
+    setText(infoEl, "Brak pozycji do wyświetlenia.");
+    return;
+  }
 
-  const delFooter = showDel ? `
-    <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
-      <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
-      <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
-    </div>` : "";
+  setText(infoEl, `Pozycji: ${arr.length}`);
 
-  return `
-    <article class="av-card ${showDel ? "has-del" : ""}">
-      <div class="poster" style="position:relative">
-        <img class="av-poster" src="${esc(it.poster)}" alt="">
-        <div class="vprog" aria-hidden="true"><span style="width:${pct}%;"></span></div>
-      </div>
-      <div class="body">
-        <div class="title" title="${esc(it.title)}">${esc(it.title)}${year}</div>
+  if (badgeTimer) {
+    clearInterval(badgeTimer);
+    badgeTimer = null;
+  }
 
-        ${genreChipsHtml(it.genres)} <!-- ⬅⬅⬅ DODANE: kapsułki gatunków pod tytułem -->
+  const html = arr.map(it => {
+    const pct  = Math.round((it.prog || 0) * 100);
+    const year = it.year ? ` (${it.year})` : "";
 
-        ${sub ? `<div class="meta">${sub}</div>` : ""}
+    // ⬇⬇⬇ TYLKO FILMY mają deleteAt
+    const showDel =
+      it.kind === "movie" &&
+      !!it.deleteAt &&
+      !it.favorite;
 
-        <div class="av-progress-wrap">
-          <div class="av-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
-            <span class="av-bar" style="width:${pct}%;"></span>
+    const diff = showDel ? (it.deleteAt - Date.now()) : 0;
+
+    const delFooter = showDel ? `
+      <div class="del-row ${delClass(diff)}" data-delete-at="${it.deleteAt}" role="note" aria-live="polite">
+        <div class="del-row__left"><strong>${fmtTTL(diff)}</strong></div>
+        <div class="del-row__right"><span class="del-date">${fmtDateShort(it.deleteAt)}</span></div>
+      </div>` : "";
+
+    // ⬇⬇⬇ linia info różna dla filmu / serialu
+    const tinyLine =
+      it.kind === "series"
+        ? `${it.watchedEpisodes} / ${it.totalEpisodes} odcinków`
+        : `${pct}%${
+            it.dur
+              ? ` · ${Math.round((it.pos || 0) / 60)} / ${Math.round((it.dur || 0) / 60)} min`
+              : ""
+          }`;
+
+    return `
+      <article class="av-card ${showDel ? "has-del" : ""}">
+        <div class="poster" style="position:relative">
+          <img class="av-poster" src="${esc(it.poster)}" alt="">
+          <div class="vprog" aria-hidden="true">
+            <span style="width:${pct}%;"></span>
           </div>
         </div>
-        <div class="tiny">${pct}% ${
-          it.dur ? `· ${Math.round((it.pos || 0)/60)} / ${Math.round((it.dur || 0)/60)} min` : ""
-        }</div>
-        <div class="actions">
-          <button class="btn--cast" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-poster="${esc(it.poster)}">Cast ▶</button>
+
+        <div class="body">
+          <div class="title" title="${esc(it.title)}">
+            ${esc(it.title)}${year}
+          </div>
+
+          ${genreChipsHtml(it.genres || [])}
+
+          <div class="av-progress-wrap">
+            <div class="av-progress"
+                 role="progressbar"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-valuenow="${pct}">
+              <span class="av-bar" style="width:${pct}%;"></span>
+            </div>
+          </div>
+
+          <div class="tiny">${tinyLine}</div>
+
+          <div class="actions">
+            <button
+              class="btn--cast"
+              data-id="${esc(it.id)}"
+              data-title="${esc(it.title)}"
+              data-poster="${esc(it.poster)}"
+              data-kind="${it.kind}">
+              Cast ▶
+            </button>
+          </div>
         </div>
-      </div>
-      ${delFooter}
-    </article>`;
-}).join("");
 
+        ${delFooter}
+      </article>`;
+  }).join("");
 
-    setHTML(listEl, html);
+  setHTML(listEl, html);
 
-    listEl.querySelectorAll(".del-row[data-delete-at]").forEach((row) => {
+  // refresh badge TTL
+  listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
+    const ts = Number(row.getAttribute("data-delete-at") || "");
+    if (isFinite(ts)) setDelState(row, ts - Date.now());
+  });
+
+  const refreshBadges = () => {
+    listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
       const ts = Number(row.getAttribute("data-delete-at") || "");
       if (!isFinite(ts)) return;
       setDelState(row, ts - Date.now());
+      const left = row.querySelector(".del-row__left strong");
+      if (left) left.textContent = fmtTTL(ts - Date.now());
     });
+  };
+  badgeTimer = setInterval(refreshBadges, 20000);
 
-    const refreshBadges = () => {
-      listEl.querySelectorAll(".del-row[data-delete-at]").forEach(row => {
-        const ts = Number(row.getAttribute("data-delete-at") || "");
-        if (!isFinite(ts)) return;
-        setDelState(row, ts - Date.now());
-        const left = row.querySelector(".del-row__left strong");
-        if (left) left.textContent = fmtTTL(ts - Date.now());
-      });
-    };
-    badgeTimer = setInterval(refreshBadges, 20000);
-
-    listEl.querySelectorAll(".btn--cast").forEach(b => {
-      b.addEventListener("click", () => {
-        selected = {
-          id: b.getAttribute("data-id") || "",
-          title: b.getAttribute("data-title") || "",
-          poster: b.getAttribute("data-poster") || "",
-        };
-        openCastModal();
-      });
+  // Cast
+  listEl.querySelectorAll(".btn--cast").forEach(b => {
+    b.addEventListener("click", () => {
+      selected = {
+        id: b.dataset.id || "",
+        title: b.dataset.title || "",
+        poster: b.dataset.poster || "",
+        kind: b.dataset.kind || "movie"
+      };
+      openCastModal();
     });
-  }
+  });
+}
+
 
 // ---- load (NEW: user-based endpoints) ----
 async function loadAvailable() {
