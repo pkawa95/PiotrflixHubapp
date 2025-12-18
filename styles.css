@@ -3711,16 +3711,18 @@ html[data-theme="light"] #section-options .opts-header {
 
 
 }
-
-
 /* =========================================================
-   AV CARD — HARD RESET (NO MERCY MODE) v4
+   AV CARD — HARD RESET (DESKTOP LOCKED)
    ========================================================= */
 
 .av-card {
   display: grid !important;
-  grid-template-columns: 120px 1fr 220px !important;
-  gap: 20px !important;
+
+  /* 🔒 SZTYWNY GRID — NIC GO NIE RUSZY */
+  grid-template-columns: 120px minmax(0, 1fr) 220px !important;
+
+  column-gap: 20px !important;
+  row-gap: 0 !important;
 
   align-items: center !important;
 
@@ -3730,6 +3732,8 @@ html[data-theme="light"] #section-options .opts-header {
   background: linear-gradient(180deg, var(--card-strong), var(--card)) !important;
   border: 1px solid var(--border) !important;
   box-shadow: var(--shadow) !important;
+
+  overflow: hidden !important; /* 🔒 */
 }
 
 /* =========================================================
@@ -3738,6 +3742,7 @@ html[data-theme="light"] #section-options .opts-header {
 
 .av-card .poster {
   width: 120px !important;
+  flex-shrink: 0 !important;
   display: flex !important;
   justify-content: center !important;
 }
@@ -3756,17 +3761,25 @@ html[data-theme="light"] #section-options .opts-header {
 }
 
 /* =========================================================
-   BODY
+   BODY — ZAMKNIĘTY
    ========================================================= */
 
 .av-card .body {
   display: grid !important;
   gap: 10px !important;
   align-content: center !important;
+
+  min-width: 0 !important;      /* 🔒 KLUCZ */
+  overflow: hidden !important;  /* 🔒 */
+}
+
+/* title / chips / progress NIE MOGĄ ROZPYCHAĆ */
+.av-card .body > * {
+  min-width: 0 !important;
 }
 
 /* =========================================================
-   ACTIONS — DESKTOP (RIGHT COLUMN)
+   ACTIONS — DESKTOP (RIGHT COLUMN LOCKED)
    ========================================================= */
 
 .av-card .actions {
@@ -3776,6 +3789,8 @@ html[data-theme="light"] #section-options .opts-header {
   gap: 12px !important;
 
   justify-self: end !important;
+  min-width: 220px !important;   /* 🔒 */
+  flex-shrink: 0 !important;     /* 🔒 */
 }
 
 /* =========================================================
@@ -3785,7 +3800,6 @@ html[data-theme="light"] #section-options .opts-header {
 .av-card .action-btn {
   all: unset !important;
 
-  /* 🔒 SZTYWNE WYMIARY */
   width: 140px !important;
   height: 44px !important;
 
@@ -3819,15 +3833,6 @@ html[data-theme="light"] #section-options .opts-header {
   height: 44px !important;
 }
 
-/* Sezony – glass, ale bez zmiany wymiarów */
-.av-card .action-btn--seasons {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04)),
-    linear-gradient(135deg, var(--primary), var(--primary-2)) !important;
-
-  border: 1px solid rgba(255,255,255,.18) !important;
-}
-
 /* =========================================================
    SERIES EXPAND
    ========================================================= */
@@ -3846,10 +3851,9 @@ html[data-theme="light"] #section-options .opts-header {
   .av-card {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
-    padding-bottom: 96px !important; /* 🟡 miejsce na belkę usuwania */
+    padding-bottom: 96px !important;
   }
 
-  /* POSTER — MOBILE */
   .av-card .poster {
     width: 100% !important;
     justify-content: center !important;
@@ -3859,29 +3863,63 @@ html[data-theme="light"] #section-options .opts-header {
     width: auto !important;
     max-width: 200px !important;
     height: auto !important;
-
-    aspect-ratio: 2 / 3 !important;
     object-fit: contain !important;
-
     margin: 0 auto !important;
   }
 
-  /* ACTIONS — PODNIESIONE NAD BELKĘ */
   .av-card .actions {
     align-items: center !important;
     width: 100% !important;
-    margin-bottom: 24px !important; /* 🔼 podniesienie przycisków */
+    margin-bottom: 24px !important;
+    min-width: 0 !important;
   }
 
-  /* SZTYWNE WYMIARY — MOBILE */
-  .av-card .action-btn,
-  .av-card .action-btn--cast,
-  .av-card .action-btn--seasons {
+  .av-card .action-btn {
     width: 140px !important;
     height: 44px !important;
   }
 
   .av-card .av-series-expand {
     grid-column: 1 !important;
+  }
+}
+
+/* =========================================================
+   MOBILE BOTTOM MENU — SAFE AREA FIX (iOS / Android)
+   ========================================================= */
+
+.bottom-nav {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+
+  z-index: 9999 !important;
+
+  /* 🔑 SAFE AREA */
+  padding-bottom: env(safe-area-inset-bottom) !important;
+
+  /* jeżeli masz padding w środku menu */
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 10px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(10,12,20,0.85),
+    rgba(10,12,20,0.98)
+  ) !important;
+
+  backdrop-filter: blur(16px);
+}
+
+/* =========================================================
+   BODY — MIEJSCE NA MENU
+   ========================================================= */
+
+/* żeby content NIE był zasłaniany */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
   }
 }
