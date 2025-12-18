@@ -850,39 +850,35 @@ function renderResults(items, ctx){
       || 'https://via.placeholder.com/300x450?text=Poster';
     const url   = pick(it,'url','link','href') || '';
     const magnet= pick(it,'magnet','magnet_uri') || '';
-    const rating= it.rating ? `★ ${esc(String(it.rating))}` : null;
+    const rating= it.rating ? `★ ${esc(String(it.rating))}` : '';
     const provider = esc(it.provider || ctx.provider || '—');
 
     return `
-      <article class="search-card"
+      <article class="tcard"
         data-provider="${esc(ctx.provider || '')}"
         data-type="${esc(ctx.type || '')}"
         ${url ? `data-url="${esc(url)}"` : ''}
         ${magnet ? `data-magnet="${esc(magnet)}"` : ''}>
 
-        <img
-          class="search-poster"
-          src="${esc(img)}"
-          alt=""
-          onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
+        <img class="tcard__img"
+             src="${esc(img)}"
+             alt=""
+             onerror="this.src='https://via.placeholder.com/300x450?text=Poster'">
 
-        <div class="search-main">
-          <h3 class="search-title">${title}</h3>
+        <div class="tcard__body">
+          <h3 class="tcard__title">${title}</h3>
 
-          ${desc ? `<p class="search-desc">${desc}</p>` : ''}
+          ${desc ? `<p class="tcard__desc">${desc}</p>` : ''}
 
-          <div class="search-meta">
-            ${rating ? `<span class="search-rating">${rating}</span>` : ''}
-            <span class="search-provider">${provider}</span>
+          <div class="tcard__meta">
+            ${rating ? `<span>${rating}</span>` : ''}
+            <span>${provider}</span>
           </div>
         </div>
 
-        <div class="search-actions">
-          <button class="search-btn search-btn--primary sx-btn-get">
-            Pobierz
-          </button>
+        <div class="tcard__actions">
+          <button class="tbtn sx-btn-get">Pobierz</button>
         </div>
-
       </article>
     `;
   }).join('');
@@ -963,7 +959,8 @@ function renderResults(items, ctx){
 
   results?.addEventListener('click', async (e) => {
     const btn = e.target.closest('.sx-btn-get'); if (!btn) return;
-    const card = btn.closest('.qcard'); if (!card) return;
+    const card = btn.closest('.tcard');
+    if (!card) return;
 
     const provider = card.dataset.provider || providerForMode(mode);
     const type = card.dataset.type || typeForMode(mode);
