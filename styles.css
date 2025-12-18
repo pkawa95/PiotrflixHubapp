@@ -3043,3 +3043,16 @@ html[data-theme="light"] #section-options .opts-header {
   100%{ transform:scale(1); }
 }
 
+@media (max-width: 640px){
+  .tx-toolbar--search{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tx-input,
+  .select,
+  .btn{
+    width: 100%;
+  }
+}
+
